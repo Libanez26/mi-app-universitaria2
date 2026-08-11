@@ -488,7 +488,7 @@ else:
                             st.markdown("---")
                             st.markdown("#### ✅ Resultado Final")
                             
-                            nota_final_objetivo = 9.5 if "20" in escala_sel else 47.5
+                            nota_final_objetivo = 12 if "20" in escala_sel else 60
                             
                             if puntos_acum >= nota_final_objetivo:
                                 st.success(f"¡Felicidades! Con {puntos_acum:.2f} {unidad}, estás **APROBADO** en esta materia.")
