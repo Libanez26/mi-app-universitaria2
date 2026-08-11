@@ -6,67 +6,14 @@ from google import genai
 from google.genai import types
 from supabase import create_client, Client
 
-# --- FUNCIÓN PARA CARGAR DATOS ---
-def cargar_datos_usuario(user_id):
-    try:
-        respuesta = supabase.table("perfiles_usuario").select("*").eq("id", user_id).execute()
-        if respuesta.data and len(respuesta.data) > 0:
-            datos = respuesta.data[0]
-            # Convertimos de nuevo a DataFrame y diccionario
-            if datos.get("pensum_data"):
-                st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
-            st.session_state["evaluaciones"] = datos.get("evaluaciones_data", {})
-    except Exception as e:
-        st.error(f"Error al cargar datos: {e}")
-
-# --- INICIALIZACIÓN DE SERVICIOS ---
-@st.cache_resource
-def init_supabase() -> Client:
-    raw_url = str(st.secrets["SUPABASE_URL"]).strip()
-    if "/rest/v1" in raw_url:
-        raw_url = raw_url.split("/rest/v1")[0]
-    raw_url = raw_url.rstrip("/")
-    
-    key = str(st.secrets["SUPABASE_KEY"]).strip()
-    return create_client(raw_url, key)
-
-try:
-    supabase = init_supabase()
-except Exception as e:
-    st.error(f"Error al conectar con Supabase: {e}")
-
-# --- ESTADO DE SESIÓN Y PERSISTENCIA ---
-if "usuario" not in st.session_state:
-    st.session_state["usuario"] = None
-
-# 🔄 INTENTAR RECUPERAR LA SESIÓN Y CARGAR DATOS AUTOMÁTICAMENTE
-if st.session_state["usuario"] is None:
-    try:
-        session_data = supabase.auth.get_session()
-        # Si existe sesión en el navegador, recuperamos usuario y sus datos
-        if session_data and hasattr(session_data, "user") and session_data.user:
-            st.session_state["usuario"] = session_data.user
-            # Llamamos a cargar datos inmediatamente
-            cargar_datos_usuario(session_data.user.id)
-    except Exception as e:
-        st.error(f"Error al recuperar sesión: {e}")
-
-# Inicialización de variables de estado si aún están vacías
-if "pensum_df" not in st.session_state:
-    st.session_state["pensum_df"] = None
-if "evaluaciones" not in st.session_state:
-    st.session_state["evaluaciones"] = {}
-if "mensajes_chat" not in st.session_state:
-    st.session_state["mensajes_chat"] = []
-
-# MUST BE THE FIRST STREAMLIT COMMAND
+# --- 1. CONFIGURACIÓN DE PÁGINA (DEBE SER EL PRIMERO) ---
 st.set_page_config(
     page_title="App Universitaria - Gestión de Materias",
     page_icon="🎓",
     layout="wide"
 )
 
-# --- INICIALIZACIÓN DE SERVICIOS ---
+# --- 2. INICIALIZACIÓN DE SERVICIOS ---
 @st.cache_resource
 def init_supabase() -> Client:
     raw_url = str(st.secrets["SUPABASE_URL"]).strip()
@@ -82,70 +29,71 @@ try:
 except Exception as e:
     st.error(f"Error al conectar con Supabase: {e}")
 
-# --- ESTADO DE SESIÓN ---
+# --- 3. ESTADO DE SESIÓN ---
 if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
 if "pensum_df" not in st.session_state:
     st.session_state["pensum_df"] = None
 if "evaluaciones" not in st.session_state:
     st.session_state["evaluaciones"] = {}
-if "mensajes_chat" not in st.session_state:
-    st.session_state["mensajes_chat"] = []
 
-# --- FUNCIONES DE BASE DE DATOS ---
+# --- 4. FUNCIONES DE BASE DE DATOS ---
 def cargar_datos_usuario(user_id):
     try:
         res = supabase.table("perfiles_usuario").select("*").eq("id", user_id).execute()
-        if res.data:
+        if res.data and len(res.data) > 0:
             datos = res.data[0]
             if datos.get("pensum_data"):
                 st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
             if datos.get("evaluaciones_data"):
                 st.session_state["evaluaciones"] = datos["evaluaciones_data"]
     except Exception as e:
-        st.error(f"Error cargando datos de la base de datos: {e}")
+        st.error(f"Error cargando datos: {e}")
 
 def guardar_datos_usuario():
     if not st.session_state["usuario"]:
         return
     
     user_id = st.session_state["usuario"].id
-    correo = st.session_state["usuario"].email
-    
-    pensum_json = st.session_state["pensum_df"].to_dict("records") if st.session_state["pensum_df"] is not None else None
-    evals_json = st.session_state["evaluaciones"]
-    
     data = {
         "id": user_id,
-        "correo": correo,
-        "pensum_data": pensum_json,
-        "evaluaciones_data": evals_json
+        "correo": st.session_state["usuario"].email,
+        "pensum_data": st.session_state["pensum_df"].to_dict("records") if st.session_state["pensum_df"] is not None else None,
+        "evaluaciones_data": st.session_state["evaluaciones"]
     }
     
     try:
         supabase.table("perfiles_usuario").upsert(data).execute()
-        st.toast("💾 Cambios guardados automáticamente", icon="☁️")
+        st.toast("💾 Cambios guardados", icon="☁️")
     except Exception as e:
-        st.error(f"Error al guardar datos: {e}")
+        st.error(f"Error al guardar: {e}")
 
-# --- LÓGICA DE CONTROL DE PRELACIONES ---
+# --- 5. RECUPERACIÓN DE SESIÓN (SOLO SI ES NECESARIO) ---
+# Hemos eliminado la carga automática forzada aquí. 
+# Ahora, la app esperará a que el usuario interactúe o use un botón de 'Iniciar' 
+# si prefieres mayor control, o mantendrá el get_session() solo si el usuario no ha cerrado sesión explícitamente.
+
+if st.session_state["usuario"] is None:
+    try:
+        session_data = supabase.auth.get_session()
+        if session_data and hasattr(session_data, "user") and session_data.user:
+            st.session_state["usuario"] = session_data.user
+            cargar_datos_usuario(session_data.user.id)
+    except Exception as e:
+        pass # Silencioso para no molestar en la carga inicial
+
+# --- 6. LÓGICA DE PRELACIONES ---
 def verificar_disponibilidad(row, df_completo):
     prelaciones_raw = str(row.get("prelaciones", "Ninguna")).strip()
-    
-    if prelaciones_raw.lower() in ["ninguna", "ninguno", "-", "", "none", "sin prelación"]:
+    if prelaciones_raw.lower() in ["ninguna", "ninguno", "-", "", "none"]:
         return True, "Disponible"
     
     codigos_aprobados = df_completo[df_completo["estado"] == "Aprobada"]["codigo"].tolist()
     materias_pre = [p.strip() for p in prelaciones_raw.replace("/", ",").split(",") if p.strip()]
-    faltantes = []
-    
-    for pre in materias_pre:
-        if pre not in codigos_aprobados and pre.lower() not in ["ninguna", ""]:
-            faltantes.append(pre)
+    faltantes = [p for p in materias_pre if p not in codigos_aprobados]
             
     if len(faltantes) > 0:
-        return False, f"🔒 Bloqueada (Requiere aprobar: {', '.join(faltantes)})"
-    
+        return False, f"🔒 Bloqueada (Requiere: {', '.join(faltantes)})"
     return True, "Disponible"
 
 # --- CÁLCULO DE PROMEDIO GLOBAL / ÍNDICE ACADÉMICO ---
