@@ -438,20 +438,13 @@ else:
                             if puntos_faltantes <= 0:
                                 col_ac3.metric(label="Estado de Aprobación", value="✅ Aprobado")
                             elif falta_peso > 0:
-                                nota_req = (puntos_faltantes / (falta_peso / 100.0))
-# ==========================================
+                                pass
+
+    # ==========================================
     # PESTAÑA 2: HORARIO DE CLASES
     # ==========================================
     with tab_horario:
         st.subheader("📅 Gestión de Horario de Clases")
-
-        # Selector de tiempo de anticipación para la alerta escogido por el usuario
-        tiempo_alerta = st.select_slider(
-            "Minutos de anticipación para las alertas de clases:",
-            options=[5, 10, 15],
-            value=5,
-            key="slider_tiempo_alerta"
-        )
 
         if st.session_state.get("horario_df") is None:
             st.info("👋 Sube tu horario de clases en formato PDF para organizarlo automáticamente.")
@@ -519,6 +512,9 @@ else:
                             if "d_orden" in df_final_horario.columns:
                                 df_final_horario = df_final_horario.drop(columns=["d_orden"])
 
+                            # Añadir la columna de notificaciones por defecto en True
+                            df_final_horario["notificar"] = True
+
                             st.session_state["horario_df"] = df_final_horario
                             guardar_datos_usuario()
                             st.success("¡Horario procesado, organizado y guardado con éxito!")
@@ -532,36 +528,40 @@ else:
                 guardar_datos_usuario()
                 st.rerun()
 
+            # Controles de alertas organizados una sola vez
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                activar_alertas = st.toggle("Activar alertas", value=True)
+            with col2:
+                tiempo_alerta = st.select_slider("Anticipación (min):", [5, 10, 15], value=5)
+
             df_horario_actual = st.session_state["horario_df"]
+            
+            if "notificar" not in df_horario_actual.columns:
+                df_horario_actual["notificar"] = True
+
             st.markdown("### 📋 Tu Horario Académico Organizado")
-            st.dataframe(df_horario_actual, use_container_width=True, hide_index=True)
+            
+            # Tabla interactiva para que puedas marcar cuáles materias avisar y cuáles no
+            df_editado = st.data_editor(
+                df_horario_actual,
+                column_config={"notificar": st.column_config.CheckboxColumn("¿Recibir aviso?")},
+                use_container_width=True,
+                hide_index=True,
+                key="editor_horario"
+            )
+            st.session_state["horario_df"] = df_editado
 
             # --- SISTEMA DE ALERTAS (Visual y Hablada) ---
             import datetime
             ahora_dt = datetime.datetime.now()
             hora_actual_minutos = ahora_dt.hour * 60 + ahora_dt.minute
-            
-           # 1. Primero definimos los controles (aquí se crean las variables)
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            activar_alertas = st.toggle("Activar alertas", value=True)
-        with col2:
-            tiempo_alerta = st.select_slider("Anticipación (min):", [5, 10, 15], value=5)
 
-        # 2. Luego verificamos si tenemos datos
-        if st.session_state.get("horario_df") is not None:
-            df_horario_actual = st.session_state["horario_df"]
-
-            # 3. Y finalmente ejecutamos el sistema de alertas
-            import datetime
-            ahora_dt = datetime.datetime.now()
-            hora_actual_minutos = ahora_dt.hour * 60 + ahora_dt.minute
-
-            if activar_alertas: # <-- Ahora sí existe esta variable
-                for _, clase in df_horario_actual.iterrows():
+            if activar_alertas:
+                for _, clase in df_editado.iterrows():
                     if clase.get("notificar", True): 
                         try:
-                            h_ini, m_ini = map(int, clase["inicio"].split(":"))
+                            h_ini, m_ini = map(int, str(clase["inicio"]).split(":"))
                             inicio_en_minutos = h_ini * 60 + m_ini
                             
                             diferencia = inicio_en_minutos - hora_actual_minutos
@@ -583,3 +583,46 @@ else:
                                 st.components.v1.html(js_voz, height=0)
                         except Exception:
                             pass
+
+    # ==========================================
+    # PESTAÑA 3: CHAT CON GEMINI
+    # ==========================================
+    with tab_chat:
+        st.subheader("🤖 Chat con Gemini sobre tu Carrera")
+        
+        for mensaje in st.session_state["mensajes_chat"]:
+            with st.chat_message(mensaje["role"]):
+                st.markdown(mensaje["content"])
+
+        if prompt_chat := st.chat_input("Escribe tu duda o consulta aquí..."):
+            st.session_state["mensajes_chat"].append({"role": "user", "content": prompt_chat})
+            with st.chat_message("user"):
+                st.markdown(prompt_chat)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Pensando..."):
+                    try:
+                        api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                        client = genai.Client(api_key=api_key)
+                        
+                        contexto_pensum = st.session_state["pensum_df"].to_string() if st.session_state["pensum_df"] is not None else "No cargado"
+                        contexto_horario = st.session_state["horario_df"].to_string() if st.session_state["horario_df"] is not None else "No cargado"
+                        
+                        system_prompt = f"""
+                        Eres un asistente universitario inteligente para un estudiante de Marketing con enfoque en Comercialización.
+                        Aquí tienes datos de contexto del estudiante:
+                        - Pensum: {contexto_pensum}
+                        - Horario: {contexto_horario}
+                        Ayúdalo de manera concisa y clara.
+                        """
+                        
+                        response = client.models.generate_content(
+                            model=modelo_seleccionado,
+                            contents=[system_prompt, prompt_chat]
+                        )
+                        
+                        respuesta_ia = response.text if response else "No obtuve respuesta."
+                        st.markdown(respuesta_ia)
+                        st.session_state["mensajes_chat"].append({"role": "assistant", "content": respuesta_ia})
+                    except Exception as e:
+                        st.error(f"Error al comunicarse con Gemini: {e}")
