@@ -188,7 +188,7 @@ else:
     tab_pensum, tab_horario, tab_chat = st.tabs([
         "📚 Pensum y Calificaciones", 
         "📅 Horario de Clases", 
-        "🤖 Chat con Gemini"
+        "⏱️ Pomodoro de Estudio Integrado"
     ])
 
     # ==========================================
