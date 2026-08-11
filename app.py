@@ -541,11 +541,24 @@ else:
             ahora_dt = datetime.datetime.now()
             hora_actual_minutos = ahora_dt.hour * 60 + ahora_dt.minute
             
-            # Verificar si las alertas generales están activas
-            if activar_alertas:
+           # 1. Primero definimos los controles (aquí se crean las variables)
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            activar_alertas = st.toggle("Activar alertas", value=True)
+        with col2:
+            tiempo_alerta = st.select_slider("Anticipación (min):", [5, 10, 15], value=5)
+
+        # 2. Luego verificamos si tenemos datos
+        if st.session_state.get("horario_df") is not None:
+            df_horario_actual = st.session_state["horario_df"]
+
+            # 3. Y finalmente ejecutamos el sistema de alertas
+            import datetime
+            ahora_dt = datetime.datetime.now()
+            hora_actual_minutos = ahora_dt.hour * 60 + ahora_dt.minute
+
+            if activar_alertas: # <-- Ahora sí existe esta variable
                 for _, clase in df_horario_actual.iterrows():
-                    # NUEVA CONDICIÓN: Verificar si el usuario marcó el checkbox de notificar
-                    # Usamos .get por seguridad por si la columna no existiera en datos antiguos
                     if clase.get("notificar", True): 
                         try:
                             h_ini, m_ini = map(int, clase["inicio"].split(":"))
@@ -553,17 +566,13 @@ else:
                             
                             diferencia = inicio_en_minutos - hora_actual_minutos
                             
-                            # Solo alertar si falta exactamente el tiempo configurado
                             if diferencia == tiempo_alerta:
                                 materia_alerta = clase["materia"]
                                 aula_alerta = clase.get("aula", "asignada")
-                                
                                 mensaje_alerta = f"Atención: La clase de {materia_alerta} en el aula {aula_alerta} comienza en {tiempo_alerta} minutos."
                                 
-                                # 1. Notificación visual tipo Toast
                                 st.toast(f"🚨 {mensaje_alerta}", icon="⏳")
                                 
-                                # 2. Notificación hablada mediante JavaScript
                                 js_voz = f"""
                                 <script>
                                     var utterance = new SpeechSynthesisUtterance("{mensaje_alerta}");
