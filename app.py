@@ -1,4 +1,4 @@
-mport json
+import json
 import pandas as pd
 import streamlit as st
 from pypdf import PdfReader
