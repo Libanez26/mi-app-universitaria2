@@ -6,7 +6,20 @@ from google import genai
 from google.genai import types
 from supabase import create_client, Client
 
-# --- INICIALIZACIÓN DE SERVICIOS Y PERSISTENCIA DE SESIÓN ---
+# --- FUNCIÓN PARA CARGAR DATOS ---
+def cargar_datos_usuario(user_id):
+    try:
+        respuesta = supabase.table("perfiles_usuario").select("*").eq("id", user_id).execute()
+        if respuesta.data and len(respuesta.data) > 0:
+            datos = respuesta.data[0]
+            # Convertimos de nuevo a DataFrame y diccionario
+            if datos.get("pensum_data"):
+                st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
+            st.session_state["evaluaciones"] = datos.get("evaluaciones_data", {})
+    except Exception as e:
+        st.error(f"Error al cargar datos: {e}")
+
+# --- INICIALIZACIÓN DE SERVICIOS ---
 @st.cache_resource
 def init_supabase() -> Client:
     raw_url = str(st.secrets["SUPABASE_URL"]).strip()
@@ -22,20 +35,23 @@ try:
 except Exception as e:
     st.error(f"Error al conectar con Supabase: {e}")
 
-# --- ESTADO DE SESIÓN ---
+# --- ESTADO DE SESIÓN Y PERSISTENCIA ---
 if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
 
-# 🔄 INTENTAR RECUPERAR LA SESIÓN AUTOMÁTICAMENTE (Persistencia al recargar)
+# 🔄 INTENTAR RECUPERAR LA SESIÓN Y CARGAR DATOS AUTOMÁTICAMENTE
 if st.session_state["usuario"] is None:
     try:
-        # Supabase guarda el token de sesión en el navegador; esto lo recupera
         session_data = supabase.auth.get_session()
-        if session_data and getattr(session_data, "user", None):
+        # Si existe sesión en el navegador, recuperamos usuario y sus datos
+        if session_data and hasattr(session_data, "user") and session_data.user:
             st.session_state["usuario"] = session_data.user
-    except Exception:
-        pass
+            # Llamamos a cargar datos inmediatamente
+            cargar_datos_usuario(session_data.user.id)
+    except Exception as e:
+        st.error(f"Error al recuperar sesión: {e}")
 
+# Inicialización de variables de estado si aún están vacías
 if "pensum_df" not in st.session_state:
     st.session_state["pensum_df"] = None
 if "evaluaciones" not in st.session_state:
