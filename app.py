@@ -1,10 +1,102 @@
+import datetime
 import json
-import pandas as pd
-import streamlit as st
-from pypdf import PdfReader
+import uuid
+import extra_streamlit_components as st_cookie
 from google import genai
 from google.genai import types
-from supabase import create_client, Client
+from pypdf import PdfReader
+import pandas as pd
+import streamlit as st
+from supabase import Client, create_client
+
+# --- INICIALIZAR GESTOR DE COOKIES ---
+cookie_manager = st_cookie.CookieManager()
+device_token_cookie = cookie_manager.get(cookie="dispositivo_confiable_token")
+
+# --- PANTALLA DE AUTENTICACIÓN ---
+if st.session_state["usuario"] is None:
+  # Verificación silenciosa si el dispositivo es confiable
+  if device_token_cookie:
+    try:
+      verificacion_disp = (
+          supabase.table("dispositivos_confiados")
+          .select("*")
+          .eq("device_token", device_token_cookie)
+          .execute()
+      )
+      if verificacion_disp.data and len(verificacion_disp.data) > 0:
+        # Nota: Aquí puedes mostrar un aviso de bienvenida por dispositivo reconocido
+        pass
+    except Exception:
+      pass
+
+  st.title("🎓 Bienvenido a Mi App Universitaria")
+  st.subheader(
+      "Inicia sesión o regístrate para gestionar tu pensum e historial académico"
+  )
+
+  tab_login, tab_registro = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse"])
+
+  with tab_login:
+    with st.form("form_login"):
+      email_login = st.text_input("Correo electrónico")
+      pass_login = st.text_input("Contraseña", type="password")
+
+      # Casilla estilo Facebook para recordar este equipo
+      recordar_dispositivo = st.checkbox(
+          "Confiar en este dispositivo (No pedir verificación en este equipo)"
+      )
+
+      submit_login = st.form_submit_button("Ingresar")
+
+      if submit_login:
+        try:
+          res = supabase.auth.sign_in_with_password({
+              "email": email_login.strip(),
+              "password": pass_login.strip(),
+          })
+          if res.user:
+            st.session_state["usuario"] = res.user
+
+            # Si marcó la casilla, generamos un token único para este equipo
+            if recordar_dispositivo:
+              nuevo_token = str(uuid.uuid4())
+              # Guardar en la cookie del navegador por 1 año (31536000 segundos)
+              cookie_manager.set(
+                  "dispositivo_confiable_token", nuevo_token, max_age=31536000
+              )
+
+              # Registrar en la nueva tabla de Supabase
+              supabase.table("dispositivos_confiados").insert({
+                  "user_id": res.user.id,
+                  "device_token": nuevo_token,
+                  "nombre_dispositivo": "Navegador Web / Dispositivo Confiable",
+              }).execute()
+
+            cargar_datos_usuario(res.user.id)
+            st.success("¡Sesión iniciada con éxito!")
+            st.rerun()
+        except Exception as e:
+          st.error(f"Error al iniciar sesión: {e}")
+
+  with tab_registro:
+    with st.form("form_registro"):
+      email_reg = st.text_input("Correo electrónico para el registro")
+      pass_reg = st.text_input("Contraseña", type="password")
+      submit_reg = st.form_submit_button("Crear Cuenta")
+
+      if submit_reg:
+        try:
+          res = supabase.auth.sign_up({
+              "email": email_reg.strip(),
+              "password": pass_reg.strip(),
+          })
+          if res.user:
+            st.success(
+                "¡Cuenta creada exitosamente! Ahora puedes iniciar sesión."
+            )
+        except Exception as e:
+          st.error(f"Error al registrarse: {e}")
 
 # --- FUNCIÓN PARA CARGAR DATOS ---
 def cargar_datos_usuario(user_id):
