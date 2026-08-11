@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. INICIALIZACIÓN DE SERVICIOS ---
+# --- 2. INICIALIZACIÓN DE SERVICIOS (MODIFICADO PARA PRIVACIDAD) ---
 @st.cache_resource
 def init_supabase() -> Client:
     raw_url = str(st.secrets["SUPABASE_URL"]).strip()
@@ -22,7 +22,14 @@ def init_supabase() -> Client:
     raw_url = raw_url.rstrip("/")
     
     key = str(st.secrets["SUPABASE_KEY"]).strip()
-    return create_client(raw_url, key)
+    
+    # AQUÍ ESTÁ EL CAMBIO CLAVE:
+    # 'persist_session=False' impide que el navegador guarde la cuenta
+    return create_client(
+        raw_url, 
+        key, 
+        options={"persist_session": False}
+    )
 
 try:
     supabase = init_supabase()
