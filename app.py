@@ -619,17 +619,23 @@ else:
         3. **Descanso largo:** 20 minutos para recargar tras varios ciclos.
         """)
 
-    # Selector de tipo de temporizador
-    modo = st.radio("Selecciona tu sesión:", ["Foco (25m)", "Descanso Corto (5m)", "Descanso Largo (20m)"], horizontal=True)
-
     # Inicialización del estado
     if "pomodoro_tiempo" not in st.session_state:
         st.session_state["pomodoro_tiempo"] = 25 * 60
     if "pomodoro_activo" not in st.session_state:
         st.session_state["pomodoro_activo"] = False
-    
-    # Definir duración según el modo
-    duracion = 25 * 60 if "25m" in modo else (5 * 60 if "5m" in modo else 20 * 60)
+
+    # Callback para actualizar el tiempo al cambiar el radio
+    def actualizar_tiempo():
+        modo = st.session_state["modo_seleccionado"]
+        if "25m" in modo: st.session_state["pomodoro_tiempo"] = 25 * 60
+        elif "5m" in modo: st.session_state["pomodoro_tiempo"] = 5 * 60
+        else: st.session_state["pomodoro_tiempo"] = 20 * 60
+        st.session_state["pomodoro_activo"] = False
+
+    # Selector de modo
+    st.radio("Selecciona tu sesión:", ["Foco (25m)", "Descanso Corto (5m)", "Descanso Largo (20m)"], 
+             horizontal=True, key="modo_seleccionado", on_change=actualizar_tiempo)
 
     # Visualización del tiempo
     minutos = st.session_state["pomodoro_tiempo"] // 60
@@ -647,12 +653,12 @@ else:
             st.session_state["pomodoro_activo"] = False
     with col3:
         if st.button("🔄 Reiniciar"):
-            st.session_state["pomodoro_tiempo"] = duracion
+            actualizar_tiempo() # Llama a la misma función para resetear al tiempo del modo
             st.session_state["pomodoro_activo"] = True
     with col4:
         if st.button("⏹️ Detener"):
             st.session_state["pomodoro_activo"] = False
-            st.session_state["pomodoro_tiempo"] = duracion
+            actualizar_tiempo()
 
     # Lógica de cuenta regresiva
     import time
@@ -662,6 +668,5 @@ else:
         st.rerun()
     elif st.session_state["pomodoro_tiempo"] == 0 and st.session_state["pomodoro_activo"]:
         st.balloons()
-        st.success("¡Tiempo finalizado! Tómate un respiro.")
+        st.success("¡Tiempo finalizado!")
         st.session_state["pomodoro_activo"] = False
-        st.session_state["pomodoro_tiempo"] = duracion
