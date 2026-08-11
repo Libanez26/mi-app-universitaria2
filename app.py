@@ -276,7 +276,7 @@ else:
                             col_ac3.metric(label="Estado de Aprobación", value="❌ Reprobado")
                             
     try:
-    # Tu código que llama a la API de Gemini
+    
     response = model.generate_content(...)
 except Exception as err:
     if "429" in str(err) or "RESOURCE_EXHAUSTED" in str(err):
