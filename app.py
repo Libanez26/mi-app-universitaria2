@@ -346,8 +346,8 @@ else:
                         st.session_state["chat_history"].append({"role": "assistant", "content": res.text})
                     except Exception as err:
                         st.error(f"Error con el servicio de IA: {err}")
-                        try:
-                            
+
+try:
     # Tu código que llama a la API de Gemini
     response = model.generate_content(...)
 except Exception as err:
