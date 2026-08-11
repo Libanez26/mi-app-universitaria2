@@ -476,12 +476,7 @@ else:
             import datetime
             ahora = datetime.datetime.now().strftime("%H:%M")
             # Comparar si (hora_clase - tiempo_alerta) == ahora
-            # st.toast("⚠️ Clase en 5 minutos: {materia}")
-3. Lógica de Agrupación (Backend del horario)
-Para lograr que si las clases se repiten consecutivamente se agrupen, usa este script de limpieza antes de mostrar la tabla:
-
-Python
-def agrupar_horario(df):
+          def agrupar_horario(df):
     df = df.sort_values(by=["dia", "inicio"])
     resultado = []
     
@@ -490,9 +485,8 @@ def agrupar_horario(df):
             resultado.append(row.to_dict())
         else:
             prev = resultado[-1]
-            # Si es la misma materia y la hora de inicio es igual a la de fin anterior
             if row["materia"] == prev["materia"] and row["inicio"] == prev["fin"]:
-                prev["fin"] = row["fin"] # Extender fin
+                prev["fin"] = row["fin"]
             else:
                 resultado.append(row.to_dict())
     return pd.DataFrame(resultado)
