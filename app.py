@@ -6,6 +6,43 @@ from google import genai
 from google.genai import types
 from supabase import create_client, Client
 
+# --- INICIALIZACIÓN DE SERVICIOS Y PERSISTENCIA DE SESIÓN ---
+@st.cache_resource
+def init_supabase() -> Client:
+    raw_url = str(st.secrets["SUPABASE_URL"]).strip()
+    if "/rest/v1" in raw_url:
+        raw_url = raw_url.split("/rest/v1")[0]
+    raw_url = raw_url.rstrip("/")
+    
+    key = str(st.secrets["SUPABASE_KEY"]).strip()
+    return create_client(raw_url, key)
+
+try:
+    supabase = init_supabase()
+except Exception as e:
+    st.error(f"Error al conectar con Supabase: {e}")
+
+# --- ESTADO DE SESIÓN ---
+if "usuario" not in st.session_state:
+    st.session_state["usuario"] = None
+
+# 🔄 INTENTAR RECUPERAR LA SESIÓN AUTOMÁTICAMENTE (Persistencia al recargar)
+if st.session_state["usuario"] is None:
+    try:
+        # Supabase guarda el token de sesión en el navegador; esto lo recupera
+        session_data = supabase.auth.get_session()
+        if session_data and getattr(session_data, "user", None):
+            st.session_state["usuario"] = session_data.user
+    except Exception:
+        pass
+
+if "pensum_df" not in st.session_state:
+    st.session_state["pensum_df"] = None
+if "evaluaciones" not in st.session_state:
+    st.session_state["evaluaciones"] = {}
+if "mensajes_chat" not in st.session_state:
+    st.session_state["mensajes_chat"] = []
+
 # MUST BE THE FIRST STREAMLIT COMMAND
 st.set_page_config(
     page_title="App Universitaria - Gestión de Materias",
