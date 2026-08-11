@@ -541,40 +541,36 @@ else:
             ahora_dt = datetime.datetime.now()
             hora_actual_minutos = ahora_dt.hour * 60 + ahora_dt.minute
             
-            # Obtener el día actual de la semana en formato texto para comparar
-            dia_actual_str = ahora_dt.strftime("%A").lower() 
-            # Diccionario auxiliar por si el sistema devuelve los días en inglés u otro idioma, 
-            # aseguramos coincidencia si en el DF están en español.
-
-            for _, clase in df_horario_actual.iterrows():
-                try:
-                    h_ini, m_ini = map(int, clase["inicio"].split(":"))
-                    inicio_en_minutos = h_ini * 60 + m_ini
-                    
-                    # Verificar si la clase es hoy (puedes ajustar la validación de días según tu PDF)
-                    # Comparamos la diferencia de tiempo con el selector del usuario
-                    diferencia = inicio_en_minutos - hora_actual_minutos
-                    
-                    if diferencia == tiempo_alerta:
-                        materia_alerta = clase["materia"]
-                        aula_alerta = clase.get("aula", "asignada")
-                        
-                        mensaje_alerta = f"Atención: La clase de {materia_alerta} en el aula {aula_alerta} comienza en {tiempo_alerta} minutos."
-                        
-                        # 1. Notificación visual tipo Toast
-                        st.toast(f"🚨 {mensaje_alerta}", icon="⏳")
-                        
-                        # 2. Notificación hablada mediante JavaScript del navegador
-                        js_voz = f"""
-                        <script>
-                            var utterance = new SpeechSynthesisUtterance("{mensaje_alerta}");
-                            utterance.lang = 'es-ES';
-                            window.speechSynthesis.speak(utterance);
-                        </script>
-                        """
-                        st.components.v1.html(js_voz, height=0)
-                except Exception:
-                    pass
-                    # Después de crear el df_final_horario:
-df_final_horario["notificar"] = True # Por defecto, todas notifican
-st.session_state["horario_df"] = df_final_horario
+            # Verificar si las alertas generales están activas
+            if activar_alertas:
+                for _, clase in df_horario_actual.iterrows():
+                    # NUEVA CONDICIÓN: Verificar si el usuario marcó el checkbox de notificar
+                    # Usamos .get por seguridad por si la columna no existiera en datos antiguos
+                    if clase.get("notificar", True): 
+                        try:
+                            h_ini, m_ini = map(int, clase["inicio"].split(":"))
+                            inicio_en_minutos = h_ini * 60 + m_ini
+                            
+                            diferencia = inicio_en_minutos - hora_actual_minutos
+                            
+                            # Solo alertar si falta exactamente el tiempo configurado
+                            if diferencia == tiempo_alerta:
+                                materia_alerta = clase["materia"]
+                                aula_alerta = clase.get("aula", "asignada")
+                                
+                                mensaje_alerta = f"Atención: La clase de {materia_alerta} en el aula {aula_alerta} comienza en {tiempo_alerta} minutos."
+                                
+                                # 1. Notificación visual tipo Toast
+                                st.toast(f"🚨 {mensaje_alerta}", icon="⏳")
+                                
+                                # 2. Notificación hablada mediante JavaScript
+                                js_voz = f"""
+                                <script>
+                                    var utterance = new SpeechSynthesisUtterance("{mensaje_alerta}");
+                                    utterance.lang = 'es-ES';
+                                    window.speechSynthesis.speak(utterance);
+                                </script>
+                                """
+                                st.components.v1.html(js_voz, height=0)
+                        except Exception:
+                            pass
