@@ -274,7 +274,7 @@ else:
                                 col_ac3.metric(label="Nota req. en el restante", value="⚠️ Inalcanzable")
                         else:
                             col_ac3.metric(label="Estado de Aprobación", value="❌ Reprobado")
-                            try:
+                            
     try:
     # Tu código que llama a la API de Gemini
     response = model.generate_content(...)
