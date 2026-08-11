@@ -227,4 +227,154 @@ else:
                         )
 
                         raw_text = response.text.strip()
-                        clean_text = raw_text.replace("
+                        clean_text = raw_text.replace("```json", "").replace("```", "").strip()
+                        
+                        data = json.loads(clean_text)
+                        df = pd.DataFrame(data)
+
+                        if "estado" not in df.columns:
+                            df["estado"] = "Inscrita"
+
+                        st.session_state["pensum_df"] = df
+                        guardar_datos_usuario()
+                        st.success("¡Pensum procesado correctamente!")
+                        st.rerun()
+
+                    except json.JSONDecodeError:
+                        st.error("Error al procesar la respuesta de la IA. Por favor, intenta de nuevo.")
+                        st.text(f"Respuesta cruda recibida: {response.text[:200]}...")
+                    except Exception as err:
+                        st.error(f"Error procesando el documento: {err}")
+        else:
+            # --- VISTA SI YA HAY UN PENSUM CARGADO ---
+            df_pensum = st.session_state["pensum_df"]
+            
+            # Métricas generales e índice académico
+            indice_actual = calcular_indice_academico(df_pensum, st.session_state["evaluaciones"])
+            total_creds_aprobados = df_pensum[df_pensum["estado"] == "Aprobada"]["creditos"].sum()
+            total_creds_pensum = df_pensum["creditos"].sum()
+
+            m1, m2 = st.columns(2)
+            m1.metric("📊 Índice Académico Global", f"{indice_actual:.2f} / 20.0")
+            m2.metric("🎓 Créditos Aprobados", f"{total_creds_aprobados} / {total_creds_pensum}")
+
+            st.markdown("---")
+            
+            # Selector de Semestres / Niveles
+            semestres = df_pensum["semestre"].unique().tolist()
+            semestre_activo = st.selectbox("Selecciona el Semestre/Nivel a visualizar", semestres)
+
+            df_semestre = df_pensum[df_pensum["semestre"] == semestre_activo].copy()
+
+            # Verificación de prelaciones
+            estados_disponibilidad = []
+            for _, row in df_semestre.iterrows():
+                ok, msg = verificar_disponibilidad(row, df_pensum)
+                estados_disponibilidad.append(msg)
+            df_semestre["Disponibilidad"] = estados_disponibilidad
+
+            st.write(f"### Materias de {semestre_activo}")
+            
+            # Editor de datos para actualizar estados de materias
+            edited_pensum = st.data_editor(
+                df_semestre[["codigo", "materia", "creditos", "prelaciones", "estado", "Disponibilidad"]],
+                key=f"editor_{semestre_activo}",
+                hide_index=True,
+                disabled=["codigo", "materia", "creditos", "prelaciones", "Disponibilidad"],
+                column_config={
+                    "estado": st.column_config.SelectboxColumn(
+                        "Estado de la Materia",
+                        options=["Inscrita", "Aprobada", "Reprobada", "En Curso"],
+                        required=True
+                    )
+                }
+            )
+
+            # Sincronizar cambios del editor al session_state
+            if not edited_pensum.equals(df_semestre[["codigo", "materia", "creditos", "prelaciones", "estado", "Disponibilidad"]]):
+                for idx, row in edited_pensum.iterrows():
+                    codigo_mat = row["codigo"]
+                    nuevo_estado = row["estado"]
+                    df_pensum.loc[df_pensum["codigo"] == codigo_mat, "estado"] = nuevo_estado
+                st.session_state["pensum_df"] = df_pensum
+                guardar_datos_usuario()
+
+            if st.button("🗑️ Borrar / Reiniciar Pensum"):
+                st.session_state["pensum_df"] = None
+                st.session_state["evaluaciones"] = {}
+                guardar_datos_usuario()
+                st.rerun()
+
+    # ==========================================
+    # PESTAÑA 2: HORARIO DE CLASES
+    # ==========================================
+    with tab_horario:
+        st.header("📅 Carga y Organización de Horario")
+        
+        uploaded_pdf = st.file_uploader("Sube el PDF de tu horario universitario", type=["pdf"])
+        
+        if uploaded_pdf is not None:
+            reader = PdfReader(uploaded_pdf)
+            texto_horario = ""
+            for page in reader.pages:
+                texto_horario += page.extract_text() or ""
+            
+            st.success("PDF cargado correctamente.")
+            
+            if st.button("🤖 Organizar Horario con Gemini"):
+                with st.spinner("Procesando horario..."):
+                    st.write("### Tu Horario Organizado")
+                    st.text_area("Texto extraído del PDF", texto_horario, height=150)
+
+        st.markdown("---")
+        st.subheader("🔔 Configurar Recordatorios de Clase")
+        
+        col_al1, col_al2 = st.columns(2)
+        with col_al1:
+            minutos_antes = st.selectbox(
+                "¿Con cuánta anticipación quieres el recordatorio?",
+                [5, 10, 15, 30]
+            )
+        with col_al2:
+            metodo_alerta = st.radio(
+                "Método de notificación",
+                ["Exportar a Google Calendar / iCal (.ics)", "Notificación local"]
+            )
+
+        if st.button("⏰ Generar Recordatorios"):
+            st.info(f"Se programarán alertas {minutos_antes} minutos antes de cada clase vía {metodo_alerta}.")
+
+    # ==========================================
+    # PESTAÑA 3: CHAT CON GEMINI
+    # ==========================================
+    with tab_chat:
+        st.header("🤖 Asistente Académico")
+        st.write("Consulta dudas sobre tus materias, temas de estudio o planificación académica.")
+        
+        if "chat_history" not in st.session_state:
+            st.session_state["chat_history"] = []
+
+        for msg in st.session_state["chat_history"]:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
+
+        user_input = st.chat_input("Escribe tu pregunta aquí...")
+        if user_input:
+            st.session_state["chat_history"].append({"role": "user", "content": user_input})
+            with st.chat_message("user"):
+                st.write(user_input)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Pensando..."):
+                    try:
+                        api_key = st.secrets["GEMINI_API_KEY"]
+                        client = genai.Client(api_key=api_key)
+                        
+                        res = client.models.generate_content(
+                            model=modelo_seleccionado,
+                            contents=user_input
+                        )
+                        st.write(res.text)
+                        st.session_state["chat_history"].append({"role": "assistant", "content": res.text})
+                    except Exception as err:
+                        st.error(f"Error con el servicio de IA: {err}")
