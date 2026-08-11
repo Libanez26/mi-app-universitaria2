@@ -216,10 +216,10 @@ else:
         modelo_seleccionado = st.selectbox(
             "Selecciona el Modelo",
             [
-                "gemini-2.5-flash",
+                "gemini-3.5-flash",
                 "gemini-2.0-flash",
                 "gemini-1.5-flash",
-                "gemini-3.5-flash"
+                "gemini-2.5-flash"
             ],
             index=0,
             help="Elige un modelo alternativo si alcanzas el límite de solicitudes por minuto (RPM)."
@@ -458,11 +458,11 @@ else:
 
                             if "20" in escala_sel:
                                 max_nota = 20.0
-                                min_aprobar = 9.5
+                                min_aprobar = 12
                                 unidad = "puntos"
                             else:
                                 max_nota = 100.0
-                                min_aprobar = 47.5
+                                min_aprobar = 60
                                 unidad = "%"
 
                             puntos_acum = 0.0
