@@ -1,23 +1,30 @@
 import json
 import pandas as pd
 import streamlit as st
+import datetime
 from pypdf import PdfReader
 from google import genai
 from google.genai import types
 from supabase import create_client, Client
 
-# --- FUNCIÓN PARA CARGAR DATOS ---
-def cargar_datos_usuario(user_id):
-    try:
-        respuesta = supabase.table("perfiles_usuario").select("*").eq("id", user_id).execute()
-        if respuesta.data and len(respuesta.data) > 0:
-            datos = respuesta.data[0]
-            # Convertimos de nuevo a DataFrame y diccionario
-            if datos.get("pensum_data"):
-                st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
-            st.session_state["evaluaciones"] = datos.get("evaluaciones_data", {})
-    except Exception as e:
-        st.error(f"Error al cargar datos: {e}")
+# --- MUST BE THE FIRST STREAMLIT COMMAND ---
+st.set_page_config(
+    page_title="App Universitaria - Gestión de Materias",
+    page_icon="🎓",
+    layout="wide"
+)
+
+# --- INTEGRACIÓN DE PWA (CONFIGURACIÓN MÓVIL) ---
+st.markdown(
+    """
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0e1117">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AppU">
+    """,
+    unsafe_allow_html=True
+)
 
 # --- INICIALIZACIÓN DE SERVICIOS ---
 @st.cache_resource
@@ -38,57 +45,12 @@ except Exception as e:
 # --- ESTADO DE SESIÓN Y PERSISTENCIA ---
 if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
-
-# 🔄 INTENTAR RECUPERAR LA SESIÓN Y CARGAR DATOS AUTOMÁTICAMENTE
-if st.session_state["usuario"] is None:
-    try:
-        session_data = supabase.auth.get_session()
-        # Si existe sesión en el navegador, recuperamos usuario y sus datos
-        if session_data and hasattr(session_data, "user") and session_data.user:
-            st.session_state["usuario"] = session_data.user
-            # Llamamos a cargar datos inmediatamente
-            cargar_datos_usuario(session_data.user.id)
-    except Exception as e:
-        st.error(f"Error al recuperar sesión: {e}")
-
-# Inicialización de variables de estado si aún están vacías
 if "pensum_df" not in st.session_state:
     st.session_state["pensum_df"] = None
 if "evaluaciones" not in st.session_state:
     st.session_state["evaluaciones"] = {}
-if "mensajes_chat" not in st.session_state:
-    st.session_state["mensajes_chat"] = []
-
-# MUST BE THE FIRST STREAMLIT COMMAND
-st.set_page_config(
-    page_title="App Universitaria - Gestión de Materias",
-    page_icon="🎓",
-    layout="wide"
-)
-
-# --- INICIALIZACIÓN DE SERVICIOS ---
-@st.cache_resource
-def init_supabase() -> Client:
-    raw_url = str(st.secrets["SUPABASE_URL"]).strip()
-    if "/rest/v1" in raw_url:
-        raw_url = raw_url.split("/rest/v1")[0]
-    raw_url = raw_url.rstrip("/")
-    
-    key = str(st.secrets["SUPABASE_KEY"]).strip()
-    return create_client(raw_url, key)
-
-try:
-    supabase = init_supabase()
-except Exception as e:
-    st.error(f"Error al conectar con Supabase: {e}")
-
-# --- ESTADO DE SESIÓN ---
-if "usuario" not in st.session_state:
-    st.session_state["usuario"] = None
-if "pensum_df" not in st.session_state:
-    st.session_state["pensum_df"] = None
-if "evaluaciones" not in st.session_state:
-    st.session_state["evaluaciones"] = {}
+if "horario_df" not in st.session_state:
+    st.session_state["horario_df"] = None
 if "mensajes_chat" not in st.session_state:
     st.session_state["mensajes_chat"] = []
 
@@ -96,14 +58,16 @@ if "mensajes_chat" not in st.session_state:
 def cargar_datos_usuario(user_id):
     try:
         res = supabase.table("perfiles_usuario").select("*").eq("id", user_id).execute()
-        if res.data:
+        if res.data and len(res.data) > 0:
             datos = res.data[0]
             if datos.get("pensum_data"):
                 st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
             if datos.get("evaluaciones_data"):
                 st.session_state["evaluaciones"] = datos["evaluaciones_data"]
+            if datos.get("horario_data"):
+                st.session_state["horario_df"] = pd.DataFrame(datos["horario_data"])
     except Exception as e:
-        st.error(f"Error cargando datos de la base de datos: {e}")
+        st.error(f"Error al cargar datos: {e}")
 
 def guardar_datos_usuario():
     if not st.session_state["usuario"]:
@@ -114,12 +78,14 @@ def guardar_datos_usuario():
     
     pensum_json = st.session_state["pensum_df"].to_dict("records") if st.session_state["pensum_df"] is not None else None
     evals_json = st.session_state["evaluaciones"]
+    horario_json = st.session_state["horario_df"].to_dict("records") if st.session_state["horario_df"] is not None else None
     
     data = {
         "id": user_id,
         "correo": correo,
         "pensum_data": pensum_json,
-        "evaluaciones_data": evals_json
+        "evaluaciones_data": evals_json,
+        "horario_data": horario_json
     }
     
     try:
@@ -127,6 +93,16 @@ def guardar_datos_usuario():
         st.toast("💾 Cambios guardados automáticamente", icon="☁️")
     except Exception as e:
         st.error(f"Error al guardar datos: {e}")
+
+# 🔄 INTENTAR RECUPERAR LA SESIÓN AUTOMÁTICAMENTE
+if st.session_state["usuario"] is None:
+    try:
+        session_data = supabase.auth.get_session()
+        if session_data and hasattr(session_data, "user") and session_data.user:
+            st.session_state["usuario"] = session_data.user
+            cargar_datos_usuario(session_data.user.id)
+    except Exception as e:
+        st.error(f"Error al recuperar sesión: {e}")
 
 # --- LÓGICA DE CONTROL DE PRELACIONES ---
 def verificar_disponibilidad(row, df_completo):
@@ -216,10 +192,10 @@ else:
         modelo_seleccionado = st.selectbox(
             "Selecciona el Modelo",
             [
-                "gemini-3.5-flash",
+                "gemini-2.5-flash",
                 "gemini-2.0-flash",
                 "gemini-1.5-flash",
-                "gemini-2.5-flash"
+                "gemini-3.5-flash"
             ],
             index=0,
             help="Elige un modelo alternativo si alcanzas el límite de solicitudes por minuto (RPM)."
@@ -231,6 +207,7 @@ else:
         st.session_state["usuario"] = None
         st.session_state["pensum_df"] = None
         st.session_state["evaluaciones"] = {}
+        st.session_state["horario_df"] = None
         st.session_state["mensajes_chat"] = []
         st.rerun()
 
@@ -241,6 +218,188 @@ else:
         "📅 Horario de Clases", 
         "⏱️ Pomodoro de Estudio Integrado"
     ])
+
+    # ==========================================
+    # PESTAÑA 1: PENSUM Y CALIFICACIONES
+    # ==========================================
+    with tab_pensum:
+        st.subheader("📋 Pensum Estructurado por Niveles")
+
+        if st.session_state["pensum_df"] is None:
+            st.info("👋 Carga tu pensum en formato PDF para organizar tus niveles académicos.")
+            uploaded_file = st.file_uploader("Sube el PDF de tu pensum universitario", type=["pdf"])
+
+            if uploaded_file and st.button("📊 Organizar Pensum en Tabla"):
+                with st.spinner("Procesando pensum con Gemini..."):
+                    try:
+                        api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                        client = genai.Client(api_key=api_key)
+
+                        pdf_bytes = uploaded_file.read()
+                        pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+
+                        prompt = """
+                        Extrae exhaustivamente todas las materias del documento del pensum proporcionado.
+                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida.
+
+                        La estructura debe ser una lista de objetos JSON con exactamente estas claves:
+                        [
+                          {
+                            "semestre": "Semestre I",
+                            "codigo": "MAT-101",
+                            "materia": "Matemática I",
+                            "creditos": 4,
+                            "prelaciones": "Ninguna"
+                          }
+                        ]
+                        """
+
+                        response = client.models.generate_content(
+                            model=modelo_seleccionado,
+                            contents=[prompt, pdf_part]
+                        )
+
+                        if response and response.text:
+                            clean_text = response.text.strip()
+                            if clean_text.startswith("```json"):
+                                clean_text = clean_text[7:]
+                            if clean_text.startswith("```"):
+                                clean_text = clean_text[3:]
+                            if clean_text.endswith("```"):
+                                clean_text = clean_text[:-3]
+
+                            data = json.loads(clean_text.strip())
+                            df = pd.DataFrame(data)
+
+                            if "estado" not in df.columns:
+                                df["estado"] = "Inscrita"
+
+                            st.session_state["pensum_df"] = df
+                            guardar_datos_usuario()
+                            st.success("¡Pensum procesado y guardado!")
+                            st.rerun()
+
+                    except Exception as err:
+                        st.error(f"Error procesando el documento: {err}")
+
+        else:
+            if st.sidebar.button("🗑️ Eliminar / Volver a subir Pensum"):
+                st.session_state["pensum_df"] = None
+                st.session_state["evaluaciones"] = {}
+                guardar_datos_usuario()
+                st.rerun()
+
+            df = st.session_state["pensum_df"]
+            indice_aca = calcular_indice_academico(df, st.session_state["evaluaciones"])
+
+            col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
+            with col_m1:
+                st.metric("Total Materias", len(df))
+            with col_m2:
+                st.metric("Aprobadas", len(df[df["estado"] == "Aprobada"]))
+            with col_m3:
+                st.metric("En Curso", len(df[df["estado"] == "En Curso"]))
+            with col_m4:
+                st.metric("Inscritas / Pendientes", len(df[df["estado"] == "Inscrita"]))
+            with col_m5:
+                st.metric("📈 Índice Académico", f"{indice_aca:.2f} / 20.0")
+
+            st.divider()
+
+            semestres = list(df["semestre"].unique()) if "semestre" in df.columns else ["Nivel Único"]
+            tabs_niveles = st.tabs(semestres)
+
+            for idx_tab, semestre_nombre in enumerate(semestres):
+                with tabs_niveles[idx_tab]:
+                    df_nivel = df[df["semestre"] == semestre_nombre].copy()
+
+                    disponibilidades = []
+                    mensajes_est = []
+                    for _, row in df_nivel.iterrows():
+                        disp, msg = verificar_disponibilidad(row, df)
+                        disponibilidades.append(disp)
+                        mensajes_est.append(msg)
+
+                    df_nivel["Disponibilidad"] = mensajes_est
+
+                    bloqueadas_count = disponibilidades.count(False)
+                    if bloqueadas_count > 0:
+                        st.warning(f"⚠️ Tienes {bloqueadas_count} materia(s) bloqueada(s) por preliminares no aprobadas.")
+
+                    evento_seleccion = st.dataframe(
+                        df_nivel,
+                        use_container_width=True,
+                        hide_index=True,
+                        on_select="rerun",
+                        selection_mode="single-row",
+                        key=f"tabla_{semestre_nombre}",
+                        column_config={
+                            "semestre": "Nivel",
+                            "codigo": "Código",
+                            "materia": "Asignatura",
+                            "creditos": st.column_config.NumberColumn("Créditos", format="%d"),
+                            "prelaciones": "Requisitos / Prelaciones",
+                            "estado": "Estado Actual",
+                            "Disponibilidad": st.column_config.TextColumn("Estatus de Acceso")
+                        }
+                    )
+
+                    filas_sel = evento_seleccion.get("selection", {}).get("rows", [])
+
+                    if filas_sel:
+                        idx_local = filas_sel[0]
+                        materia_sel = df_nivel.iloc[idx_local]
+                        codigo_mat = str(materia_sel.get("codigo", f"MAT-{idx_local}"))
+                        nombre_mat = materia_sel.get("materia", "Asignatura")
+                        esta_disponible = disponibilidades[idx_local]
+
+                        st.divider()
+
+                        if not esta_disponible:
+                            st.error(f"🔒 **{codigo_mat} - {nombre_mat}** está **bloqueada**. Aprueba sus preliminares ({materia_sel.get('prelaciones')}) para registrar sus notas.")
+                        else:
+                            st.markdown(f"### 📝 Plan de Evaluaciones: **{codigo_mat} - {nombre_mat}**")
+
+                            if codigo_mat not in st.session_state["evaluaciones"]:
+                                st.session_state["evaluaciones"][codigo_mat] = {
+                                    "estado": materia_sel.get("estado", "Inscrita"),
+                                    "plan": [
+                                        {"Evaluación": "Parcial 1", "Tema": "Unidad 1", "Valor (%)": 25, "Nota": 0.0},
+                                        {"Evaluación": "Parcial 2", "Tema": "Unidad 2", "Valor (%)": 25, "Nota": 0.0},
+                                        {"Evaluación": "Trabajo / Proyecto", "Tema": "Unidad 3", "Valor (%)": 25, "Nota": 0.0},
+                                        {"Evaluación": "Exposición / Quices", "Tema": "Unidad 4", "Valor (%)": 25, "Nota": 0.0}
+                                    ]
+                                }
+
+                            col_e1, col_e2 = st.columns(2)
+                            with col_e1:
+                                estado_actual = st.session_state["evaluaciones"][codigo_mat].get("estado", "Inscrita")
+                                idx_e = ["Inscrita", "En Curso", "Aprobada", "Reprobada"].index(estado_actual) if estado_actual in ["Inscrita", "En Curso", "Aprobada", "Reprobada"] else 0
+                                
+                                nuevo_est = st.selectbox(
+                                    "Estado de la Materia:",
+                                    ["Inscrita", "En Curso", "Aprobada", "Reprobada"],
+                                    index=idx_e,
+                                    key=f"sel_est_{codigo_mat}"
+                                )
+
+                                if nuevo_est != estado_actual:
+                                    st.session_state["evaluaciones"][codigo_mat]["estado"] = nuevo_est
+                                    st.session_state["pensum_df"].loc[
+                                        st.session_state["pensum_df"]["codigo"] == codigo_mat, "estado"
+                                    ] = nuevo_est
+                                    guardar_datos_usuario()
+                                    st.rerun()
+
+                            with col_e2:
+                                escala_sel = st.radio(
+                                    "Escala para ingresar notas:",
+                                    ["0 - 20 pts", "0 - 100%"],
+                                    horizontal=True,
+                                    key=f"radio_esc_{codigo_mat}"
+                                )
+
+                            df_eval_actual = pd.DataFrame(st.session_state["evaluaciones"][codigo_mat]["plan"])
 
     # ==========================================
     # PESTAÑA 1: PENSUM Y CALIFICACIONES
