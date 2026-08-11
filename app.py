@@ -349,5 +349,3 @@ else:
                     except Exception as err:
                         st.error(f"Error con el servicio de IA: {err}")
 
-
-        st.error(f"Error procesando el documento: {err}")
