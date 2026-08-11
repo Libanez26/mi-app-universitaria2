@@ -1,13 +1,65 @@
-import json
+mport json
 import pandas as pd
 import streamlit as st
-import datetime
 from pypdf import PdfReader
 from google import genai
 from google.genai import types
 from supabase import create_client, Client
 
-# --- MUST BE THE FIRST STREAMLIT COMMAND ---
+# --- FUNCIÓN PARA CARGAR DATOS ---
+def cargar_datos_usuario(user_id):
+    try:
+        respuesta = supabase.table("perfiles_usuario").select("*").eq("id", user_id).execute()
+        if respuesta.data and len(respuesta.data) > 0:
+            datos = respuesta.data[0]
+            # Convertimos de nuevo a DataFrame y diccionario
+            if datos.get("pensum_data"):
+                st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
+            st.session_state["evaluaciones"] = datos.get("evaluaciones_data", {})
+    except Exception as e:
+        st.error(f"Error al cargar datos: {e}")
+
+# --- INICIALIZACIÓN DE SERVICIOS ---
+@st.cache_resource
+def init_supabase() -> Client:
+    raw_url = str(st.secrets["SUPABASE_URL"]).strip()
+    if "/rest/v1" in raw_url:
+        raw_url = raw_url.split("/rest/v1")[0]
+    raw_url = raw_url.rstrip("/")
+    
+    key = str(st.secrets["SUPABASE_KEY"]).strip()
+    return create_client(raw_url, key)
+
+try:
+    supabase = init_supabase()
+except Exception as e:
+    st.error(f"Error al conectar con Supabase: {e}")
+
+# --- ESTADO DE SESIÓN Y PERSISTENCIA ---
+if "usuario" not in st.session_state:
+    st.session_state["usuario"] = None
+
+# 🔄 INTENTAR RECUPERAR LA SESIÓN Y CARGAR DATOS AUTOMÁTICAMENTE
+if st.session_state["usuario"] is None:
+    try:
+        session_data = supabase.auth.get_session()
+        # Si existe sesión en el navegador, recuperamos usuario y sus datos
+        if session_data and hasattr(session_data, "user") and session_data.user:
+            st.session_state["usuario"] = session_data.user
+            # Llamamos a cargar datos inmediatamente
+            cargar_datos_usuario(session_data.user.id)
+    except Exception as e:
+        st.error(f"Error al recuperar sesión: {e}")
+
+# Inicialización de variables de estado si aún están vacías
+if "pensum_df" not in st.session_state:
+    st.session_state["pensum_df"] = None
+if "evaluaciones" not in st.session_state:
+    st.session_state["evaluaciones"] = {}
+if "mensajes_chat" not in st.session_state:
+    st.session_state["mensajes_chat"] = []
+
+# MUST BE THE FIRST STREAMLIT COMMAND
 st.set_page_config(
     page_title="App Universitaria - Gestión de Materias",
     page_icon="🎓",
@@ -30,15 +82,13 @@ try:
 except Exception as e:
     st.error(f"Error al conectar con Supabase: {e}")
 
-# --- ESTADO DE SESIÓN Y PERSISTENCIA ---
+# --- ESTADO DE SESIÓN ---
 if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
 if "pensum_df" not in st.session_state:
     st.session_state["pensum_df"] = None
 if "evaluaciones" not in st.session_state:
     st.session_state["evaluaciones"] = {}
-if "horario_df" not in st.session_state:
-    st.session_state["horario_df"] = None
 if "mensajes_chat" not in st.session_state:
     st.session_state["mensajes_chat"] = []
 
@@ -46,16 +96,14 @@ if "mensajes_chat" not in st.session_state:
 def cargar_datos_usuario(user_id):
     try:
         res = supabase.table("perfiles_usuario").select("*").eq("id", user_id).execute()
-        if res.data and len(res.data) > 0:
+        if res.data:
             datos = res.data[0]
             if datos.get("pensum_data"):
                 st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
             if datos.get("evaluaciones_data"):
                 st.session_state["evaluaciones"] = datos["evaluaciones_data"]
-            if datos.get("horario_data"):
-                st.session_state["horario_df"] = pd.DataFrame(datos["horario_data"])
     except Exception as e:
-        st.error(f"Error al cargar datos: {e}")
+        st.error(f"Error cargando datos de la base de datos: {e}")
 
 def guardar_datos_usuario():
     if not st.session_state["usuario"]:
@@ -66,14 +114,12 @@ def guardar_datos_usuario():
     
     pensum_json = st.session_state["pensum_df"].to_dict("records") if st.session_state["pensum_df"] is not None else None
     evals_json = st.session_state["evaluaciones"]
-    horario_json = st.session_state["horario_df"].to_dict("records") if st.session_state["horario_df"] is not None else None
     
     data = {
         "id": user_id,
         "correo": correo,
         "pensum_data": pensum_json,
-        "evaluaciones_data": evals_json,
-        "horario_data": horario_json
+        "evaluaciones_data": evals_json
     }
     
     try:
@@ -81,16 +127,6 @@ def guardar_datos_usuario():
         st.toast("💾 Cambios guardados automáticamente", icon="☁️")
     except Exception as e:
         st.error(f"Error al guardar datos: {e}")
-
-# 🔄 INTENTAR RECUPERAR LA SESIÓN AUTOMÁTICAMENTE
-if st.session_state["usuario"] is None:
-    try:
-        session_data = supabase.auth.get_session()
-        if session_data and hasattr(session_data, "user") and session_data.user:
-            st.session_state["usuario"] = session_data.user
-            cargar_datos_usuario(session_data.user.id)
-    except Exception as e:
-        st.error(f"Error al recuperar sesión: {e}")
 
 # --- LÓGICA DE CONTROL DE PRELACIONES ---
 def verificar_disponibilidad(row, df_completo):
@@ -195,7 +231,6 @@ else:
         st.session_state["usuario"] = None
         st.session_state["pensum_df"] = None
         st.session_state["evaluaciones"] = {}
-        st.session_state["horario_df"] = None
         st.session_state["mensajes_chat"] = []
         st.rerun()
 
@@ -278,6 +313,7 @@ else:
                 st.rerun()
 
             df = st.session_state["pensum_df"]
+
             indice_aca = calcular_indice_academico(df, st.session_state["evaluaciones"])
 
             col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
@@ -414,7 +450,6 @@ else:
 
                             if not edited_df.equals(df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota"]]):
                                 st.session_state["evaluaciones"][codigo_mat]["plan"] = edited_df.to_dict("records")
-                                guardar_datos_usuario()
 
                             st.markdown("---")
                             st.markdown("#### 📊 Resumen de Rendimiento")
@@ -436,8 +471,9 @@ else:
                             
                             porcentaje_efectivo = (puntos_acum / max_nota) * 100.0 if max_nota > 0 else 0.0
                             falta_peso = 100.0 - peso_planificado
+                            puntos_faltantes = min_aprobar - puntos_acum
 
-                            col_ac1, col_ac2 = st.columns(2)
+                            col_ac1, col_ac2, col_ac3 = st.columns(3)
 
                             col_ac1.metric(
                                 label="Porcentaje Obtenido / Evaluado",
@@ -446,4 +482,224 @@ else:
 
                             col_ac2.metric(
                                 label="Nota Acumulada",
-                                value=f"{puntos_acum
+                                value=f"{puntos_acum:.2f} / {max_nota:.1f} {unidad}"
+                            )
+
+                            st.markdown("---")
+                            st.markdown("#### ✅ Resultado Final")
+                            
+                            nota_final_objetivo = 9.5 if "20" in escala_sel else 47.5
+                            
+                            if puntos_acum >= nota_final_objetivo:
+                                st.success(f"¡Felicidades! Con {puntos_acum:.2f} {unidad}, estás **APROBADO** en esta materia.")
+                                if st.button("Marcar como Aprobada automáticamente"):
+                                    st.session_state["evaluaciones"][codigo_mat]["estado"] = "Aprobada"
+                                    st.session_state["pensum_df"].loc[st.session_state["pensum_df"]["codigo"] == codigo_mat, "estado"] = "Aprobada"
+                                    guardar_datos_usuario()
+                                    st.rerun()
+                            else:
+                                faltan = nota_final_objetivo - puntos_acum
+                                st.warning(f"Aún no alcanzas la nota mínima. Te faltan **{faltan:.2f} {unidad}** para aprobar.")
+                                
+                                if falta_peso > 0:
+                                    nota_necesaria = (faltan / falta_peso) * 100
+                                    st.info(f"💡 Necesitas un promedio de **{nota_necesaria:.1f} pts** en lo que queda por evaluar ({falta_peso:.1f}%) para aprobar.")
+
+    # ==========================================
+    # PESTAÑA 2: HORARIO DE CLASES
+    # ==========================================
+    with tab_horario:
+        st.subheader("📅 Gestión de Horario de Clases")
+
+        if st.session_state.get("horario_df") is None:
+            st.info("👋 Sube tu horario de clases en formato PDF para organizarlo automáticamente.")
+            uploaded_horario = st.file_uploader("Sube el PDF de tu horario", type=["pdf"], key="file_uploader_horario")
+
+            if uploaded_horario and st.button("📊 Procesar y Organizar Horario", key="btn_procesar_horario"):
+                with st.spinner("Procesando horario con Gemini..."):
+                    try:
+                        api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                        client = genai.Client(api_key=api_key)
+
+                        pdf_bytes = uploaded_horario.read()
+                        pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+
+                        prompt = """
+                        Extrae exhaustivamente todas las clases del documento de horario proporcionado.
+                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves:
+                        [
+                          {
+                            "dia": "Lunes",
+                            "materia": "Matemática I",
+                            "inicio": "08:00",
+                            "fin": "10:00",
+                            "aula": "Aula 101"
+                          }
+                        ]
+                        Asegúrate de que las horas estén en formato de 24 horas (HH:MM).
+                        """
+
+                        response = client.models.generate_content(
+                            model=modelo_seleccionado,
+                            contents=[prompt, pdf_part]
+                        )
+
+                        if response and response.text:
+                            clean_text = response.text.strip()
+                            if clean_text.startswith("```json"):
+                                clean_text = clean_text[7:]
+                            if clean_text.startswith("```"):
+                                clean_text = clean_text[3:]
+                            if clean_text.endswith("```"):
+                                clean_text = clean_text[:-3]
+
+                            data_horario = json.loads(clean_text.strip())
+                            df_h = pd.DataFrame(data_horario)
+
+                            df_h.columns = [c.lower().strip().replace(" ", "_") for c in df_h.columns]
+                            dias_map = {"lunes": 1, "martes": 2, "miércoles": 3, "miercoles": 3, "jueves": 4, "viernes": 5, "sábado": 6, "sabado": 6, "domingo": 7}
+                            df_h["d_orden"] = df_h["dia"].str.lower().map(dias_map).fillna(8)
+                            df_h = df_h.sort_values(by=["d_orden", "inicio"])
+
+                            resultado_agrupado = []
+                            for _, row in df_h.iterrows():
+                                if not resultado_agrupado:
+                                    resultado_agrupado.append(row.to_dict())
+                                else:
+                                    prev = resultado_agrupado[-1]
+                                    if row["dia"] == prev["dia"] and row["materia"] == prev["materia"] and row["inicio"] == prev["fin"]:
+                                        prev["fin"] = row["fin"]
+                                    else:
+                                        resultado_agrupado.append(row.to_dict())
+
+                            df_final_horario = pd.DataFrame(resultado_agrupado)
+                            if "d_orden" in df_final_horario.columns:
+                                df_final_horario = df_final_horario.drop(columns=["d_orden"])
+
+                            df_final_horario["notificar"] = True
+
+                            st.session_state["horario_df"] = df_final_horario
+                            guardar_datos_usuario()
+                            st.success("¡Horario procesado, organizado y guardado con éxito!")
+                            st.rerun()
+
+                    except Exception as err:
+                        st.error(f"Error procesando el horario: {err}")
+        else:
+            if st.button("🗑️ Eliminar / Volver a subir Horario", key="btn_eliminar_horario"):
+                st.session_state["horario_df"] = None
+                guardar_datos_usuario()
+                st.rerun()
+
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                activar_alertas = st.toggle("Activar alertas", value=True)
+            with col2:
+                tiempo_alerta = st.select_slider("Anticipación (min):", [5, 10, 15], value=5)
+
+            df_horario_actual = st.session_state["horario_df"]
+            
+            if "notificar" not in df_horario_actual.columns:
+                df_horario_actual["notificar"] = True
+
+            st.markdown("### 📋 Tu Horario Académico Organizado")
+            
+            df_editado = st.data_editor(
+                df_horario_actual,
+                column_config={"notificar": st.column_config.CheckboxColumn("¿Recibir aviso?")},
+                use_container_width=True,
+                hide_index=True,
+                key="editor_horario"
+            )
+            st.session_state["horario_df"] = df_editado
+
+            import datetime
+            ahora_dt = datetime.datetime.now()
+            hora_actual_minutos = ahora_dt.hour * 60 + ahora_dt.minute
+
+            if activar_alertas:
+                for _, clase in df_editado.iterrows():
+                    if clase.get("notificar", True): 
+                        try:
+                            h_ini, m_ini = map(int, str(clase["inicio"]).split(":"))
+                            inicio_en_minutos = h_ini * 60 + m_ini
+                            
+                            diferencia = inicio_en_minutos - hora_actual_minutos
+                            
+                            if diferencia == tiempo_alerta:
+                                materia_alerta = clase["materia"]
+                                aula_alerta = clase.get("aula", "asignada")
+                                mensaje_alerta = f"Atención: La clase de {materia_alerta} en el aula {aula_alerta} comienza en {tiempo_alerta} minutos."
+                                
+                                st.toast(f"🚨 {mensaje_alerta}", icon="⏳")
+                                
+                                js_voz = f"""
+                                <script>
+                                    var utterance = new SpeechSynthesisUtterance("{mensaje_alerta}");
+                                    utterance.lang = 'es-ES';
+                                    window.speechSynthesis.speak(utterance);
+                                </script>
+                                """
+                                st.components.v1.html(js_voz, height=0)
+                        except Exception:
+                            pass
+
+    # ==========================================
+    # PESTAÑA 3: Técnica Pomodoro
+    # ==========================================
+    with tab_chat:
+        st.subheader("🍅 Técnica Pomodoro")
+        
+        with st.expander("¿Qué es esto?"):
+            st.write("""
+            Esta herramienta utiliza la técnica **Pomodoro** para mejorar tu productividad:
+            1. **Foco:** Trabaja durante 25 minutos sin distracciones.
+            2. **Descanso corto:** 5 minutos para estirar las piernas.
+            3. **Descanso largo:** 20 minutos para recargar tras varios ciclos.
+            """)
+
+        if "pomodoro_tiempo" not in st.session_state:
+            st.session_state["pomodoro_tiempo"] = 25 * 60
+        if "pomodoro_activo" not in st.session_state:
+            st.session_state["pomodoro_activo"] = False
+
+        def actualizar_tiempo():
+            modo = st.session_state["modo_seleccionado"]
+            if "25m" in modo: st.session_state["pomodoro_tiempo"] = 25 * 60
+            elif "5m" in modo: st.session_state["pomodoro_tiempo"] = 5 * 60
+            else: st.session_state["pomodoro_tiempo"] = 20 * 60
+            st.session_state["pomodoro_activo"] = False
+
+        st.radio("Selecciona tu sesión:", ["Foco (25m)", "Descanso Corto (5m)", "Descanso Largo (20m)"], 
+                 horizontal=True, key="modo_seleccionado", on_change=actualizar_tiempo)
+
+        minutos = st.session_state["pomodoro_tiempo"] // 60
+        segundos = st.session_state["pomodoro_tiempo"] % 60
+        st.metric("Tiempo restante", f"{minutos:02d}:{segundos:02d}")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            if st.button("▶️ Iniciar"):
+                st.session_state["pomodoro_activo"] = True
+        with col2:
+            if st.button("⏸️ Pausar"):
+                st.session_state["pomodoro_activo"] = False
+        with col3:
+            if st.button("🔄 Reiniciar"):
+                actualizar_tiempo()
+                st.session_state["pomodoro_activo"] = True
+        with col4:
+            if st.button("⏹️ Detener"):
+                st.session_state["pomodoro_activo"] = False
+                actualizar_tiempo()
+
+        import time
+        if st.session_state["pomodoro_activo"] and st.session_state["pomodoro_tiempo"] > 0:
+            time.sleep(1)
+            st.session_state["pomodoro_tiempo"] -= 1
+            st.rerun()
+        elif st.session_state["pomodoro_tiempo"] == 0 and st.session_state["pomodoro_activo"]:
+            st.balloons()
+            st.success("¡Tiempo finalizado!")
+            st.session_state["pomodoro_activo"] = False
