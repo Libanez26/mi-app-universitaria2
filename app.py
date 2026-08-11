@@ -102,15 +102,38 @@ def guardar_datos_usuario():
     st.error(f"Error al guardar datos: {e}")
 
 
-# --- 6. RECUPERAR SESIÓN AUTOMÁTICAMENTE ---
+# --- 6. RECUPERAR SESIÓN INDEPENDIENTE POR DISPOSITIVO (COOKIE) ---
 if st.session_state["usuario"] is None:
-  try:
-    session_data = supabase.auth.get_session()
-    if session_data and hasattr(session_data, "user") and session_data.user:
-      st.session_state["usuario"] = session_data.user
-      cargar_datos_usuario(session_data.user.id)
-  except Exception as e:
-    st.error(f"Error al recuperar sesión: {e}")
+  if device_token_cookie:
+    try:
+      verificacion_disp = (
+          supabase.table("dispositivos_confiados")
+          .select("*")
+          .eq("device_token", device_token_cookie)
+          .execute()
+      )
+      if verificacion_disp.data and len(verificacion_disp.data) > 0:
+        user_id_asociado = verificacion_disp.data[0]["user_id"]
+        res_usuario = (
+            supabase.table("perfiles_usuario")
+            .select("*")
+            .eq("id", user_id_asociado)
+            .execute()
+        )
+        if res_usuario.data:
+
+          class UserDummy:
+
+            def __init__(self, uid, uemail):
+              self.id = uid
+              self.email = uemail
+
+          correo_asociado = res_usuario.data[0].get("correo", "usuario@app.com")
+          st.session_state["usuario"] = UserDummy(user_id_asociado, correo_asociado)
+          cargar_datos_usuario(user_id_asociado)
+          st.rerun()
+    except Exception:
+      pass
 
 
 # --- 7. LÓGICA DE CONTROL DE PRELACIONES ---
@@ -180,7 +203,7 @@ def calcular_indice_academico(df_pensum, evaluaciones):
 if st.session_state["usuario"] is None:
   st.title("🎓 Bienvenido a Mi App Universitaria")
   st.subheader(
-      "Inicia sesión o regístrate para gestionar tu pensum e historial académico"
+      "Inicia sesión y marca la casilla si deseas recordar este dispositivo."
   )
 
   tab_login, tab_registro = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse"])
@@ -190,9 +213,9 @@ if st.session_state["usuario"] is None:
       email_login = st.text_input("Correo electrónico")
       pass_login = st.text_input("Contraseña", type="password")
 
-      # Casilla estilo Facebook para recordar este equipo
+      # Casilla estilo Facebook para recordar este equipo de forma independiente
       recordar_dispositivo = st.checkbox(
-          "Confiar en este dispositivo (No pedir verificación en este equipo)"
+          "Confiar en este dispositivo (Mantener sesión abierta solo aquí)"
       )
 
       submit_login = st.form_submit_button("Ingresar")
@@ -214,7 +237,7 @@ if st.session_state["usuario"] is None:
               supabase.table("dispositivos_confiados").insert({
                   "user_id": res.user.id,
                   "device_token": nuevo_token,
-                  "nombre_dispositivo": "Navegador Web / Dispositivo Confiable",
+                  "nombre_dispositivo": "Dispositivo Confiable Independiente",
               }).execute()
 
             cargar_datos_usuario(res.user.id)
@@ -263,7 +286,16 @@ else:
     )
 
   st.sidebar.markdown("---")
-  if st.sidebar.button("Cerrar Sesión", key="btn_logout"):
+  if st.sidebar.button("Cerrar Sesión en este equipo", key="btn_logout"):
+    if device_token_cookie:
+      try:
+        supabase.table("dispositivos_confiados").delete().eq(
+            "device_token", device_token_cookie
+        ).execute()
+      except Exception:
+        pass
+      cookie_manager.delete("dispositivo_confiable_token")
+
     supabase.auth.sign_out()
     st.session_state["usuario"] = None
     st.session_state["pensum_df"] = None
