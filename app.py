@@ -208,7 +208,7 @@ else:
                         ]
                         """
 
-                        candidate_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+                        candidate_models = ["gemini-2.0-flash", "gemini-1.5-flash"]
                         response = None
 
                         for model_name in candidate_models:
@@ -500,7 +500,7 @@ else:
                         api_key = st.secrets["GEMINI_API_KEY"]
                         client = genai.Client(api_key=api_key)
                         res = client.models.generate_content(
-                            model="gemini-2.5-flash",
+                            model="gemini-2.0-flash",
                             contents=user_input
                         )
                         st.write(res.text)
