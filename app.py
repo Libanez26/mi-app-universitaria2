@@ -68,20 +68,22 @@ def guardar_datos_usuario():
     except Exception as e:
         st.error(f"Error al guardar: {e}")
 
-# --- 5. RECUPERACIÓN DE SESIÓN (SOLO SI ES NECESARIO) ---
-# Hemos eliminado la carga automática forzada aquí. 
-# Ahora, la app esperará a que el usuario interactúe o use un botón de 'Iniciar' 
-# si prefieres mayor control, o mantendrá el get_session() solo si el usuario no ha cerrado sesión explícitamente.
-
+# --- 5. RECUPERACIÓN DE SESIÓN (SOLO SI EL USUARIO NO HA CERRADO SESIÓN) ---
 if st.session_state["usuario"] is None:
     try:
+        # Recuperamos la sesión activa en ESTE dispositivo específico
+        # Si el usuario cerró sesión antes, get_session() devolverá None
         session_data = supabase.auth.get_session()
+        
+        # Verificamos si existe sesión y si el token aún es válido
         if session_data and hasattr(session_data, "user") and session_data.user:
             st.session_state["usuario"] = session_data.user
+            # Cargamos los datos personales de ESE usuario específico
             cargar_datos_usuario(session_data.user.id)
     except Exception as e:
-        pass # Silencioso para no molestar en la carga inicial
-
+        # Si hay un error de conexión, no forzamos nada y dejamos que el usuario inicie manualmente
+        st.session_state["usuario"] = None
+        
 # --- 6. LÓGICA DE PRELACIONES ---
 def verificar_disponibilidad(row, df_completo):
     prelaciones_raw = str(row.get("prelaciones", "Ninguna")).strip()
