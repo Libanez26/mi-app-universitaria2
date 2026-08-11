@@ -477,8 +477,12 @@ else:
             ahora = datetime.datetime.now().strftime("%H:%M")
             # Comparar si (hora_clase - tiempo_alerta) == ahora
         def agrupar_horario(df):
-    df = df.sort_values(by=["dia", "inicio"])
-    resultado = []
+    # Imprime esto temporalmente para ver qué nombres de columnas tiene realmente
+    print("Columnas detectadas:", df.columns.tolist()) 
+    
+    # Asegúrate de que los nombres aquí coincidan con los que imprimiste arriba
+    df = df.sort_values(by=["dia", "inicio"]) 
+    # ... resto del código
     
     for i, row in df.iterrows():
         if not resultado:
