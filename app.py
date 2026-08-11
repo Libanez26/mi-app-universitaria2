@@ -232,7 +232,7 @@ else:
                         st.text(f"Respuesta cruda recibida: {response.text[:200]}...") # Para depurar
                     except Exception as err:
                         st.error(f"Error procesando el documento: {err}")
-                        
+                            
                             # --- MÉTRICAS ACUMULATIVAS ---
                             if "Valor (%)" in edited_df and "Nota" in edited_df:
                                 peso_planificado = edited_df["Valor (%)"].sum()
