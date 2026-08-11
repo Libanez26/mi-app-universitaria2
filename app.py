@@ -608,7 +608,10 @@ else:
                         except Exception:
                             pass
 
-    # --- TÍTULO Y DESCRIPCIÓN DEL POMODORO ---
+    # ==========================================
+# PESTAÑA 3: Técnica Pomodoro
+# ==========================================
+with tab_pomodoro: # Asegúrate de usar el nombre de tu variable de pestaña correcta
     st.subheader("🍅 Técnica Pomodoro")
     
     with st.expander("¿Qué es esto?"):
@@ -625,7 +628,7 @@ else:
     if "pomodoro_activo" not in st.session_state:
         st.session_state["pomodoro_activo"] = False
 
-    # Callback para actualizar el tiempo al cambiar el radio
+    # Función para actualizar el tiempo según el radio
     def actualizar_tiempo():
         modo = st.session_state["modo_seleccionado"]
         if "25m" in modo: st.session_state["pomodoro_tiempo"] = 25 * 60
@@ -653,7 +656,7 @@ else:
             st.session_state["pomodoro_activo"] = False
     with col3:
         if st.button("🔄 Reiniciar"):
-            actualizar_tiempo() # Llama a la misma función para resetear al tiempo del modo
+            actualizar_tiempo()
             st.session_state["pomodoro_activo"] = True
     with col4:
         if st.button("⏹️ Detener"):
