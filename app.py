@@ -608,45 +608,4 @@ else:
                         except Exception:
                             pass
 
-    # ==========================================
-    # PESTAÑA 3: CHAT CON GEMINI
-    # ==========================================
-    with tab_chat:
-        st.subheader("🤖 Chat con Gemini sobre tu Carrera")
-        
-        for mensaje in st.session_state["mensajes_chat"]:
-            with st.chat_message(mensaje["role"]):
-                st.markdown(mensaje["content"])
-
-        if prompt_chat := st.chat_input("Escribe tu duda o consulta aquí..."):
-            st.session_state["mensajes_chat"].append({"role": "user", "content": prompt_chat})
-            with st.chat_message("user"):
-                st.markdown(prompt_chat)
-
-            with st.chat_message("assistant"):
-                with st.spinner("Pensando..."):
-                    try:
-                        api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-                        client = genai.Client(api_key=api_key)
-                        
-                        contexto_pensum = st.session_state["pensum_df"].to_string() if st.session_state["pensum_df"] is not None else "No cargado"
-                        contexto_horario = st.session_state["horario_df"].to_string() if st.session_state["horario_df"] is not None else "No cargado"
-                        
-                        system_prompt = f"""
-                        Eres un asistente universitario inteligente para un estudiante de Marketing con enfoque en Comercialización.
-                        Aquí tienes datos de contexto del estudiante:
-                        - Pensum: {contexto_pensum}
-                        - Horario: {contexto_horario}
-                        Ayúdalo de manera concisa y clara.
-                        """
-                        
-                        response = client.models.generate_content(
-                            model=modelo_seleccionado,
-                            contents=[system_prompt, prompt_chat]
-                        )
-                        
-                        respuesta_ia = response.text if response else "No obtuve respuesta."
-                        st.markdown(respuesta_ia)
-                        st.session_state["mensajes_chat"].append({"role": "assistant", "content": respuesta_ia})
-                    except Exception as e:
-                        st.error(f"Error al comunicarse con Gemini: {e}")
+    
