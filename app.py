@@ -608,29 +608,47 @@ else:
                         except Exception:
                             pass
 
-    # --- LÓGICA DE POMODORO EN TAB_CHAT ---
-    st.markdown("### 🍅 Temporizador Pomodoro")
+    # --- TÍTULO Y DESCRIPCIÓN DEL POMODORO ---
+    st.subheader("🍅 Técnica Pomodoro")
     
+    with st.expander("¿Qué es esto?"):
+        st.write("""
+        Esta herramienta utiliza la técnica **Pomodoro** para mejorar tu productividad:
+        1. **Foco:** Trabaja durante 25 minutos sin distracciones.
+        2. **Descanso:** Al finalizar, tómate un descanso breve de 5 minutos.
+        3. **Repetición:** Tras 4 ciclos, realiza un descanso más largo.
+        """)
+
+    # Inicialización del estado
     if "pomodoro_tiempo" not in st.session_state:
         st.session_state["pomodoro_tiempo"] = 25 * 60
+    if "pomodoro_activo" not in st.session_state:
         st.session_state["pomodoro_activo"] = False
 
-    col_p1, col_p2 = st.columns(2)
-    
-    # Formateo del tiempo
+    # Visualización del tiempo
     minutos = st.session_state["pomodoro_tiempo"] // 60
     segundos = st.session_state["pomodoro_tiempo"] % 60
-    st.metric("Tiempo restante", f"{minutos:02d}:{segundos:02d}")
+    st.metric("Tiempo de concentración", f"{minutos:02d}:{segundos:02d}")
 
-    # Controles
-    if st.button("▶️ Iniciar / Reiniciar 25min"):
-        st.session_state["pomodoro_tiempo"] = 25 * 60
-        st.session_state["pomodoro_activo"] = True
-        
-    if st.button("⏹️ Pausar / Detener"):
-        st.session_state["pomodoro_activo"] = False
+    # --- CONTROLES ---
+    col1, col2, col3, col4 = st.columns(4)
 
-    # Lógica de cuenta regresiva simple
+    with col1:
+        if st.button("▶️ Iniciar"):
+            st.session_state["pomodoro_activo"] = True
+    with col2:
+        if st.button("⏸️ Pausar"):
+            st.session_state["pomodoro_activo"] = False
+    with col3:
+        if st.button("🔄 Reiniciar"):
+            st.session_state["pomodoro_tiempo"] = 25 * 60
+            st.session_state["pomodoro_activo"] = True # O False, según prefieras
+    with col4:
+        if st.button("⏹️ Detener"):
+            st.session_state["pomodoro_activo"] = False
+            st.session_state["pomodoro_tiempo"] = 25 * 60
+
+    # Lógica de cuenta regresiva
     import time
     if st.session_state["pomodoro_activo"] and st.session_state["pomodoro_tiempo"] > 0:
         time.sleep(1)
@@ -638,5 +656,6 @@ else:
         st.rerun()
     elif st.session_state["pomodoro_tiempo"] == 0 and st.session_state["pomodoro_activo"]:
         st.balloons()
-        st.success("¡Tiempo cumplido! Tómate un descanso de 5 minutos.")
+        st.success("¡Pomodoro finalizado! Hora de un descanso de 5 min.")
         st.session_state["pomodoro_activo"] = False
+        st.session_state["pomodoro_tiempo"] = 25 * 60
