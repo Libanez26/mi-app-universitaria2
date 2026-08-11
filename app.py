@@ -439,3 +439,73 @@ else:
                                 col_ac3.metric(label="Estado de Aprobación", value="✅ Aprobado")
                             elif falta_peso > 0:
                                 nota_req = (puntos_faltantes / (falta_peso / 100.0))
+
+# ==========================================
+    # PESTAÑA 2: HORARIO DE CLASES
+    # ==========================================
+    with tab_horario:
+        st.subheader("📅 Gestión de Horario")
+        
+        # Selección de tiempo de alerta
+        tiempo_alerta = st.select_slider(
+            "Minutos de anticipación para la alerta:",
+            options=[5, 10, 15],
+            value=5
+        )
+
+        uploaded_horario = st.file_uploader("Sube tu horario (PDF)", type=["pdf"])
+
+        if uploaded_horario:
+            if st.button("Procesar y Organizar Horario"):
+                # 1. Llamada a Gemini para extraer estructura JSON
+                # El prompt debe pedir: {"dia": "Lunes", "inicio": "08:00", "fin": "10:00", "materia": "..."}
+                
+                # 2. Lógica de agrupación de horas consecutivas
+                # df = pd.DataFrame(datos_gemini)
+                # Ejemplo rápido de agrupación:
+                # Si (materia_n == materia_n+1) y (fin_n == inicio_n+1): fusionar.
+                
+                st.success("Horario organizado con éxito")
+                st.session_state["horario_df"] = df_agrupado
+
+        if "horario_df" in st.session_state and st.session_state["horario_df"] is not None:
+            st.table(st.session_state["horario_df"])
+            
+            # 3. Lógica de Alertas
+            # Necesitas comparar datetime.now() con las horas del df
+            import datetime
+            ahora = datetime.datetime.now().strftime("%H:%M")
+            # Comparar si (hora_clase - tiempo_alerta) == ahora
+            # st.toast("⚠️ Clase en 5 minutos: {materia}")
+3. Lógica de Agrupación (Backend del horario)
+Para lograr que si las clases se repiten consecutivamente se agrupen, usa este script de limpieza antes de mostrar la tabla:
+
+Python
+def agrupar_horario(df):
+    df = df.sort_values(by=["dia", "inicio"])
+    resultado = []
+    
+    for i, row in df.iterrows():
+        if not resultado:
+            resultado.append(row.to_dict())
+        else:
+            prev = resultado[-1]
+            # Si es la misma materia y la hora de inicio es igual a la de fin anterior
+            if row["materia"] == prev["materia"] and row["inicio"] == prev["fin"]:
+                prev["fin"] = row["fin"] # Extender fin
+            else:
+                resultado.append(row.to_dict())
+    return pd.DataFrame(resultado)
+    
+    # Dentro del bucle de verificación de horario
+if es_hora_de_alerta:
+    st.toast(f"🚨 La clase {materia} comienza en {tiempo_alerta} minutos")
+    
+    # Alerta hablada básica usando el motor de texto a voz del navegador/sistema
+    js_code = f"""
+    <script>
+        var msg = new SpeechSynthesisUtterance('Atención, la clase {materia} comienza en {tiempo_alerta} minutos');
+        window.speechSynthesis.speak(msg);
+    </script>
+    """
+    st.components.v1.html(js_code, height=0)
