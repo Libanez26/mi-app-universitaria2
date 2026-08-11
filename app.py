@@ -347,6 +347,7 @@ else:
                     except Exception as err:
                         st.error(f"Error con el servicio de IA: {err}")
                         try:
+                            
     # Tu código que llama a la API de Gemini
     response = model.generate_content(...)
 except Exception as err:
