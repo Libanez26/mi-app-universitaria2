@@ -157,6 +157,23 @@ if st.session_state["usuario"] is None:
 else:
     # BARRA LATERAL
     st.sidebar.write(f"👤 **Usuario:** {st.session_state['usuario'].email}")
+    
+    # --- SELECTOR DINÁMICO DE MODELOS DE GEMINI ---
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("⚙️ Configuración de IA")
+    modelo_seleccionado = st.sidebar.selectbox(
+        "Selecciona el Modelo",
+        [
+            "gemini-3.5-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-3.6-flash",
+            "gemini-2.5-flash"
+        ],
+        index=0,
+        help="Elige un modelo alternativo si alcanzas el límite de solicitudes por minuto (RPM)."
+    )
+    
+    st.sidebar.markdown("---")
     if st.sidebar.button("Cerrar Sesión", key="btn_logout"):
         supabase.auth.sign_out()
         st.session_state["usuario"] = None
@@ -174,7 +191,7 @@ else:
     ])
 
     # ==========================================
-    # PESTAÑA 1: PENSUM Y CALIFICACIONES (CORREGIDO)
+    # PESTAÑA 1: PENSUM Y CALIFICACIONES
     # ==========================================
     with tab_pensum:
         st.subheader("📋 Pensum Estructurado por Niveles")
@@ -192,7 +209,6 @@ else:
                         pdf_bytes = uploaded_file.read()
                         pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
 
-                        # PROMPT MEJORADO: Más estricto y limpio
                         prompt = """
                         Actúa como un extractor de datos profesional. Analiza el documento PDF y extrae todas las materias.
                         Tu respuesta DEBE ser ÚNICAMENTE un array JSON válido, sin texto introductorio, 
@@ -205,17 +221,15 @@ else:
                         Si falta un dato, usa "N/A" o 0 según corresponda.
                         """
 
+                        # Se reemplaza el modelo fijo por la variable del selector lateral
                         response = client.models.generate_content(
-                            model="gemini-2.0-flash",
+                            model=modelo_seleccionado,
                             contents=[prompt, pdf_part]
                         )
 
-                        # LIMPIEZA DE RESPUESTA MÁS ROBUSTA
                         raw_text = response.text.strip()
-                        # Quitamos cualquier rastro de Markdown que la IA insista en poner
                         clean_text = raw_text.replace("```json", "").replace("```", "").strip()
                         
-                        # Guardamos en la sesión y recargamos
                         data = json.loads(clean_text)
                         df = pd.DataFrame(data)
 
@@ -233,52 +247,9 @@ else:
                     except Exception as err:
                         st.error(f"Error procesando el documento: {err}")
 
-                    # --- MÉTRICAS ACUMULATIVAS ---
-                    if 'edited_df' in locals() and "Valor (%)" in edited_df and "Nota" in edited_df:
-                        peso_planificado = edited_df["Valor (%)"].sum()
-
-                        if "20" in escala_sel:
-                            max_nota = 20.0
-                            min_aprobar = 9.5
-                            unidad = "puntos"
-                        else:
-                            max_nota = 100.0
-                            min_aprobar = 47.5
-                            unidad = "%"
-
-                        puntos_acum = ((edited_df["Nota"] / max_nota) * (edited_df["Valor (%)"] / 100.0) * max_nota).sum()
-                        porcentaje_efectivo = (puntos_acum / max_nota) * 100.0 if max_nota > 0 else 0.0
-
-                        falta_peso = 100.0 - peso_planificado
-                        puntos_faltantes = min_aprobar - puntos_acum
-
-                        col_ac1, col_ac2, col_ac3 = st.columns(3)
-
-                        col_ac1.metric(
-                            label="Porcentaje Obtenido / Evaluado",
-                            value=f"{porcentaje_efectivo:.1f}% / {peso_planificado:.1f}%"
-                        )
-
-                        col_ac2.metric(
-                            label="Nota Acumulada",
-                            value=f"{puntos_acum:.2f} / {max_nota:.1f} {unidad}"
-                        )
-
-                        if puntos_faltantes <= 0:
-                            col_ac3.metric(label="Estado de Aprobación", value="✅ Aprobado")
-                        elif falta_peso > 0:
-                            nota_req = (puntos_faltantes / (falta_peso / 100.0))
-                            if nota_req <= max_nota:
-                                col_ac3.metric(label="Nota req. en el restante", value=f"{nota_req:.2f} / {max_nota:.1f}")
-                            else:
-                                col_ac3.metric(label="Nota req. en el restante", value="⚠️ Inalcanzable")
-                        else:
-                            col_ac3.metric(label="Estado de Aprobación", value="❌ Reprobado")
-                            
-
 # ==========================================
-    # PESTAÑA 2: HORARIO DE CLASES
-    # ==========================================
+# PESTAÑA 2: HORARIO DE CLASES
+# ==========================================
     with tab_horario:
         st.header("📅 Carga y Organización de Horario")
         
@@ -340,12 +311,13 @@ else:
                     try:
                         api_key = st.secrets["GEMINI_API_KEY"]
                         client = genai.Client(api_key=api_key)
+                        
+                        # Se usa el modelo seleccionado en el menú lateral también para el chat
                         res = client.models.generate_content(
-                            model="gemini-2.5-flash",
+                            model=modelo_seleccionado,
                             contents=user_input
                         )
                         st.write(res.text)
                         st.session_state["chat_history"].append({"role": "assistant", "content": res.text})
                     except Exception as err:
                         st.error(f"Error con el servicio de IA: {err}")
-
