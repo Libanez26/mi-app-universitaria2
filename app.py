@@ -346,3 +346,11 @@ else:
                         st.session_state["chat_history"].append({"role": "assistant", "content": res.text})
                     except Exception as err:
                         st.error(f"Error con el servicio de IA: {err}")
+                        try:
+    # Tu código que llama a la API de Gemini
+    response = model.generate_content(...)
+except Exception as err:
+    if "429" in str(err) or "RESOURCE_EXHAUSTED" in str(err):
+        st.warning("⚠️ Se ha superado temporalmente el límite de solicitudes gratuitas de la API de Gemini. Por favor, espera unos segundos antes de intentar procesar el documento nuevamente.")
+    else:
+        st.error(f"Error procesando el documento: {err}")
