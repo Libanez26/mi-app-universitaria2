@@ -3,3 +3,4 @@ pandas
 pypdf
 google-genai
 supabase
+extra-streamlit-components
