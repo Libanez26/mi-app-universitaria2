@@ -575,3 +575,6 @@ else:
                         st.components.v1.html(js_voz, height=0)
                 except Exception:
                     pass
+                    # Después de crear el df_final_horario:
+df_final_horario["notificar"] = True # Por defecto, todas notifican
+st.session_state["horario_df"] = df_final_horario
