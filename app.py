@@ -440,6 +440,30 @@ else:
                             elif falta_peso > 0:
                                 pass
 
+    # --- LÓGICA DE APROBACIÓN ---
+                            st.markdown("---")
+                            st.markdown("#### ✅ Resultado Final")
+                            
+                            # Determinamos el estatus basado en la escala
+                            nota_final_objetivo = 9.5 if "20" in escala_sel else 47.5
+                            
+                            if puntos_acum >= nota_final_objetivo:
+                                st.success(f"¡Felicidades! Con {puntos_acum:.2f} {unidad}, estás **APROBADO** en esta materia.")
+                                # Opcional: Actualizar automáticamente el estado si el usuario lo desea
+                                if st.button("Marcar como Aprobada automáticamente"):
+                                    st.session_state["evaluaciones"][codigo_mat]["estado"] = "Aprobada"
+                                    st.session_state["pensum_df"].loc[st.session_state["pensum_df"]["codigo"] == codigo_mat, "estado"] = "Aprobada"
+                                    guardar_datos_usuario()
+                                    st.rerun()
+                            else:
+                                faltan = nota_final_objetivo - puntos_acum
+                                st.warning(f"Aún no alcanzas la nota mínima. Te faltan **{faltan:.2f} {unidad}** para aprobar.")
+                                
+                                # Proyección simple
+                                if falta_peso > 0:
+                                    nota_necesaria = (faltan / falta_peso) * 100
+                                    st.info(f"💡 Necesitas un promedio de **{nota_necesaria:.1f} pts** en lo que queda por evaluar ({falta_peso:.1f}%) para aprobar.")
+
     # ==========================================
     # PESTAÑA 2: HORARIO DE CLASES
     # ==========================================
