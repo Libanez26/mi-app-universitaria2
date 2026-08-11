@@ -234,46 +234,46 @@ else:
                         st.error(f"Error procesando el documento: {err}")
 
                     # --- MÉTRICAS ACUMULATIVAS ---
-                            if 'edited_df' in locals() and "Valor (%)" in edited_df and "Nota" in edited_df:
-                                peso_planificado = edited_df["Valor (%)"].sum()
+                    if 'edited_df' in locals() and "Valor (%)" in edited_df and "Nota" in edited_df:
+                        peso_planificado = edited_df["Valor (%)"].sum()
 
-                                if "20" in escala_sel:
-                                    max_nota = 20.0
-                                    min_aprobar = 9.5
-                                    unidad = "puntos"
-                                else:
-                                    max_nota = 100.0
-                                    min_aprobar = 47.5
-                                    unidad = "%"
+                        if "20" in escala_sel:
+                            max_nota = 20.0
+                            min_aprobar = 9.5
+                            unidad = "puntos"
+                        else:
+                            max_nota = 100.0
+                            min_aprobar = 47.5
+                            unidad = "%"
 
-                                puntos_acum = ((edited_df["Nota"] / max_nota) * (edited_df["Valor (%)"] / 100.0) * max_nota).sum()
-                                porcentaje_efectivo = (puntos_acum / max_nota) * 100.0 if max_nota > 0 else 0.0
+                        puntos_acum = ((edited_df["Nota"] / max_nota) * (edited_df["Valor (%)"] / 100.0) * max_nota).sum()
+                        porcentaje_efectivo = (puntos_acum / max_nota) * 100.0 if max_nota > 0 else 0.0
 
-                                falta_peso = 100.0 - peso_planificado
-                                puntos_faltantes = min_aprobar - puntos_acum
+                        falta_peso = 100.0 - peso_planificado
+                        puntos_faltantes = min_aprobar - puntos_acum
 
-                                col_ac1, col_ac2, col_ac3 = st.columns(3)
+                        col_ac1, col_ac2, col_ac3 = st.columns(3)
 
-                                col_ac1.metric(
-                                    label="Porcentaje Obtenido / Evaluado",
-                                    value=f"{porcentaje_efectivo:.1f}% / {peso_planificado:.1f}%"
-                                )
+                        col_ac1.metric(
+                            label="Porcentaje Obtenido / Evaluado",
+                            value=f"{porcentaje_efectivo:.1f}% / {peso_planificado:.1f}%"
+                        )
 
-                                col_ac2.metric(
-                                    label="Nota Acumulada",
-                                    value=f"{puntos_acum:.2f} / {max_nota:.1f} {unidad}"
-                                )
+                        col_ac2.metric(
+                            label="Nota Acumulada",
+                            value=f"{puntos_acum:.2f} / {max_nota:.1f} {unidad}"
+                        )
 
-                                if puntos_faltantes <= 0:
-                                    col_ac3.metric(label="Estado de Aprobación", value="✅ Aprobado")
-                                elif falta_peso > 0:
-                                    nota_req = (puntos_faltantes / (falta_peso / 100.0))
-                                    if nota_req <= max_nota:
-                                        col_ac3.metric(label="Nota req. en el restante", value=f"{nota_req:.2f} / {max_nota:.1f}")
-                                    else:
-                                        col_ac3.metric(label="Nota req. en el restante", value="⚠️ Inalcanzable")
-                                else:
-                                    col_ac3.metric(label="Estado de Aprobación", value="❌ Reprobado")
+                        if puntos_faltantes <= 0:
+                            col_ac3.metric(label="Estado de Aprobación", value="✅ Aprobado")
+                        elif falta_peso > 0:
+                            nota_req = (puntos_faltantes / (falta_peso / 100.0))
+                            if nota_req <= max_nota:
+                                col_ac3.metric(label="Nota req. en el restante", value=f"{nota_req:.2f} / {max_nota:.1f}")
+                            else:
+                                col_ac3.metric(label="Nota req. en el restante", value="⚠️ Inalcanzable")
+                        else:
+                            col_ac3.metric(label="Estado de Aprobación", value="❌ Reprobado")
 # ==========================================
     # PESTAÑA 2: HORARIO DE CLASES
     # ==========================================
