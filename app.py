@@ -608,4 +608,35 @@ else:
                         except Exception:
                             pass
 
+    # --- LÓGICA DE POMODORO EN TAB_CHAT ---
+    st.markdown("### 🍅 Temporizador Pomodoro")
     
+    if "pomodoro_tiempo" not in st.session_state:
+        st.session_state["pomodoro_tiempo"] = 25 * 60
+        st.session_state["pomodoro_activo"] = False
+
+    col_p1, col_p2 = st.columns(2)
+    
+    # Formateo del tiempo
+    minutos = st.session_state["pomodoro_tiempo"] // 60
+    segundos = st.session_state["pomodoro_tiempo"] % 60
+    st.metric("Tiempo restante", f"{minutos:02d}:{segundos:02d}")
+
+    # Controles
+    if st.button("▶️ Iniciar / Reiniciar 25min"):
+        st.session_state["pomodoro_tiempo"] = 25 * 60
+        st.session_state["pomodoro_activo"] = True
+        
+    if st.button("⏹️ Pausar / Detener"):
+        st.session_state["pomodoro_activo"] = False
+
+    # Lógica de cuenta regresiva simple
+    import time
+    if st.session_state["pomodoro_activo"] and st.session_state["pomodoro_tiempo"] > 0:
+        time.sleep(1)
+        st.session_state["pomodoro_tiempo"] -= 1
+        st.rerun()
+    elif st.session_state["pomodoro_tiempo"] == 0 and st.session_state["pomodoro_activo"]:
+        st.balloons()
+        st.success("¡Tiempo cumplido! Tómate un descanso de 5 minutos.")
+        st.session_state["pomodoro_activo"] = False
