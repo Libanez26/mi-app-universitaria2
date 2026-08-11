@@ -36,6 +36,8 @@ if "pensum_df" not in st.session_state:
     st.session_state["pensum_df"] = None
 if "evaluaciones" not in st.session_state:
     st.session_state["evaluaciones"] = {}
+if "mensajes_chat" not in st.session_state:
+    st.session_state["mensajes_chat"] = []
 
 # --- FUNCIONES DE BASE DE DATOS ---
 def cargar_datos_usuario(user_id):
@@ -179,6 +181,7 @@ else:
         st.session_state["usuario"] = None
         st.session_state["pensum_df"] = None
         st.session_state["evaluaciones"] = {}
+        st.session_state["mensajes_chat"] = []
         st.rerun()
 
     st.title("🎓 Mi App Universitaria")
@@ -272,3 +275,62 @@ else:
             with col_m3:
                 st.metric("En Curso", len(df[df["estado"] == "En Curso"]))
             with col_m4:
+                st.metric("Inscritas / Pendientes", len(df[df["estado"] == "Inscrita"]))
+            with col_m5:
+                st.metric("📈 Índice Académico", f"{indice_aca:.2f} / 20.0")
+
+            st.divider()
+
+            semestres = list(df["semestre"].unique()) if "semestre" in df.columns else ["Nivel Único"]
+            tabs_niveles = st.tabs(semestres)
+
+            for idx_tab, semestre_nombre in enumerate(semestres):
+                with tabs_niveles[idx_tab]:
+                    df_nivel = df[df["semestre"] == semestre_nombre].copy()
+
+                    disponibilidades = []
+                    mensajes_est = []
+                    for _, row in df_nivel.iterrows():
+                        disp, msg = verificar_disponibilidad(row, df)
+                        disponibilidades.append(disp)
+                        mensajes_est.append(msg)
+
+                    df_nivel["Disponibilidad"] = mensajes_est
+
+                    bloqueadas_count = disponibilidades.count(False)
+                    if bloqueadas_count > 0:
+                        st.warning(f"⚠️ Tienes {bloqueadas_count} materia(s) bloqueada(s) por preliminares no aprobadas.")
+
+                    evento_seleccion = st.dataframe(
+                        df_nivel,
+                        use_container_width=True,
+                        hide_index=True,
+                        on_select="rerun",
+                        selection_mode="single-row",
+                        key=f"tabla_{semestre_nombre}",
+                        column_config={
+                            "semestre": "Nivel",
+                            "codigo": "Código",
+                            "materia": "Asignatura",
+                            "creditos": st.column_config.NumberColumn("Créditos", format="%d"),
+                            "prelaciones": "Requisitos / Prelaciones",
+                            "estado": "Estado Actual",
+                            "Disponibilidad": st.column_config.TextColumn("Estatus de Acceso")
+                        }
+                    )
+
+                    filas_sel = evento_seleccion.get("selection", {}).get("rows", [])
+
+                    if filas_sel:
+                        idx_local = filas_sel[0]
+                        materia_sel = df_nivel.iloc[idx_local]
+                        codigo_mat = str(materia_sel.get("codigo", f"MAT-{idx_local}"))
+                        nombre_mat = materia_sel.get("materia", "Asignatura")
+                        esta_disponible = disponibilidades[idx_local]
+
+                        st.divider()
+
+                        if not esta_disponible:
+                            st.error(f"🔒 **{codigo_mat} - {nombre_mat}** está **bloqueada**. Aprueba sus preliminares ({materia_sel.get('prelaciones')}) para registrar sus notas.")
+                        else:
+                            st.markdown
