@@ -439,71 +439,139 @@ else:
                                 col_ac3.metric(label="Estado de Aprobación", value="✅ Aprobado")
                             elif falta_peso > 0:
                                 nota_req = (puntos_faltantes / (falta_peso / 100.0))
-
 # ==========================================
     # PESTAÑA 2: HORARIO DE CLASES
     # ==========================================
     with tab_horario:
-        st.subheader("📅 Gestión de Horario")
-        
-        # Selección de tiempo de alerta
+        st.subheader("📅 Gestión de Horario de Clases")
+
+        # Selector de tiempo de anticipación para la alerta escogido por el usuario
         tiempo_alerta = st.select_slider(
-            "Minutos de anticipación para la alerta:",
+            "Minutos de anticipación para las alertas de clases:",
             options=[5, 10, 15],
-            value=5
+            value=5,
+            key="slider_tiempo_alerta"
         )
 
-        uploaded_horario = st.file_uploader("Sube tu horario (PDF)", type=["pdf"])
+        if st.session_state.get("horario_df") is None:
+            st.info("👋 Sube tu horario de clases en formato PDF para organizarlo automáticamente.")
+            uploaded_horario = st.file_uploader("Sube el PDF de tu horario", type=["pdf"], key="file_uploader_horario")
 
-        if uploaded_horario:
-            if st.button("Procesar y Organizar Horario"):
-                # 1. Llamada a Gemini para extraer estructura JSON
-                # El prompt debe pedir: {"dia": "Lunes", "inicio": "08:00", "fin": "10:00", "materia": "..."}
-                
-                # 2. Lógica de agrupación de horas consecutivas
-                # df = pd.DataFrame(datos_gemini)
-                # Ejemplo rápido de agrupación:
-                # Si (materia_n == materia_n+1) y (fin_n == inicio_n+1): fusionar.
-                
-                st.success("Horario organizado con éxito")
-                st.session_state["horario_df"] = df_agrupado
+            if uploaded_horario and st.button("📊 Procesar y Organizar Horario", key="btn_procesar_horario"):
+                with st.spinner("Procesando horario con Gemini..."):
+                    try:
+                        api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                        client = genai.Client(api_key=api_key)
 
-        if "horario_df" in st.session_state and st.session_state["horario_df"] is not None:
-            st.table(st.session_state["horario_df"])
-            
-            # 3. Lógica de Alertas
-            # Necesitas comparar datetime.now() con las horas del df
-            import datetime
-            ahora = datetime.datetime.now().strftime("%H:%M")
-            # Comparar si (hora_clase - tiempo_alerta) == ahora
-        def agrupar_horario(df):
-    # Imprime esto temporalmente para ver qué nombres de columnas tiene realmente
-    print("Columnas detectadas:", df.columns.tolist()) 
-    
-    # Asegúrate de que los nombres aquí coincidan con los que imprimiste arriba
-    df = df.sort_values(by=["dia", "inicio"]) 
-    # ... resto del código
-    
-    for i, row in df.iterrows():
-        if not resultado:
-            resultado.append(row.to_dict())
+                        pdf_bytes = uploaded_horario.read()
+                        pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+
+                        prompt = """
+                        Extrae exhaustivamente todas las clases del documento de horario proporcionado.
+                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves:
+                        [
+                          {
+                            "dia": "Lunes",
+                            "materia": "Matemática I",
+                            "inicio": "08:00",
+                            "fin": "10:00",
+                            "aula": "Aula 101"
+                          }
+                        ]
+                        Asegúrate de que las horas estén en formato de 24 horas (HH:MM).
+                        """
+
+                        response = client.models.generate_content(
+                            model=modelo_seleccionado,
+                            contents=[prompt, pdf_part]
+                        )
+
+                        if response and response.text:
+                            clean_text = response.text.strip()
+                            if clean_text.startswith("```json"):
+                                clean_text = clean_text[7:]
+                            if clean_text.startswith("```"):
+                                clean_text = clean_text[3:]
+                            if clean_text.endswith("```"):
+                                clean_text = clean_text[:-3]
+
+                            data_horario = json.loads(clean_text.strip())
+                            df_h = pd.DataFrame(data_horario)
+
+                            # Lógica de limpieza y agrupación de bloques consecutivos
+                            df_h.columns = [c.lower().strip().replace(" ", "_") for c in df_h.columns]
+                            dias_map = {"lunes": 1, "martes": 2, "miércoles": 3, "miercoles": 3, "jueves": 4, "viernes": 5, "sábado": 6, "sabado": 6, "domingo": 7}
+                            df_h["d_orden"] = df_h["dia"].str.lower().map(dias_map).fillna(8)
+                            df_h = df_h.sort_values(by=["d_orden", "inicio"])
+
+                            resultado_agrupado = []
+                            for _, row in df_h.iterrows():
+                                if not resultado_agrupado:
+                                    resultado_agrupado.append(row.to_dict())
+                                else:
+                                    prev = resultado_agrupado[-1]
+                                    if row["dia"] == prev["dia"] and row["materia"] == prev["materia"] and row["inicio"] == prev["fin"]:
+                                        prev["fin"] = row["fin"]
+                                    else:
+                                        resultado_agrupado.append(row.to_dict())
+
+                            df_final_horario = pd.DataFrame(resultado_agrupado)
+                            if "d_orden" in df_final_horario.columns:
+                                df_final_horario = df_final_horario.drop(columns=["d_orden"])
+
+                            st.session_state["horario_df"] = df_final_horario
+                            guardar_datos_usuario()
+                            st.success("¡Horario procesado, organizado y guardado con éxito!")
+                            st.rerun()
+
+                    except Exception as err:
+                        st.error(f"Error procesando el horario: {err}")
         else:
-            prev = resultado[-1]
-            if row["materia"] == prev["materia"] and row["inicio"] == prev["fin"]:
-                prev["fin"] = row["fin"]
-            else:
-                resultado.append(row.to_dict())
-    return pd.DataFrame(resultado)
-    
-    # Dentro del bucle de verificación de horario
-if es_hora_de_alerta:
-    st.toast(f"🚨 La clase {materia} comienza en {tiempo_alerta} minutos")
-    
-    # Alerta hablada básica usando el motor de texto a voz del navegador/sistema
-    js_code = f"""
-    <script>
-        var msg = new SpeechSynthesisUtterance('Atención, la clase {materia} comienza en {tiempo_alerta} minutos');
-        window.speechSynthesis.speak(msg);
-    </script>
-    """
-    st.components.v1.html(js_code, height=0)
+            if st.button("🗑️ Eliminar / Volver a subir Horario", key="btn_eliminar_horario"):
+                st.session_state["horario_df"] = None
+                guardar_datos_usuario()
+                st.rerun()
+
+            df_horario_actual = st.session_state["horario_df"]
+            st.markdown("### 📋 Tu Horario Académico Organizado")
+            st.dataframe(df_horario_actual, use_container_width=True, hide_index=True)
+
+            # --- SISTEMA DE ALERTAS (Visual y Hablada) ---
+            import datetime
+            ahora_dt = datetime.datetime.now()
+            hora_actual_minutos = ahora_dt.hour * 60 + ahora_dt.minute
+            
+            # Obtener el día actual de la semana en formato texto para comparar
+            dia_actual_str = ahora_dt.strftime("%A").lower() 
+            # Diccionario auxiliar por si el sistema devuelve los días en inglés u otro idioma, 
+            # aseguramos coincidencia si en el DF están en español.
+
+            for _, clase in df_horario_actual.iterrows():
+                try:
+                    h_ini, m_ini = map(int, clase["inicio"].split(":"))
+                    inicio_en_minutos = h_ini * 60 + m_ini
+                    
+                    # Verificar si la clase es hoy (puedes ajustar la validación de días según tu PDF)
+                    # Comparamos la diferencia de tiempo con el selector del usuario
+                    diferencia = inicio_en_minutos - hora_actual_minutos
+                    
+                    if diferencia == tiempo_alerta:
+                        materia_alerta = clase["materia"]
+                        aula_alerta = clase.get("aula", "asignada")
+                        
+                        mensaje_alerta = f"Atención: La clase de {materia_alerta} en el aula {aula_alerta} comienza en {tiempo_alerta} minutos."
+                        
+                        # 1. Notificación visual tipo Toast
+                        st.toast(f"🚨 {mensaje_alerta}", icon="⏳")
+                        
+                        # 2. Notificación hablada mediante JavaScript del navegador
+                        js_voz = f"""
+                        <script>
+                            var utterance = new SpeechSynthesisUtterance("{mensaje_alerta}");
+                            utterance.lang = 'es-ES';
+                            window.speechSynthesis.speak(utterance);
+                        </script>
+                        """
+                        st.components.v1.html(js_voz, height=0)
+                except Exception:
+                    pass
