@@ -341,13 +341,17 @@ else:
         plan_evals = st.session_state["evaluaciones"][cod_mat].get("plan", [])
       else:
         plan_evals = [
-            {"Evaluación": "Parcial 1", "Fecha": hoy_fecha},
-            {"Evaluación": "Parcial 2", "Fecha": hoy_fecha},
-            {"Evaluación": "Trabajo / Proyecto", "Fecha": hoy_fecha},
-            {"Evaluación": "Exposición / Quices", "Fecha": hoy_fecha},
+            {"Evaluación": "Parcial 1", "Fecha": hoy_fecha, "Entregada": False},
+            {"Evaluación": "Parcial 2", "Fecha": hoy_fecha, "Entregada": False},
+            {"Evaluación": "Trabajo / Proyecto", "Fecha": hoy_fecha, "Entregada": False},
+            {"Evaluación": "Exposición / Quices", "Fecha": hoy_fecha, "Entregada": False},
         ]
         
       for eval_item in plan_evals:
+        # Si ya fue entregada, nos saltamos esta iteración para que no salga en la alerta
+        if eval_item.get("Entregada", False):
+          continue
+          
         f_eval = eval_item.get("Fecha")
         if isinstance(f_eval, str):
           try:
@@ -564,6 +568,7 @@ else:
                             "Valor (%)": 25,
                             "Nota": 0.0,
                             "Fecha": hoy,
+                            "Entregada": False,
                         },
                         {
                             "Evaluación": "Parcial 2",
@@ -571,6 +576,7 @@ else:
                             "Valor (%)": 25,
                             "Nota": 0.0,
                             "Fecha": hoy,
+                            "Entregada": False,
                         },
                         {
                             "Evaluación": "Trabajo / Proyecto",
@@ -578,6 +584,7 @@ else:
                             "Valor (%)": 25,
                             "Nota": 0.0,
                             "Fecha": hoy,
+                            "Entregada": False,
                         },
                         {
                             "Evaluación": "Exposición / Quices",
@@ -585,6 +592,7 @@ else:
                             "Valor (%)": 25,
                             "Nota": 0.0,
                             "Fecha": hoy,
+                            "Entregada": False,
                         },
                     ],
                 }
@@ -633,6 +641,11 @@ else:
                     key=f"radio_esc_{codigo_mat}",
                 )
 
+              # Asegurar que la columna 'Entregada' exista en el plan
+              for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
+                if "Entregada" not in item:
+                  item["Entregada"] = False
+
               df_eval_actual = pd.DataFrame(
                   st.session_state["evaluaciones"][codigo_mat]["plan"]
               )
@@ -645,7 +658,7 @@ else:
               max_nota = 20.0 if "20" in escala_sel else 100.0
 
               edited_df = st.data_editor(
-                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha"]],
+                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
                   num_rows="dynamic",
                   use_container_width=True,
                   key=f"editor_{codigo_mat}",
@@ -664,11 +677,12 @@ else:
                       "Fecha": st.column_config.DateColumn(
                           "Fecha de Entrega", format="YYYY-MM-DD"
                       ),
+                      "Entregada": st.column_config.CheckboxColumn("¿Entregada?"),
                   },
               )
 
               if not edited_df.equals(
-                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha"]]
+                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]]
               ):
                 st.session_state["evaluaciones"][codigo_mat]["plan"] = (
                     edited_df.to_dict("records")
