@@ -50,7 +50,7 @@ if "mensajes_chat" not in st.session_state:
   st.session_state["mensajes_chat"] = []
 
 
-# --- 5. FUNCIONES DE BASE DE DATOS ---
+# --- 5. FUNCIONES DE BASE DE DATOS (CON CONVERSIÓN DE FECHAS) ---
 def cargar_datos_usuario(user_id):
   try:
     res = (
@@ -60,8 +60,20 @@ def cargar_datos_usuario(user_id):
       datos = res.data[0]
       if datos.get("pensum_data"):
         st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
+      
       if datos.get("evaluaciones_data"):
-        st.session_state["evaluaciones"] = datos["evaluaciones_data"]
+        evals_cargadas = datos["evaluaciones_data"]
+        # Convertir las cadenas de texto de fecha de vuelta a objetos datetime.date
+        for cod, info in evals_cargadas.items():
+          if "plan" in info:
+            for item in info["plan"]:
+              if "Fecha" in item and isinstance(item["Fecha"], str):
+                try:
+                  item["Fecha"] = datetime.datetime.strptime(item["Fecha"], "%Y-%m-%d").date()
+                except ValueError:
+                  item["Fecha"] = datetime.date.today()
+        st.session_state["evaluaciones"] = evals_cargadas
+
       if datos.get("horario_data"):
         st.session_state["horario_df"] = pd.DataFrame(datos["horario_data"])
   except Exception as e:
@@ -80,7 +92,21 @@ def guardar_datos_usuario():
       if st.session_state["pensum_df"] is not None
       else None
   )
-  evals_json = st.session_state["evaluaciones"]
+  
+  # Copiar y serializar fechas a string para evitar errores en JSON
+  evals_json = {}
+  for cod, info in st.session_state["evaluaciones"].items():
+    evals_json[cod] = {
+        "estado": info.get("estado", "Inscrita"),
+        "plan": []
+    }
+    for item in info.get("plan", []):
+      item_copia = item.copy()
+      if "Fecha" in item_copia:
+        if isinstance(item_copia["Fecha"], (datetime.date, datetime.datetime)):
+          item_copia["Fecha"] = item_copia["Fecha"].strftime("%Y-%m-%d")
+      evals_json[cod]["plan"].append(item_copia)
+
   horario_json = (
       st.session_state["horario_df"].to_dict("records")
       if st.session_state["horario_df"] is not None
@@ -213,7 +239,6 @@ if st.session_state["usuario"] is None:
       email_login = st.text_input("Correo electrónico")
       pass_login = st.text_input("Contraseña", type="password")
 
-      # Casilla estilo Facebook para recordar este equipo de forma independiente
       recordar_dispositivo = st.checkbox(
           "Confiar en este dispositivo (Mantener sesión abierta solo aquí)"
       )
@@ -317,7 +342,6 @@ else:
   with tab_pensum:
     st.subheader("📋 Pensum Estructurado por Niveles")
 
-    # Mini resumen global opcional de próximas entregas
     with st.expander("📅 Próximas Evaluaciones Generales"):
       todas_evals = []
       for cod, info in st.session_state["evaluaciones"].items():
@@ -751,198 +775,4 @@ else:
                 clean_text = clean_text[7:]
               if clean_text.startswith("```"):
                 clean_text = clean_text[3:]
-              if clean_text.endswith("```"):
-                clean_text = clean_text[:-3]
-
-              data_horario = json.loads(clean_text.strip())
-              df_h = pd.DataFrame(data_horario)
-
-              df_h.columns = [
-                  c.lower().strip().replace(" ", "_") for c in df_h.columns
-              ]
-              dias_map = {
-                  "lunes": 1,
-                  "martes": 2,
-                  "miércoles": 3,
-                  "miercoles": 3,
-                  "jueves": 4,
-                  "viernes": 5,
-                  "sábado": 6,
-                  "sabado": 6,
-                  "domingo": 7,
-              }
-              df_h["d_orden"] = (
-                  df_h["dia"].str.lower().map(dias_map).fillna(8)
-              )
-              df_h = df_h.sort_values(by=["d_orden", "inicio"])
-
-              resultado_agrupado = []
-              for _, row in df_h.iterrows():
-                if not resultado_agrupado:
-                  resultado_agrupado.append(row.to_dict())
-                else:
-                  prev = resultado_agrupado[-1]
-                  if (
-                      row["dia"] == prev["dia"]
-                      and row["materia"] == prev["materia"]
-                      and row["inicio"] == prev["fin"]
-                  ):
-                    prev["fin"] = row["fin"]
-                  else:
-                    resultado_agrupado.append(row.to_dict())
-
-              df_final_horario = pd.DataFrame(resultado_agrupado)
-              if "d_orden" in df_final_horario.columns:
-                df_final_horario = df_final_horario.drop(columns=["d_orden"])
-
-              df_final_horario["notificar"] = True
-
-              st.session_state["horario_df"] = df_final_horario
-              guardar_datos_usuario()
-              st.success(
-                  "¡Horario procesado, organizado y guardado con éxito!"
-              )
-              st.rerun()
-
-          except Exception as err:
-            st.error(f"Error procesando el horario: {err}")
-    else:
-      if st.button(
-          "🗑️ Eliminar / Volver a subir Horario", key="btn_eliminar_horario"
-      ):
-        st.session_state["horario_df"] = None
-        guardar_datos_usuario()
-        st.rerun()
-
-      col1, col2 = st.columns([1, 3])
-      with col1:
-        activar_alertas = st.toggle("Activar alertas", value=True)
-      with col2:
-        tiempo_alerta = st.select_slider(
-            "Anticipación (min):", [5, 10, 15], value=5
-        )
-
-      df_horario_actual = st.session_state["horario_df"]
-
-      if "notificar" not in df_horario_actual.columns:
-        df_horario_actual["notificar"] = True
-
-      st.markdown("### 📋 Tu Horario Académico Organizado")
-
-      df_editado = st.data_editor(
-          df_horario_actual,
-          column_config={
-              "notificar": st.column_config.CheckboxColumn("¿Recibir aviso?")
-          },
-          use_container_width=True,
-          hide_index=True,
-          key="editor_horario",
-      )
-      st.session_state["horario_df"] = df_editado
-
-      ahora_dt = datetime.datetime.now()
-      hora_actual_minutos = ahora_dt.hour * 60 + ahora_dt.minute
-
-      if activar_alertas:
-        for _, clase in df_editado.iterrows():
-          if clase.get("notificar", True):
-            try:
-              h_ini, m_ini = map(int, str(clase["inicio"]).split(":"))
-              inicio_en_minutos = h_ini * 60 + m_ini
-
-              diferencia = inicio_en_minutos - hora_actual_minutos
-
-              if diferencia == tiempo_alerta:
-                materia_alerta = clase["materia"]
-                aula_alerta = clase.get("aula", "asignada")
-                mensaje_alerta = f"Atención: La clase de {materia_alerta} en el aula {aula_alerta} comienza en {tiempo_alerta} minutos."
-
-                st.toast(f"🚨 {mensaje_alerta}", icon="⏳")
-
-                js_voz = f"""
-                                <script>
-                                    var utterance = new SpeechSynthesisUtterance("{mensaje_alerta}");
-                                    utterance.lang = 'es-ES';
-                                    window.speechSynthesis.speak(utterance);
-                                </script>
-                                """
-                st.components.v1.html(js_voz, height=0)
-            except Exception:
-              pass
-
-  # ==========================================
-  # PESTAÑA 3: Técnica Pomodoro
-  # ==========================================
-  with tab_chat:
-    st.subheader("🍅 Técnica Pomodoro")
-
-    with st.expander("¿Qué es esto?"):
-      st.write("""
-            Esta herramienta utiliza la técnica **Pomodoro** para mejorar tu productividad:
-            1. **Foco:** Trabaja durante 25 minutos sin distracciones.
-            2. **Descanso corto:** 5 minutos para estirar las piernas.
-            3. **Descanso largo:** 20 minutos para recargar tras varios ciclos.
-            """)
-
-    if "pomodoro_tiempo" not in st.session_state:
-      st.session_state["pomodoro_tiempo"] = 25 * 60
-    if "pomodoro_activo" not in st.session_state:
-      st.session_state["pomodoro_activo"] = False
-
-
-    def actualizar_tiempo():
-      modo = st.session_state["modo_seleccionado"]
-      if "25m" in modo:
-        st.session_state["pomodoro_tiempo"] = 25 * 60
-      elif "5m" in modo:
-        st.session_state["pomodoro_tiempo"] = 5 * 60
-      else:
-        st.session_state["pomodoro_tiempo"] = 20 * 60
-      st.session_state["pomodoro_activo"] = False
-
-
-    st.radio(
-        "Selecciona tu sesión:",
-        ["Foco (25m)", "Descanso Corto (5m)", "Descanso Largo (20m)"],
-        horizontal=True,
-        key="modo_seleccionado",
-        on_change=actualizar_tiempo,
-    )
-
-    minutos = st.session_state["pomodoro_tiempo"] // 60
-    segundos = st.session_state["pomodoro_tiempo"] % 60
-    st.metric("Tiempo restante", f"{minutos:02d}:{segundos:02d}")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-      if st.button("▶️ Iniciar"):
-        st.session_state["pomodoro_activo"] = True
-    with col2:
-      if st.button("⏸️ Pausar"):
-        st.session_state["pomodoro_activo"] = False
-    with col3:
-      if st.button("🔄 Reiniciar"):
-        actualizar_tiempo()
-        st.session_state["pomodoro_activo"] = True
-    with col4:
-      if st.button("⏹️ Detener"):
-        st.session_state["pomodoro_activo"] = False
-        actualizar_tiempo()
-
-    import time
-
-    if (
-        st.session_state["pomodoro_activo"]
-        and st.session_state["pomodoro_tiempo"] > 0
-    ):
-      time.sleep(1)
-      st.session_state["pomodoro_tiempo"] -= 1
-      st.rerun()
-    elif (
-        st.session_state["pomodoro_tiempo"] == 0
-        and st.session_state["pomodoro_activo"]
-    ):
-      st.balloons()
-      st.success("¡Tiempo finalizado!")
-      st.session_state["pomodoro_activo"] = False
+              if clean_text.endswith("
