@@ -353,7 +353,7 @@ else:
               
               # Lógica para personalizar el mensaje según los días restantes
               if dias_restantes == 0:
-                texto_tiempo = "la entrega es **hoy**"
+                texto_tiempo = "La entrega es **hoy**"
               elif dias_restantes == 1:
                 texto_tiempo = "vence **mañana**"
               else:
