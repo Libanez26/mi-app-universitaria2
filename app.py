@@ -328,6 +328,35 @@ else:
 
   st.title("🎓 Mi App Universitaria")
 
+  # --- NOTIFICACIONES AUTOMÁTICAS DE ACTIVIDADES PENDIENTES ---
+  if st.session_state["evaluaciones"]:
+    hoy_fecha = datetime.date.today()
+    avisos_pendientes = []
+    
+    for cod_mat, info_mat in st.session_state["evaluaciones"].items():
+      # Solo evaluar materias que estén En Curso o Inscritas
+      if info_mat.get("estado") in ["Inscrita", "En Curso"]:
+        for eval_item in info_mat.get("plan", []):
+          f_eval = eval_item.get("Fecha")
+          # Asegurar formato fecha date
+          if isinstance(f_eval, str):
+            try:
+              f_eval = datetime.datetime.strptime(f_eval, "%Y-%m-%d").date()
+            except ValueError:
+              continue
+          
+          if isinstance(f_eval, datetime.date):
+            dias_restantes = (f_eval - hoy_fecha).days
+            # Mostrar notificaciones para actividades de los próximos 7 días o atrasadas (>= 0)
+            if 0 <= dias_restantes <= 7:
+              nombre_eval = eval_item.get("Evaluación", "Actividad")
+              avisos_pendientes.append(f"📌 **{cod_mat}** - _{nombre_eval}_: Te faltan **{dias_restantes} día(s)** para entregar[cite: 4].")
+
+    if avisos_pendientes:
+      with st.expander("🔔 Notificaciones de Entregas Próximas", expanded=True):
+        for aviso in avisos_pendientes:
+          st.warning(aviso)
+
   tab_pensum, tab_horario, tab_chat = st.tabs([
       "📚 Pensum y Calificaciones",
       "📅 Horario de Clases",
@@ -953,4 +982,3 @@ else:
       st.balloons()
       st.success("¡Tiempo finalizado!")
       st.session_state["pomodoro_activo"] = False
-```[cite: 4]
