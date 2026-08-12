@@ -50,7 +50,7 @@ if "mensajes_chat" not in st.session_state:
   st.session_state["mensajes_chat"] = []
 
 
-# --- 5. FUNCIONES DE BASE DE DATOS ---
+# --- 5. FUNCIONES DE BASE DE DATOS (CON SERIALIZACIÓN DE FECHAS) ---
 def cargar_datos_usuario(user_id):
   try:
     res = (
@@ -60,8 +60,19 @@ def cargar_datos_usuario(user_id):
       datos = res.data[0]
       if datos.get("pensum_data"):
         st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
+      
       if datos.get("evaluaciones_data"):
-        st.session_state["evaluaciones"] = datos["evaluaciones_data"]
+        evals_cargadas = datos["evaluaciones_data"]
+        for cod, info in evals_cargadas.items():
+          if "plan" in info:
+            for item in info["plan"]:
+              if "Fecha" in item and isinstance(item["Fecha"], str):
+                try:
+                  item["Fecha"] = datetime.datetime.strptime(item["Fecha"], "%Y-%m-%d").date()
+                except ValueError:
+                  item["Fecha"] = datetime.date.today()
+        st.session_state["evaluaciones"] = evals_cargadas
+
       if datos.get("horario_data"):
         st.session_state["horario_df"] = pd.DataFrame(datos["horario_data"])
   except Exception as e:
@@ -80,7 +91,20 @@ def guardar_datos_usuario():
       if st.session_state["pensum_df"] is not None
       else None
   )
-  evals_json = st.session_state["evaluaciones"]
+  
+  evals_json = {}
+  for cod, info in st.session_state["evaluaciones"].items():
+    evals_json[cod] = {
+        "estado": info.get("estado", "Inscrita"),
+        "plan": []
+    }
+    for item in info.get("plan", []):
+      item_copia = item.copy()
+      if "Fecha" in item_copia:
+        if isinstance(item_copia["Fecha"], (datetime.date, datetime.datetime)):
+          item_copia["Fecha"] = item_copia["Fecha"].strftime("%Y-%m-%d")
+      evals_json[cod]["plan"].append(item_copia)
+
   horario_json = (
       st.session_state["horario_df"].to_dict("records")
       if st.session_state["horario_df"] is not None
@@ -213,7 +237,6 @@ if st.session_state["usuario"] is None:
       email_login = st.text_input("Correo electrónico")
       pass_login = st.text_input("Contraseña", type="password")
 
-      # Casilla estilo Facebook para recordar este equipo de forma independiente
       recordar_dispositivo = st.checkbox(
           "Confiar en este dispositivo (Mantener sesión abierta solo aquí)"
       )
@@ -483,6 +506,7 @@ else:
               )
 
               if codigo_mat not in st.session_state["evaluaciones"]:
+                hoy = datetime.date.today()
                 st.session_state["evaluaciones"][codigo_mat] = {
                     "estado": materia_sel.get("estado", "Inscrita"),
                     "plan": [
@@ -491,24 +515,28 @@ else:
                             "Tema": "Unidad 1",
                             "Valor (%)": 25,
                             "Nota": 0.0,
+                            "Fecha": hoy,
                         },
                         {
                             "Evaluación": "Parcial 2",
                             "Tema": "Unidad 2",
                             "Valor (%)": 25,
                             "Nota": 0.0,
+                            "Fecha": hoy,
                         },
                         {
                             "Evaluación": "Trabajo / Proyecto",
                             "Tema": "Unidad 3",
                             "Valor (%)": 25,
                             "Nota": 0.0,
+                            "Fecha": hoy,
                         },
                         {
                             "Evaluación": "Exposición / Quices",
                             "Tema": "Unidad 4",
                             "Valor (%)": 25,
                             "Nota": 0.0,
+                            "Fecha": hoy,
                         },
                     ],
                 }
@@ -563,11 +591,13 @@ else:
 
               if "Tema" not in df_eval_actual.columns:
                 df_eval_actual["Tema"] = ""
+              if "Fecha" not in df_eval_actual.columns:
+                df_eval_actual["Fecha"] = datetime.date.today()
 
               max_nota = 20.0 if "20" in escala_sel else 100.0
 
               edited_df = st.data_editor(
-                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota"]],
+                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha"]],
                   num_rows="dynamic",
                   use_container_width=True,
                   key=f"editor_{codigo_mat}",
@@ -583,15 +613,19 @@ else:
                           max_value=max_nota,
                           step=0.5,
                       ),
+                      "Fecha": st.column_config.DateColumn(
+                          "Fecha de Entrega", format="YYYY-MM-DD"
+                      ),
                   },
               )
 
               if not edited_df.equals(
-                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota"]]
+                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha"]]
               ):
                 st.session_state["evaluaciones"][codigo_mat]["plan"] = (
                     edited_df.to_dict("records")
                 )
+                guardar_datos_usuario()
 
               st.markdown("---")
               st.markdown("#### 📊 Resumen de Rendimiento")
