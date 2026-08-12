@@ -329,39 +329,47 @@ else:
   st.title("🎓 Mi App Universitaria")
 
   # --- NOTIFICACIONES AUTOMÁTICAS DE ACTIVIDADES PENDIENTES ---
-  if st.session_state["evaluaciones"]:
+  if st.session_state["pensum_df"] is not None:
     hoy_fecha = datetime.date.today()
     avisos_pendientes = []
     
-    for cod_mat, info_mat in st.session_state["evaluaciones"].items():
-      # Exigir estrictamente que el estado de la materia sea "En Curso"
-      if info_mat.get("estado") == "En Curso":
-        for eval_item in info_mat.get("plan", []):
-          f_eval = eval_item.get("Fecha")
-          # Asegurar formato fecha date
-          if isinstance(f_eval, str):
-            try:
-              f_eval = datetime.datetime.strptime(f_eval, "%Y-%m-%d").date()
-            except ValueError:
-              f_eval = hoy_fecha
-          
-          if isinstance(f_eval, datetime.date):
-            dias_restantes = (f_eval - hoy_fecha).days
-            # Mostrar notificaciones para actividades de los próximos 7 días o atrasadas (>= 0)
-            if dias_restantes <= 7:
-              nombre_eval = eval_item.get("Evaluación", "Actividad")
+    df_pensum_temp = st.session_state["pensum_df"]
+    materias_en_curso = df_pensum_temp[df_pensum_temp["estado"] == "En Curso"]["codigo"].tolist()
+    
+    for cod_mat in materias_en_curso:
+      if cod_mat in st.session_state["evaluaciones"]:
+        plan_evals = st.session_state["evaluaciones"][cod_mat].get("plan", [])
+      else:
+        plan_evals = [
+            {"Evaluación": "Parcial 1", "Fecha": hoy_fecha},
+            {"Evaluación": "Parcial 2", "Fecha": hoy_fecha},
+            {"Evaluación": "Trabajo / Proyecto", "Fecha": hoy_fecha},
+            {"Evaluación": "Exposición / Quices", "Fecha": hoy_fecha},
+        ]
+        
+      for eval_item in plan_evals:
+        f_eval = eval_item.get("Fecha")
+        if isinstance(f_eval, str):
+          try:
+            f_eval = datetime.datetime.strptime(f_eval, "%Y-%m-%d").date()
+          except ValueError:
+            f_eval = hoy_fecha
+        
+        if isinstance(f_eval, datetime.date):
+          dias_restantes = (f_eval - hoy_fecha).days
+          if dias_restantes <= 7:
+            nombre_eval = eval_item.get("Evaluación", "Actividad")
+            
+            if dias_restantes == 0:
+              texto_tiempo = "la entrega es **hoy**"
+            elif dias_restantes == 1:
+              texto_tiempo = "vence **mañana**"
+            elif dias_restantes < 0:
+              texto_tiempo = f"está atrasada por **{abs(dias_restantes)} días**"
+            else:
+              texto_tiempo = f"faltan **{dias_restantes} días**"
               
-              # Lógica para personalizar el mensaje según los días restantes sin redundancia
-              if dias_restantes == 0:
-                texto_tiempo = "la entrega es **hoy**"
-              elif dias_restantes == 1:
-                texto_tiempo = "vence **mañana**"
-              elif dias_restantes < 0:
-                texto_tiempo = f"está atrasada por **{abs(dias_restantes)} días**"
-              else:
-                texto_tiempo = f"faltan **{dias_restantes} días**"
-                
-              avisos_pendientes.append(f"📌 **{cod_mat}** - _{nombre_eval}_: {texto_tiempo}.")
+            avisos_pendientes.append(f"📌 **{cod_mat}** - _{nombre_eval}_: {texto_tiempo}.")
 
     if avisos_pendientes:
       with st.expander("🔔 Notificaciones de Entregas Próximas", expanded=True):
