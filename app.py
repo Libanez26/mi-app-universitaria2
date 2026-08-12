@@ -350,7 +350,16 @@ else:
             # Mostrar notificaciones para actividades de los próximos 7 días o atrasadas (>= 0)
             if 0 <= dias_restantes <= 7:
               nombre_eval = eval_item.get("Evaluación", "Actividad")
-              avisos_pendientes.append(f"📌 **{cod_mat}** - _{nombre_eval}_: Te faltan **{dias_restantes} día(s)** para entregar.")
+              
+              # Lógica para personalizar el mensaje según los días restantes
+              if dias_restantes == 0:
+                texto_tiempo = "la entrega es **hoy**"
+              elif dias_restantes == 1:
+                texto_tiempo = "te queda **1 día**"
+              else:
+                texto_tiempo = f"te quedan **{dias_restantes} días**"
+                
+              avisos_pendientes.append(f"📌 **{cod_mat}** - _{nombre_eval}_: {texto_tiempo} para entregar.")
 
     if avisos_pendientes:
       with st.expander("🔔 Notificaciones de Entregas Próximas", expanded=True):
