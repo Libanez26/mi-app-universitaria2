@@ -59,18 +59,11 @@ def cargar_datos_usuario(user_id):
     if res.data and len(res.data) > 0:
       datos = res.data[0]
       if datos.get("pensum_data"):
-        df_cargado = pd.DataFrame(datos["pensum_data"])
-        if "estado" not in df_cargado.columns:
-          df_cargado["estado"] = "No Inscrita"
-        else:
-          df_cargado["estado"] = df_cargado["estado"].fillna("No Inscrita")
-        st.session_state["pensum_df"] = df_cargado
+        st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
       
       if datos.get("evaluaciones_data"):
         evals_cargadas = datos["evaluaciones_data"]
         for cod, info in evals_cargadas.items():
-          if "estado" not in info or not info["estado"]:
-            info["estado"] = "No Inscrita"
           if "plan" in info:
             for item in info["plan"]:
               if "Fecha" in item and isinstance(item["Fecha"], str):
@@ -245,7 +238,8 @@ if st.session_state["usuario"] is None:
       pass_login = st.text_input("Contraseña", type="password")
 
       recordar_dispositivo = st.checkbox(
-          "Confiar en este dispositivo (Mantener sesión abierta solo aquí)"
+          "Confiar en este dispositivo (Mantener sesión abierta solo aquí)",
+          value=True
       )
 
       submit_login = st.form_submit_button("Ingresar")
@@ -355,6 +349,7 @@ else:
         ]
         
       for eval_item in plan_evals:
+        # Si ya fue entregada, nos saltamos esta iteración para que no salga en la alerta
         if eval_item.get("Entregada", False):
           continue
           
@@ -450,8 +445,8 @@ else:
               data = json.loads(clean_text.strip())
               df = pd.DataFrame(data)
 
-              # Asignación por defecto como No Inscrita para todas las materias nuevas
-              df["estado"] = "No Inscrita"
+              if "estado" not in df.columns:
+                df["estado"] = "No Inscrita"
 
               st.session_state["pensum_df"] = df
               guardar_datos_usuario()
@@ -652,6 +647,7 @@ else:
                     key=f"radio_esc_{codigo_mat}",
                 )
 
+              # Asegurar que la columna 'Entregada' exista en el plan
               for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
                 if "Entregada" not in item:
                   item["Entregada"] = False
@@ -1022,6 +1018,9 @@ else:
         st.session_state["pomodoro_tiempo"] == 0
         and st.session_state["pomodoro_activo"]
     ):
+      st.balloons()
+      st.success("¡Tiempo finalizado!")
+      st.session_state["pomodoro_activo"] = False
       st.balloons()
       st.success("¡Tiempo finalizado!")
       st.session_state["pomodoro_activo"] = False
