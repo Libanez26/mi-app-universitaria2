@@ -334,8 +334,8 @@ else:
     avisos_pendientes = []
     
     for cod_mat, info_mat in st.session_state["evaluaciones"].items():
-      # Solo evaluar materias que estén En Curso o Inscritas
-      if info_mat.get("estado") in ["Inscrita", "En Curso"]:
+      # Exigir estrictamente que el estado de la materia sea "En Curso"
+      if info_mat.get("estado") == "En Curso":
         for eval_item in info_mat.get("plan", []):
           f_eval = eval_item.get("Fecha")
           # Asegurar formato fecha date
@@ -343,19 +343,21 @@ else:
             try:
               f_eval = datetime.datetime.strptime(f_eval, "%Y-%m-%d").date()
             except ValueError:
-              continue
+              f_eval = hoy_fecha
           
           if isinstance(f_eval, datetime.date):
             dias_restantes = (f_eval - hoy_fecha).days
             # Mostrar notificaciones para actividades de los próximos 7 días o atrasadas (>= 0)
-            if 0 <= dias_restantes <= 7:
+            if dias_restantes <= 7:
               nombre_eval = eval_item.get("Evaluación", "Actividad")
               
-              # Lógica para personalizar el mensaje según los días restantes
+              # Lógica para personalizar el mensaje según los días restantes sin redundancia
               if dias_restantes == 0:
-                texto_tiempo = "La entrega es **hoy**"
+                texto_tiempo = "la entrega es **hoy**"
               elif dias_restantes == 1:
                 texto_tiempo = "vence **mañana**"
+              elif dias_restantes < 0:
+                texto_tiempo = f"está atrasada por **{abs(dias_restantes)} días**"
               else:
                 texto_tiempo = f"faltan **{dias_restantes} días**"
                 
