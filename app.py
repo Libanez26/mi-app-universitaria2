@@ -927,33 +927,60 @@ else:
       )
       st.session_state["horario_df"] = df_editado
 
+      # Componente JS para refrescar automáticamente la página cada 60 segundos (permite que corran las alertas en tiempo real)
+      import streamlit.components.v1 as components
+      components.html(
+          """
+          <script>
+              setTimeout(function(){
+                  window.parent.location.reload();
+              }, 60000);
+          </script>
+          """,
+          height=0,
+      )
+
       ahora_dt = datetime.datetime.now()
       hora_actual_minutos = ahora_dt.hour * 60 + ahora_dt.minute
+
+      # Obtener el día actual de la semana en español
+      dias_semana_español = {
+          0: "Lunes",
+          1: "Martes",
+          2: "Miércoles",
+          3: "Jueves",
+          4: "Viernes",
+          5: "Sábado",
+          6: "Domingo",
+      }
+      dia_actual_str = dias_semana_español[datetime.datetime.now().weekday()]
 
       if activar_alertas:
         for _, clase in df_editado.iterrows():
           if clase.get("notificar", True):
             try:
-              h_ini, m_ini = map(int, str(clase["inicio"]).split(":"))
-              inicio_en_minutos = h_ini * 60 + m_ini
+              dia_clase = str(clase.get("dia", "")).capitalize()
+              if dia_clase == dia_actual_str:
+                h_ini, m_ini = map(int, str(clase["inicio"]).split(":"))
+                inicio_en_minutos = h_ini * 60 + m_ini
 
-              diferencia = inicio_en_minutos - hora_actual_minutos
+                diferencia = inicio_en_minutos - hora_actual_minutos
 
-              if diferencia == tiempo_alerta:
-                materia_alerta = clase["materia"]
-                aula_alerta = clase.get("aula", "asignada")
-                mensaje_alerta = f"Atención: La clase de {materia_alerta} en el aula {aula_alerta} comienza en {tiempo_alerta} minutos."
+                if diferencia == tiempo_alerta:
+                  materia_alerta = clase["materia"]
+                  aula_alerta = clase.get("aula", "asignada")
+                  mensaje_alerta = f"Atención: La clase de {materia_alerta} en el aula {aula_alerta} comienza en {tiempo_alerta} minutos."
 
-                st.toast(f"🚨 {mensaje_alerta}", icon="⏳")
+                  st.toast(f"🚨 {mensaje_alerta}", icon="⏳")
 
-                js_voz = f"""
-                                <script>
-                                    var utterance = new SpeechSynthesisUtterance("{mensaje_alerta}");
-                                    utterance.lang = 'es-ES';
-                                    window.speechSynthesis.speak(utterance);
-                                </script>
-                                """
-                st.components.v1.html(js_voz, height=0)
+                  js_voz = f"""
+                                  <script>
+                                      var utterance = new SpeechSynthesisUtterance("{mensaje_alerta}");
+                                      utterance.lang = 'es-ES';
+                                      window.speechSynthesis.speak(utterance);
+                                  </script>
+                                  """
+                  st.components.v1.html(js_voz, height=0)
             except Exception:
               pass
 
