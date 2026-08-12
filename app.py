@@ -355,11 +355,11 @@ else:
               if dias_restantes == 0:
                 texto_tiempo = "la entrega es **hoy**"
               elif dias_restantes == 1:
-                texto_tiempo = "te queda **1 día**"
+                texto_tiempo = "vence **mañana**"
               else:
-                texto_tiempo = f"te quedan **{dias_restantes} días**"
+                texto_tiempo = f"faltan **{dias_restantes} días**"
                 
-              avisos_pendientes.append(f"📌 **{cod_mat}** - _{nombre_eval}_: {texto_tiempo} para entregar.")
+              avisos_pendientes.append(f"📌 **{cod_mat}** - _{nombre_eval}_: {texto_tiempo}.")
 
     if avisos_pendientes:
       with st.expander("🔔 Notificaciones de Entregas Próximas", expanded=True):
