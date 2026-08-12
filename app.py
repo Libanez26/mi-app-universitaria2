@@ -264,6 +264,20 @@ if st.session_state["usuario"] is None:
                   "nombre_dispositivo": "Dispositivo Confiable Independiente",
               }).execute()
 
+              # --- INTEGRACIÓN: PEDIR PERMISO DE NOTIFICACIÓN NATIVA AL RECORDAR DISPOSITIVO ---
+              js_pedir_permiso = """
+              <script>
+                  if (window.Notification && Notification.permission !== "granted") {
+                      Notification.requestPermission().then(permission => {
+                          if (permission === "granted") {
+                              console.log("Permiso de notificación concedido.");
+                          }
+                      });
+                  }
+              </script>
+              """
+              st.components.v1.html(js_pedir_permiso, height=0)
+
             cargar_datos_usuario(res.user.id)
             st.success("¡Sesión iniciada con éxito!")
             st.rerun()
@@ -349,7 +363,6 @@ else:
         ]
         
       for eval_item in plan_evals:
-        # Si ya fue entregada, nos saltamos esta iteración para que no salga en la alerta
         if eval_item.get("Entregada", False):
           continue
           
@@ -647,7 +660,6 @@ else:
                     key=f"radio_esc_{codigo_mat}",
                 )
 
-              # Asegurar que la columna 'Entregada' exista en el plan
               for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
                 if "Entregada" not in item:
                   item["Entregada"] = False
