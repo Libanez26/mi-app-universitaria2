@@ -317,6 +317,22 @@ else:
   with tab_pensum:
     st.subheader("📋 Pensum Estructurado por Niveles")
 
+    # Mini resumen global opcional de próximas entregas
+    with st.expander("📅 Próximas Evaluaciones Generales"):
+      todas_evals = []
+      for cod, info in st.session_state["evaluaciones"].items():
+        for ev in info.get("plan", []):
+          todas_evals.append({
+              "Materia": cod,
+              "Evaluación": ev.get("Evaluación"),
+              "Fecha": ev.get("Fecha"),
+          })
+      if todas_evals:
+        df_proximas = pd.DataFrame(todas_evals)
+        st.dataframe(df_proximas, use_container_width=True, hide_index=True)
+      else:
+        st.info("No hay evaluaciones con fechas programadas todavía.")
+
     if st.session_state["pensum_df"] is None:
       st.info(
           "👋 Carga tu pensum en formato PDF para organizar tus niveles"
@@ -483,6 +499,7 @@ else:
               )
 
               if codigo_mat not in st.session_state["evaluaciones"]:
+                hoy = datetime.date.today()
                 st.session_state["evaluaciones"][codigo_mat] = {
                     "estado": materia_sel.get("estado", "Inscrita"),
                     "plan": [
@@ -491,24 +508,28 @@ else:
                             "Tema": "Unidad 1",
                             "Valor (%)": 25,
                             "Nota": 0.0,
+                            "Fecha": hoy,
                         },
                         {
                             "Evaluación": "Parcial 2",
                             "Tema": "Unidad 2",
                             "Valor (%)": 25,
                             "Nota": 0.0,
+                            "Fecha": hoy,
                         },
                         {
                             "Evaluación": "Trabajo / Proyecto",
                             "Tema": "Unidad 3",
                             "Valor (%)": 25,
                             "Nota": 0.0,
+                            "Fecha": hoy,
                         },
                         {
                             "Evaluación": "Exposición / Quices",
                             "Tema": "Unidad 4",
                             "Valor (%)": 25,
                             "Nota": 0.0,
+                            "Fecha": hoy,
                         },
                     ],
                 }
@@ -563,11 +584,13 @@ else:
 
               if "Tema" not in df_eval_actual.columns:
                 df_eval_actual["Tema"] = ""
+              if "Fecha" not in df_eval_actual.columns:
+                df_eval_actual["Fecha"] = datetime.date.today()
 
               max_nota = 20.0 if "20" in escala_sel else 100.0
 
               edited_df = st.data_editor(
-                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota"]],
+                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha"]],
                   num_rows="dynamic",
                   use_container_width=True,
                   key=f"editor_{codigo_mat}",
@@ -583,15 +606,19 @@ else:
                           max_value=max_nota,
                           step=0.5,
                       ),
+                      "Fecha": st.column_config.DateColumn(
+                          "Fecha de Entrega", format="YYYY-MM-DD"
+                      ),
                   },
               )
 
               if not edited_df.equals(
-                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota"]]
+                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha"]]
               ):
                 st.session_state["evaluaciones"][codigo_mat]["plan"] = (
                     edited_df.to_dict("records")
                 )
+                guardar_datos_usuario()
 
               st.markdown("---")
               st.markdown("#### 📊 Resumen de Rendimiento")
