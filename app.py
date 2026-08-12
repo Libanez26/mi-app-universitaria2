@@ -95,7 +95,7 @@ def guardar_datos_usuario():
   evals_json = {}
   for cod, info in st.session_state["evaluaciones"].items():
     evals_json[cod] = {
-        "estado": info.get("estado", "Inscrita"),
+        "estado": info.get("estado", "No Inscrita"),
         "plan": []
     }
     for item in info.get("plan", []):
@@ -445,7 +445,7 @@ else:
               df = pd.DataFrame(data)
 
               if "estado" not in df.columns:
-                df["estado"] = "Inscrita"
+                df["estado"] = "No Inscrita"
 
               st.session_state["pensum_df"] = df
               guardar_datos_usuario()
@@ -470,7 +470,7 @@ else:
           df, st.session_state["evaluaciones"]
       )
 
-      col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
+      col_m1, col_m2, col_m3, col_m4, col_m5, col_m6 = st.columns(6)
       with col_m1:
         st.metric("Total Materias", len(df))
       with col_m2:
@@ -479,9 +479,13 @@ else:
         st.metric("En Curso", len(df[df["estado"] == "En Curso"]))
       with col_m4:
         st.metric(
-            "Inscritas / Pendientes", len(df[df["estado"] == "Inscrita"])
+            "Inscritas", len(df[df["estado"] == "Inscrita"])
         )
       with col_m5:
+        st.metric(
+            "No Inscritas", len(df[df["estado"] == "No Inscrita"])
+        )
+      with col_m6:
         st.metric("📈 Índice Académico", f"{indice_aca:.2f} / 20.0")
 
       st.divider()
@@ -560,7 +564,7 @@ else:
               if codigo_mat not in st.session_state["evaluaciones"]:
                 hoy = datetime.date.today()
                 st.session_state["evaluaciones"][codigo_mat] = {
-                    "estado": materia_sel.get("estado", "Inscrita"),
+                    "estado": materia_sel.get("estado", "No Inscrita"),
                     "plan": [
                         {
                             "Evaluación": "Parcial 1",
@@ -601,23 +605,24 @@ else:
               with col_e1:
                 estado_actual = (
                     st.session_state["evaluaciones"][codigo_mat]
-                    .get("estado", "Inscrita")
+                    .get("estado", "No Inscrita")
                 )
+                estados_disponibles = [
+                    "No Inscrita",
+                    "Inscrita",
+                    "En Curso",
+                    "Aprobada",
+                    "Reprobada",
+                ]
                 idx_e = (
-                    [
-                        "Inscrita",
-                        "En Curso",
-                        "Aprobada",
-                        "Reprobada",
-                    ].index(estado_actual)
-                    if estado_actual
-                    in ["Inscrita", "En Curso", "Aprobada", "Reprobada"]
+                    estados_disponibles.index(estado_actual)
+                    if estado_actual in estados_disponibles
                     else 0
                 )
 
                 nuevo_est = st.selectbox(
                     "Estado de la Materia:",
-                    ["Inscrita", "En Curso", "Aprobada", "Reprobada"],
+                    estados_disponibles,
                     index=idx_e,
                     key=f"sel_est_{codigo_mat}",
                 )
