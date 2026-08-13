@@ -9,9 +9,6 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 from supabase import Client, create_client
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
-from googleapiclient.discovery import build
 
 # --- 1. MUST BE THE FIRST STREAMLIT COMMAND ---
 st.set_page_config(
