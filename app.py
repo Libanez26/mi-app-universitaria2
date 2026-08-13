@@ -1290,7 +1290,7 @@ with tab_asistente:
                         else "No cargado"
                     )
 
-                    system_instruction = f"""
+                    system_instruction_text = f"""
                     Eres un asistente virtual inteligente, amigable y versátil integrado en una aplicación universitaria.
                     Responde de forma natural, cordial y útil a cualquier saludo, pregunta general o consulta del usuario.
                     Si la pregunta está relacionada con su rendimiento, materias o clases, utiliza esta información de contexto del usuario:
@@ -1300,19 +1300,20 @@ with tab_asistente:
                     {horario_resumen}
                     """
 
-                    modelos_a_probar = [modelo_seleccionado, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
-                    modelos_a_probar = list(dict.fromkeys(modelos_a_probar))
+                    # Lista de modelos seguros a probar
+                    modelos_a_probar = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
                     response = None
                     ultimo_error = None
 
                     for mod in modelos_a_probar:
                         try:
+                            # Forma correcta utilizando system_instruction en la configuración
                             response = client.models.generate_content(
                                 model=mod,
-                                contents=[
-                                    system_instruction,
-                                    f"Mensaje del usuario: {prompt_usuario}",
-                                ],
+                                contents=prompt_usuario,
+                                config={
+                                    'system_instruction': system_instruction_text
+                                }
                             )
                             if response and response.text:
                                 break
@@ -1332,7 +1333,8 @@ with tab_asistente:
                     st.rerun()
 
                 except Exception as e:
-                    error_msj = "Ocurrió un error temporal con la API de IA. Por favor, intenta de nuevo en unos segundos."
+                    # Esto te mostrará el error real en pantalla temporalmente si vuelve a fallar
+                    error_msj = f"Error técnico: {str(e)}"
                     st.session_state["mensajes_conversacional"].append({
                         "role": "assistant",
                         "content": error_msj,
