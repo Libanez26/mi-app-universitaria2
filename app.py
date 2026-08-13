@@ -643,7 +643,7 @@ else:
                   st.rerun()
 
               with col_e2:
-                # Detectar cambio previo de escala para conversión automática
+                # Detectar cambio previo de escala para conversión automática correcta
                 key_escala_anterior = f"escala_anterior_{codigo_mat}"
                 if key_escala_anterior not in st.session_state:
                     st.session_state[key_escala_anterior] = "0 - 20 pts"
@@ -655,59 +655,19 @@ else:
                     key=f"radio_esc_{codigo_mat}",
                 )
 
-                # Si el usuario cambió de escala, convertimos automáticamente los valores de las notas
+                # Conversión correcta basada en la proporción directa de las escalas (20 pts = 100%)
                 if escala_sel != st.session_state[key_escala_anterior]:
                     for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
                         nota_actual = item.get("Nota", 0.0)
                         if nota_actual is not None:
                             if escala_sel == "0 - 100%":
-                                # Convertir de 20 pts a porcentaje (0-100)
+                                # Convertir de escala 0-20 a escala 0-100 (Regla de tres: (nota / 20) * 100)
                                 item["Nota"] = round((nota_actual / 20.0) * 100.0, 2)
                             else:
-                                # Convertir de porcentaje a 20 pts
+                                # Convertir de escala 0-100 a escala 0-20 (Regla de tres: (nota / 100) * 20)
                                 item["Nota"] = round((nota_actual / 100.0) * 20.0, 2)
                     st.session_state[key_escala_anterior] = escala_sel
                     guardar_datos_usuario()
-
-              for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
-                if "Entregada" not in item:
-                  item["Entregada"] = False
-
-              df_eval_actual = pd.DataFrame(
-                  st.session_state["evaluaciones"][codigo_mat]["plan"]
-              )
-
-              if "Tema" not in df_eval_actual.columns:
-                df_eval_actual["Tema"] = ""
-              if "Fecha" not in df_eval_actual.columns:
-                df_eval_actual["Fecha"] = datetime.date.today()
-
-              max_nota = 20.0 if "20" in escala_sel else 100.0
-
-              with st.form(key=f"form_editor_notas_{codigo_mat}"):
-                edited_df = st.data_editor(
-                    df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
-                    num_rows="dynamic",
-                    use_container_width=True,
-                    key=f"editor_{codigo_mat}",
-                    column_config={
-                        "Evaluación": st.column_config.TextColumn("Evaluación"),
-                        "Tema": st.column_config.TextColumn("Tema"),
-                        "Valor (%)": st.column_config.NumberColumn(
-                            "Valor (%)", min_value=0, max_value=100, step=1
-                        ),
-                        "Nota": st.column_config.NumberColumn(
-                            f"Nota ({'0-20 pts' if '20' in escala_sel else '0-100%'})",
-                            min_value=0.0,
-                            max_value=max_nota,
-                            step=0.5,
-                        ),
-                        "Fecha": st.column_config.DateColumn(
-                            "Fecha de Entrega", format="YYYY-MM-DD"
-                        ),
-                        "Entregada": st.column_config.CheckboxColumn("¿Entregada?"),
-                    },
-                )
 
                 submit_notas = st.form_submit_button("💾 Guardar Notas")
 
