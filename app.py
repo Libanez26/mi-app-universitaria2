@@ -1340,7 +1340,25 @@ with tab_asistente:
                         "content": error_msj,
                     })
                     st.rerun()
-                    
+
+except Exception as e:
+                    # Verificamos si el error es por límite de cuota (429)
+                    error_str = str(e)
+                    if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                        error_msj = (
+                            "⚠️ **Límite de uso diario alcanzado**\n\n"
+                            "Has superado temporalmente el número de consultas gratuitas permitidas por Google para este modelo. "
+                            "Por favor, intenta nuevamente más tarde o verifica los detalles de tu plan en [Google AI Studio](https://ai.google.dev/)."
+                        )
+                    else:
+                        error_msj = "⚠️ Ocurrió un error temporal con la API de IA. Por favor, intenta de nuevo en unos segundos."
+
+                    st.session_state["mensajes_conversacional"].append({
+                        "role": "assistant",
+                        "content": error_msj,
+                    })
+                    st.rerun()
+
   # ==========================================
 # PESTAÑA 4: TÉCNICA POMODORO
 # ==========================================
