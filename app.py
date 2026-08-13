@@ -1245,79 +1245,52 @@ else:
 
       st.markdown("---")
 
-      # ==========================================
-      # RENDERIZADO VISUAL (Estilo Mensajería Limpia con Hora Abajo)
-      # ==========================================
+      # Renderizado visual del chat en contenedor estilo WhatsApp
       st.markdown("""
           <style>
-          .chat-container {
-              background-color: #1e1e2f;
+          .whatsapp-container {
+              background-color: #0b141a;
               padding: 20px;
               border-radius: 12px;
               margin-bottom: 20px;
               max-height: 450px;
               overflow-y: auto;
-              border: 1px solid #2d2d44;
+              border: 1px solid #222d34;
           }
-          .chat-bubble-user {
-              background-color: #2b5278;
-              color: #ffffff;
-              padding: 10px 14px 6px 14px;
-              border-radius: 12px 12px 2px 12px;
+          .whatsapp-msg-user {
+              background-color: #005c4b;
+              color: #e9edef;
+              padding: 10px 14px;
+              border-radius: 8px 0px 8px 8px;
               margin: 8px 0;
               max-width: 75%;
               margin-left: auto;
               word-wrap: break-word;
               font-family: sans-serif;
               font-size: 14px;
-              box-shadow: 0 2px 5px rgba(0,0,0,0.2);
           }
-          .chat-bubble-assistant {
-              background-color: #2b2d42;
-              color: #ffffff;
-              padding: 10px 14px 6px 14px;
-              border-radius: 12px 12px 12px 2px;
+          .whatsapp-msg-assistant {
+              background-color: #202c33;
+              color: #e9edef;
+              padding: 10px 14px;
+              border-radius: 0px 8px 8px 8px;
               margin: 8px 0;
               max-width: 75%;
               margin-right: auto;
               word-wrap: break-word;
               font-family: sans-serif;
               font-size: 14px;
-              box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-          }
-          .msg-time-bottom {
-              font-size: 10px;
-              color: #a0a0b0;
-              text-align: right;
-              margin-top: 4px;
-              display: block;
           }
           </style>
       """, unsafe_allow_html=True)
 
-      chat_html = '<div class="chat-container">'
+      chat_html = '<div class="whatsapp-container">'
       for mensaje in st.session_state["mensajes_asistente"]:
-        timestamp = mensaje.get("hora", datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m."))
-        
-        contenido_limpio = mensaje["content"].replace("\n", "<br>")
-        
         if mensaje["role"] == "user":
-          chat_html += f"""
-            <div class="chat-bubble-user">
-              <b>Tú:</b><br>{contenido_limpio}
-              <span class="msg-time-bottom">{timestamp}</span>
-            </div>
-          """
+          chat_html += f'<div class="whatsapp-msg-user"><b>Tú:</b><br>{mensaje["content"]}</div>'
         else:
-          chat_html += f"""
-            <div class="chat-bubble-assistant">
-              <b>Asistente:</b><br>{contenido_limpio}
-              <span class="msg-time-bottom">{timestamp}</span>
-            </div>
-          """
+          chat_html += f'<div class="whatsapp-msg-assistant"><b>Asistente:</b><br>{mensaje["content"]}</div>'
       chat_html += '</div>'
-      
-      # AQUÍ ESTABA EL DETALLE: Debe incluir explicitly unsafe_allow_html=True
       st.markdown(chat_html, unsafe_allow_html=True)
             
   # ==========================================
