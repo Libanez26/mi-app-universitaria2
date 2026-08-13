@@ -1316,6 +1316,8 @@ else:
             </div>
           """
       chat_html += '</div>'
+      
+      # AQUÍ ESTABA EL DETALLE: Debe incluir explicitly unsafe_allow_html=True
       st.markdown(chat_html, unsafe_allow_html=True)
             
   # ==========================================
