@@ -924,44 +924,123 @@ else:
       st.session_state["horario_df"] = df_editado
 
   # ==========================================
-  # PESTAÑA 3: ASISTENTE VIRTUAL IA (ESTILO BOTÓN DE OPCIONES)
+  # PESTAÑA 3: ASISTENTE INTERACTIVO AVANZADO (CON RAMIFICACIONES POR MATERIA)
   # ==========================================
-  suppress_text_input = False
-
   with tab_asistente:
-    st.subheader("🤖 Asistente Virtual IA")
+    st.subheader("🤖 Asistente Virtual Universitario")
     st.write(
-        "Conversa libremente con el asistente o selecciona una de las opciones rápidas para consultar tu información académica."
+        "Explora la información detallada de tu aplicación seleccionando una categoría o materia a continuación:"
     )
 
-    # Inicializar el historial si está vacío con el saludo por defecto
+    # Inicializar estado de navegación del bot si no existe
+    if "modo_asistente" not in st.session_state:
+      st.session_state["modo_asistente"] = "menu_principal"
+
     if "mensajes_asistente" not in st.session_state or not st.session_state["mensajes_asistente"]:
       st.session_state["mensajes_asistente"] = [{
           "role": "assistant",
-          "content": "¡Hola! ¿En qué te puedo ayudar hoy?",
+          "content": (
+              "¡Hola! Soy tu asistente de gestión académica. "
+              "¿Qué te gustaría consultar hoy?"
+          ),
       }]
 
-    # Botón para vaciar / borrar el historial del chat
-    if st.button("🗑️ Borrar chat", key="btn_borrar_chat"):
-      st.session_state["mensajes_asistente"] = [{
-          "role": "assistant",
-          "content": "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?",
-      }]
-      st.rerun()
+    # Botón global para reiniciar el chat y volver al menú principal
+    col_bt1, col_bt2 = st.columns([4, 1])
+    with col_bt2:
+      if st.button("🗑️ Reiniciar chat", key="btn_reiniciar_chat"):
+        st.session_state["mensajes_asistente"] = [{
+            "role": "assistant",
+            "content": "¡Hola! He reiniciado la conversación. ¿Qué te gustaría consultar?",
+        }]
+        st.session_state["modo_asistente"] = "menu_principal"
+        st.rerun()
 
-    # --- BOTONES DE OPCIONES RÁPIDAS (TIPO MENÚ) ---
-    st.markdown("##### 📌 Opciones frecuentes:")
-    col_op1, col_op2 = st.columns(2)
+    # --- SISTEMA DE RAMIFICACIONES LÓGICAS ---
+    
+    # 1. MENÚ PRINCIPAL
+    if st.session_state["modo_asistente"] == "menu_principal":
+      st.markdown("### 📌 Menú Principal")
+      c1, c2 = st.columns(2)
+      
+      with c1:
+        if st.button("📅 Consultar Horario Completo", use_container_width=True):
+          st.session_state["mensajes_asistente"].append({"role": "user", "content": "Consultar Horario Completo"})
+          if "horario_df" in st.session_state and st.session_state["horario_df"] is not None and not st.session_state["horario_df"].empty:
+            res = f"📋 **Tu horario actual registrado:**\n\n{st.session_state['horario_df'].to_markdown(index=False)}"
+          else:
+            res = "⚠️ No hay un horario cargado en el sistema actualmente."
+          st.session_state["mensajes_asistente"].append({"role": "assistant", "content": res})
+          st.rerun()
 
-    opcion_clicada = None
-    with col_op1:
-      if st.button("📅 Consultar mi horario", use_container_width=True):
-        opcion_clicada = "Muéstrame y desglósame mi horario de clases actual."
-    with col_op2:
-      if st.button("⏳ ¿Qué tarea tengo próxima?", use_container_width=True):
-        opcion_clicada = "Revisa mis datos y dime qué tarea o evaluación tengo próxima a entregar."
+        if st.button("📖 Ver Pensum y Notas Generales", use_container_width=True):
+          st.session_state["mensajes_asistente"].append({"role": "user", "content": "Ver Pensum y Notas Generales"})
+          if "pensum_df" in st.session_state and st.session_state["pensum_df"] is not None and not st.session_state["pensum_df"].empty:
+            res = f"📖 **Estado general de tu pensum y materias:**\n\n{st.session_state['pensum_df'].to_markdown(index=False)}"
+          else:
+            res = "⚠️ No se encontró información del pensum cargada."
+          st.session_state["mensajes_asistente"].append({"role": "assistant", "content": res})
+          st.rerun()
 
-    # Estilos CSS personalizados para el chat
+      with c2:
+        if st.button("🔍 Consultar una Materia Específica (Notas/Detalles)", use_container_width=True):
+          st.session_state["modo_asistente"] = "elegir_materia"
+          st.rerun()
+
+        if st.button("⏳ Próximas Evaluaciones o Tareas", use_container_width=True):
+          st.session_state["mensajes_asistente"].append({"role": "user", "content": "¿Qué evaluaciones o tareas tengo próximas?"})
+          st.session_state["mensajes_asistente"].append({
+              "role": "assistant", 
+              "content": "⏳ Revisa la sección principal de calificaciones o cronograma de evaluaciones para ver las entregas pendientes sincronizadas."
+          })
+          st.rerun()
+
+    # 2. SUB-MENÚ DE RAMIFICACIÓN POR MATERIA (Ejemplo para Ética u otras)
+    elif st.session_state["modo_asistente"] == "elegir_materia":
+      st.markdown("### 📚 Selecciona la materia que deseas consultar:")
+      
+      # Intentar extraer dinámicamente las materias si existe el pensum o horario, o definir un selector
+      materias_disponibles = []
+      if "pensum_df" in st.session_state and st.session_state["pensum_df"] is not None:
+        # Asumiendo que hay una columna llamada 'Materia' o similar, ajusta el nombre de la columna si es distinto
+        df_temp = st.session_state["pensum_df"]
+        posibles_columnas = [c for c in df_temp.columns if "materia" in c.lower() or "asignatura" in c.lower() or "nombre" in c.lower()]
+        if posibles_columnas:
+          materias_disponibles = df_temp[posibles_columnas[0]].dropna().unique().tolist()
+
+      if materias_disponibles:
+        materia_seleccionada = st.selectbox("Materias detectadas en tu pensum:", materias_disponibles)
+        if st.button("Consultar detalles de esta materia", use_container_width=True):
+          st.session_state["mensajes_asistente"].append({"role": "user", "content": f"Quiero ver la información de la materia: {materia_seleccionada}"})
+          
+          # Filtrar la fila correspondiente a esa materia en el DataFrame
+          fila_materia = df_temp[df_temp[posibles_columnas[0]] == materia_seleccionada]
+          res_materia = f"📊 **Información detallada para {materia_seleccionada}:**\n\n{fila_materia.to_markdown(index=False)}"
+          
+          st.session_state["mensajes_asistente"].append({"role": "assistant", "content": res_materia})
+          st.session_state["modo_asistente"] = "menu_principal"
+          st.rerun()
+      else:
+        # Opción manual predeterminada si el DataFrame no tiene la columna exacta
+        materia_manual = st.text_input("Escribe el nombreexacto de la materia (ej. Ética):")
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+          if st.button("Buscar materia", use_container_width=True) and materia_manual:
+            st.session_state["mensajes_asistente"].append({"role": "user", "content": f"Consultar notas de {materia_manual}"})
+            st.session_state["mensajes_asistente"].append({
+                "role": "assistant", 
+                "content": f"🔍 Buscando registros académicos para **{materia_manual}**... (Verifica que el nombre coincida exactamente con tu tabla de notas)."
+            })
+            st.session_state["modo_asistente"] = "menu_principal"
+            st.rerun()
+
+      if st.button("⬅️ Volver al Menú Principal", use_container_width=True):
+        st.session_state["modo_asistente"] = "menu_principal"
+        st.rerun()
+
+    st.markdown("---")
+
+    # Estilos CSS de la interfaz estilo chat (WhatsApp)
     st.markdown("""
         <style>
         .whatsapp-container {
@@ -969,7 +1048,7 @@ else:
             padding: 20px;
             border-radius: 12px;
             margin-bottom: 20px;
-            max-height: 500px;
+            max-height: 450px;
             overflow-y: auto;
             border: 1px solid #222d34;
         }
@@ -1002,7 +1081,7 @@ else:
         </style>
     """, unsafe_allow_html=True)
 
-    # Renderizar el historial de mensajes visualmente
+    # Renderizar el historial de la conversación visualmente
     chat_html = '<div class="whatsapp-container">'
     for mensaje in st.session_state["mensajes_asistente"]:
       if mensaje["role"] == "user":
@@ -1011,53 +1090,6 @@ else:
         chat_html += f'<div class="whatsapp-msg-assistant"><b>Asistente:</b><br>{mensaje["content"]}</div>'
     chat_html += '</div>'
     st.markdown(chat_html, unsafe_allow_html=True)
-
-    # Capturar la entrada (ya sea por el botón rápido o por el campo de texto inferior)
-    prompt_usuario = st.chat_input("O escribe tu mensaje aquí...")
-
-    # Si se hizo clic en un botón rápido, toma esa opción como texto del usuario
-    if opcion_clicada:
-      prompt_usuario = opcion_clicada
-
-    if prompt_usuario:
-      st.session_state["mensajes_asistente"].append({
-          "role": "user",
-          "content": prompt_usuario,
-      })
-
-      # Lógica inteligente directa (usando la API que prefieras integrar o un motor local)
-      # Aquí puedes mantener tu llamada a la IA pasándole los dataframes de contexto
-      with st.spinner("Procesando consulta..."):
-        try:
-          # Ejemplo usando la estructura de datos que ya tienes cargada en la app
-          pensum_resumen = (
-              st.session_state["pensum_df"].to_string()
-              if "pensum_df" in st.session_state and st.session_state["pensum_df"] is not None
-              else "No cargado"
-          )
-          horario_resumen = (
-              st.session_state["horario_df"].to_string()
-              if "horario_df" in st.session_state and st.session_state["horario_df"] is not None
-              else "No cargado"
-          )
-
-          # Respuesta simulada o integrada con IA según prefieras el motor
-          respuesta_ia = f"Entendido. Analizando tus datos para la consulta: '{prompt_usuario}'..."
-          
-          # Si usas una API externa o local, procesas la respuesta aquí y la asignas a 'respuesta_ia'
-
-          st.session_state["mensajes_asistente"].append({
-              "role": "assistant",
-              "content": respuesta_ia,
-          })
-          st.rerun()
-
-        except Exception as e:
-          st.session_state["mensajes_asistente"].append({
-              "role": "assistant",
-              "content": f"Ocurrió un error al procesar la solicitud: {e}",
-          })
-          st.rerun()
             
   # ==========================================
   # PESTAÑA 4: TÉCNICA POMODORO
