@@ -1304,30 +1304,6 @@ else:
           }
           </style>
       """, unsafe_allow_html=True)
-
-      chat_html = '<div class="whatsapp-container">'
-      for mensaje in st.session_state["mensajes_asistente"]:
-        timestamp = mensaje.get("hora", datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m."))
-        
-        # Convertimos saltos de línea a <br> de manera segura
-        contenido_limpio = mensaje["content"].replace("\n", "<br>")
-        
-        if mensaje["role"] == "user":
-          chat_html += f"""
-            <div class="whatsapp-msg-user">
-              <b>Tú:</b><br>{contenido_limpio}
-              <div class="msg-time">{timestamp}</div>
-            </div>
-          """
-        else:
-          chat_html += f"""
-            <div class="whatsapp-msg-assistant">
-              <b>Asistente:</b><br>{contenido_limpio}
-              <div class="msg-time">{timestamp}</div>
-            </div>
-          """
-      chat_html += '</div>'
-      st.markdown(chat_html, unsafe_allow_html=True)
             
   # ==========================================
   # PESTAÑA 4: TÉCNICA POMODORO
