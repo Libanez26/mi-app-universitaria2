@@ -924,20 +924,20 @@ else:
       st.session_state["horario_df"] = df_editado
 
   # ==========================================
-# PESTAÑA 3: ASISTENTE INTERACTIVO AVANZADO CON CHAT LIBRE E INTEGRADO
+# PESTAÑA 3: ASISTENTE VIRTUAL UNIVERSITARIO
 # ==========================================
 with tab_asistente:
     st.subheader("🤖 Asistente Virtual Universitario")
     st.write(
-        "Elige si prefieres usar el menú guiado por botones o chatear libremente con la IA analizando tu pensum y horario."
+        "Elige si prefieres interactuar mediante el menú de botones guiados o conversar libremente con el chat de IA."
     )
 
-    # Selector superior para diferenciar ambos modos
+    # Selector superior para alternar los modos
     tipo_asistente = st.radio(
         "Selecciona el modo de interacción:",
-        ["🧭 Asistente Guiado (Menú)", "💬 Chat Libre (Conversacional)"],
+        ["🧭 Asistente Guiado (Solo Botones)", "💬 Chat Libre (Conversacional)"],
         horizontal=True,
-        key="selector_modo_asistente"
+        key="selector_modo_asistente",
     )
 
     # Inicialización de variables de sesión
@@ -945,50 +945,110 @@ with tab_asistente:
         st.session_state["modo_asistente"] = "menu_principal"
     if "sub_modo" not in st.session_state:
         st.session_state["sub_modo"] = None
-    if "mensajes_asistente" not in st.session_state or not st.session_state["mensajes_asistente"]:
-        st.session_state["mensajes_asistente"] = [{
+    
+    # Historiales independientes o compartidos de mensajería estilo chat
+    if "mensajes_guiado" not in st.session_state:
+        st.session_state["mensajes_guiado"] = [{
             "role": "assistant",
             "content": (
-                "¡Hola! Soy tu asistente virtual académico. "
-                "Estoy aquí para ayudarte a consultar tus notas, revisar tus horarios y estar al tanto de tus próximas evaluaciones. "
-                "¿Qué te gustaría gestionar hoy?"
+                "¡Hola! Soy tu asistente guiado. "
+                "Selecciona una de las opciones del menú superior para consultar tu información académica de forma rápida."
+            ),
+        }]
+    if "mensajes_conversacional" not in st.session_state:
+        st.session_state["mensajes_conversacional"] = [{
+            "role": "assistant",
+            "content": (
+                "¡Hola! Soy tu chat conversacional con IA. "
+                "Escribe cualquier duda sobre tu pensum, notas u horario y te responderé de inmediato."
             ),
         }]
 
+    # Estilos CSS inyectados para simular una interfaz limpia de mensajería instantánea
+    st.markdown("""
+        <style>
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 10px;
+            max-height: 450px;
+            overflow-y: auto;
+            background-color: #0e1117;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .msg-user {
+            background-color: #2b313e;
+            color: #ffffff;
+            padding: 10px 14px;
+            border-radius: 12px 12px 2px 12px;
+            align-self: flex-end;
+            max-width: 75%;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .msg-assistant {
+            background-color: #1f242d;
+            color: #e0e0e0;
+            padding: 10px 14px;
+            border-radius: 12px 12px 12px 2px;
+            align-self: flex-start;
+            max-width: 75%;
+            border-left: 4px solid #4CAF50;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .msg-title {
+            font-size: 0.75rem;
+            color: #888888;
+            margin-bottom: 4px;
+            font-weight: bold;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     # ==========================================
-    # MODO 1: ASISTENTE GUIADO (MENÚ DE BOTONES)
+    # MODO 1: ASISTENTE GUIADO (SOLO BOTONES, SIN CAJA DE TEXTO)
     # ==========================================
     if "Asistente Guiado" in tipo_asistente:
         col_bt1, col_bt2 = st.columns([4, 1])
         with col_bt2:
-            if st.button("🗑️ Reiniciar", key="btn_reiniciar_asistente"):
-                st.session_state["mensajes_asistente"] = [{
+            if st.button("🗑️ Reiniciar", key="btn_reiniciar_guiado"):
+                st.session_state["mensajes_guiado"] = [{
                     "role": "assistant",
-                    "content": (
-                        "¡Hola! Soy tu asistente virtual académico. "
-                        "¿En qué te puedo colaborar en este momento?"
-                    ),
+                    "content": "¡Hola! Menú reiniciado. ¿Qué deseas consultar hoy?",
                 }]
                 st.session_state["modo_asistente"] = "menu_principal"
                 st.session_state["sub_modo"] = None
                 st.rerun()
 
+        # Renderizar historial estilo chat para el modo guiado
+        chat_html_g = '<div class="chat-container">'
+        for mensaje in st.session_state["mensajes_guiado"]:
+            if mensaje["role"] == "user":
+                chat_html_g += f'<div class="msg-user"><div class="msg-title">Tú</div>{mensaje["content"]}</div>'
+            else:
+                chat_html_g += f'<div class="msg-assistant"><div class="msg-title">Asistente Guiado</div>{mensaje["content"]}</div>'
+        chat_html_g += '</div>'
+        st.markdown(chat_html_g, unsafe_allow_html=True)
+
+        st.markdown("---")
+
         # RAMIFICACIÓN 1: MENÚ PRINCIPAL
         if st.session_state["modo_asistente"] == "menu_principal":
-            st.markdown("### 📌 Menú Principal")
+            st.markdown("### 📌 Menú de Opciones Disponibles")
             c1, c2 = st.columns(2)
 
             with c1:
-                if st.button("📊 Consultar Notas por Materia", use_container_width=True, key="btn_menu_notas"):
+                if st.button("📊 Consultar Notas por Materia", use_container_width=True, key="btn_g_notas"):
                     st.session_state["modo_asistente"] = "notas_filtro_estado"
                     st.rerun()
 
-                if st.button("🕒 ¿A qué hora es la clase de...?", use_container_width=True, key="btn_menu_horario"):
+                if st.button("🕒 ¿A qué hora es la clase de...?", use_container_width=True, key="btn_g_horario"):
                     st.session_state["modo_asistente"] = "horario_por_materia"
                     st.rerun()
 
             with c2:
-                if st.button("⏳ Ver Próximas 5 Tareas / Evaluaciones", use_container_width=True, key="btn_menu_tareas"):
+                if st.button("⏳ Ver Próximas 5 Tareas / Evaluaciones", use_container_width=True, key="btn_g_tareas"):
                     lista_proximas = []
                     pensum_df = st.session_state.get("pensum_df")
                     evaluaciones_dict = st.session_state.get("evaluaciones", {})
@@ -1025,14 +1085,13 @@ with tab_asistente:
                     else:
                         tareas_destacadas = "⏳ No hay actividades pendientes registradas para las materias en curso actualmente."
 
-                    st.session_state["mensajes_asistente"].append({"role": "user", "content": "Ver las 5 próximas actividades de materias en curso"})
-                    st.session_state["mensajes_asistente"].append({"role": "assistant", "content": tareas_destacadas})
+                    st.session_state["mensajes_guiado"].append({"role": "user", "content": "Ver las 5 próximas actividades de materias en curso"})
+                    st.session_state["mensajes_guiado"].append({"role": "assistant", "content": tareas_destacadas})
                     st.rerun()
 
-                if st.button("⚠️ Alertas o Materias con Riesgo", use_container_width=True, key="btn_menu_riesgo"):
+                if st.button("⚠️ Alertas o Materias con Riesgo", use_container_width=True, key="btn_g_riesgo"):
                     alertas_txt = "⚠️ **Reporte de Alertas y Materias en Riesgo:**\n\n"
                     materias_en_riesgo = []
-
                     pensum_df = st.session_state.get("pensum_df")
                     evaluaciones_dict = st.session_state.get("evaluaciones", {})
 
@@ -1046,19 +1105,16 @@ with tab_asistente:
                             for _, row in materias_en_curso.iterrows():
                                 cod = str(row[col_cod])
                                 nom_materia = str(row[col_mat])
-                                
                                 if cod in evaluaciones_dict:
                                     plan = evaluaciones_dict[cod].get("plan", [])
                                     suma_parcial = 0
                                     total_val = 0
-
                                     for ev in plan:
                                         nota = ev.get("Nota")
                                         val = ev.get("Valor (%)", 25)
                                         if nota is not None:
                                             suma_parcial += float(nota) * (float(val) / 100.0)
                                             total_val += float(val)
-
                                     if total_val > 30 and (suma_parcial / (total_val / 100.0)) < 12:
                                         materias_en_riesgo.append(f"- **{nom_materia}** ({cod}): Promedio parcial bajo ({suma_parcial:.2f}).")
 
@@ -1067,15 +1123,14 @@ with tab_asistente:
                     else:
                         alertas_txt += "✅ ¡Excelente noticia! No se registran materias en curso con notas en zona de riesgo actualmente."
 
-                    st.session_state["mensajes_asistente"].append({"role": "user", "content": "Consultar materias en riesgo o con alertas pendientes"})
-                    st.session_state["mensajes_asistente"].append({"role": "assistant", "content": alertas_txt})
+                    st.session_state["mensajes_guiado"].append({"role": "user", "content": "Consultar materias en riesgo o con alertas pendientes"})
+                    st.session_state["mensajes_guiado"].append({"role": "assistant", "content": alertas_txt})
                     st.rerun()
 
-        # RAMIFICACIÓN 2: NOTAS (Filtrar estado)
+        # RAMIFICACIÓN 2: FILTRO DE ESTADO DE NOTAS
         elif st.session_state["modo_asistente"] == "notas_filtro_estado":
             st.markdown("### 🔍 Selecciona el estado de las materias:")
             col_f1, col_f2, col_f3 = st.columns(3)
-
             with col_f1:
                 if st.button("📝 En Curso", use_container_width=True, key="btn_f_curso"):
                     st.session_state["sub_modo"] = "en curso"
@@ -1092,11 +1147,11 @@ with tab_asistente:
                     st.session_state["modo_asistente"] = "seleccionar_materia_notas"
                     st.rerun()
 
-            if st.button("⬅️ Volver al Menú Principal", use_container_width=True, key="btn_volver_menu_1"):
+            if st.button("⬅️ Volver al Menú Principal", use_container_width=True, key="btn_g_volver_1"):
                 st.session_state["modo_asistente"] = "menu_principal"
                 st.rerun()
 
-        # RAMIFICACIÓN 3: SELECCIONAR MATERIA PARA NOTAS
+        # RAMIFICACIÓN 3: SELECCIONAR MATERIA ESPECÍFICA PARA NOTAS
         elif st.session_state["modo_asistente"] == "seleccionar_materia_notas":
             filtro_estado = st.session_state.get("sub_modo", "en curso")
             st.markdown(f"### 📚 Materias con estado: **{filtro_estado.upper()}**")
@@ -1118,12 +1173,11 @@ with tab_asistente:
 
             if materias_filtradas:
                 nombres_materias = [m[0] for m in materias_filtradas]
-                materia_elegida = st.selectbox("Selecciona una unidad curricular:", nombres_materias, key="select_materia_notas")
+                materia_elegida = st.selectbox("Selecciona una unidad curricular:", nombres_materias, key="select_materia_g")
                 codigo_elegido = next((m[1] for m in materias_filtradas if m[0] == materia_elegida), None)
 
-                if st.button("Ver notas exactas y promedio", use_container_width=True, key="btn_ver_notas_exactas"):
+                if st.button("Ver notas exactas y promedio", use_container_width=True, key="btn_g_ver_notas"):
                     detalle_notas = f"📊 **Notas exactas para: {materia_elegida}**\n\n- Condición: **{filtro_estado.capitalize()}**\n\n"
-                    
                     df_tabla_notas = None
                     if codigo_elegido and codigo_elegido in st.session_state.get("evaluaciones", {}):
                         plan_datos = st.session_state["evaluaciones"][codigo_elegido].get("plan", [])
@@ -1154,14 +1208,14 @@ with tab_asistente:
                     else:
                         detalle_notas += "⚠️ No hay notas registradas para esta materia en el sistema todavía."
 
-                    st.session_state["mensajes_asistente"].append({"role": "user", "content": f"Quiero ver las notas de la materia {materia_elegida}"})
-                    st.session_state["mensajes_asistente"].append({"role": "assistant", "content": detalle_notas})
+                    st.session_state["mensajes_guiado"].append({"role": "user", "content": f"Ver notas de: {materia_elegida}"})
+                    st.session_state["mensajes_guiado"].append({"role": "assistant", "content": detalle_notas})
                     st.session_state["modo_asistente"] = "menu_principal"
                     st.rerun()
             else:
-                st.info("No se encontraron materias bajo este criterio que no estén marcadas como 'no inscrita'.")
+                st.info("No se encontraron materias bajo este criterio.")
 
-            if st.button("⬅️ Volver", use_container_width=True, key="btn_volver_notas_filtro"):
+            if st.button("⬅️ Volver", use_container_width=True, key="btn_g_volver_2"):
                 st.session_state["modo_asistente"] = "notas_filtro_estado"
                 st.rerun()
 
@@ -1176,109 +1230,109 @@ with tab_asistente:
                     materias_horario = df_h[col_m_h].dropna().unique().tolist()
 
             if materias_horario:
-                mat_h_elegida = st.selectbox("Selecciona la materia para ver su horario:", materias_horario, key="select_materia_horario")
-                if st.button("Consultar hora de clase", use_container_width=True, key="btn_consultar_hora"):
+                mat_h_elegida = st.selectbox("Selecciona la materia:", materias_horario, key="select_mat_h_g")
+                if st.button("Consultar hora de clase", use_container_width=True, key="btn_g_consultar_h"):
                     fila_h = df_h[df_h[col_m_h] == mat_h_elegida]
                     info_horario_txt = f"📅 **Horario registrado para {mat_h_elegida}:**\n\n"
                     for _, row_h in fila_h.iterrows():
                         info_horario_txt += f"- **Día:** {row_h.get('dia', 'N/A')} | **Aula:** {row_h.get('aula', 'N/A')} | **Hora:** {row_h.get('inicio', '')} - {row_h.get('fin', '')}\n"
 
-                    st.session_state["mensajes_asistente"].append({"role": "user", "content": f"¿A qué hora es la clase de {mat_h_elegida}?"})
-                    st.session_state["mensajes_asistente"].append({"role": "assistant", "content": info_horario_txt})
+                    st.session_state["mensajes_guiado"].append({"role": "user", "content": f"Consultar horario de: {mat_h_elegida}"})
+                    st.session_state["mensajes_guiado"].append({"role": "assistant", "content": info_horario_txt})
                     st.session_state["modo_asistente"] = "menu_principal"
                     st.rerun()
             else:
-                st.info("No hay datos de horario cargados para consultar materias específicas.")
+                st.info("No hay datos de horario cargados.")
 
-            if st.button("⬅️ Volver al Menú Principal", use_container_width=True, key="btn_volver_menu_2"):
+            if st.button("⬅️ Volver al Menú Principal", use_container_width=True, key="btn_g_volver_3"):
                 st.session_state["modo_asistente"] = "menu_principal"
                 st.rerun()
 
-    st.markdown("---")
-
     # ==========================================
-    # VISUALIZACIÓN DEL CHAT Y ENTRADA DE TEXTO
+    # MODO 2: CHAT LIBRE CONVERSACIONAL (CON CAJA DE TEXTO ACTIVA)
     # ==========================================
-    chat_html = '<div class="whatsapp-container">'
-    for mensaje in st.session_state["mensajes_asistente"]:
-        if mensaje["role"] == "user":
-            chat_html += f'<div class="whatsapp-msg-user"><b>Tú:</b><br>{mensaje["content"]}</div>'
-        else:
-            chat_html += f'<div class="whatsapp-msg-assistant"><b>Asistente:</b><br>{mensaje["content"]}</div>'
-    chat_html += '</div>'
-    st.markdown(chat_html, unsafe_allow_html=True)
+    else:
+        # Renderizar historial estilo chat para el modo conversacional
+        chat_html_c = '<div class="chat-container">'
+        for mensaje in st.session_state["mensajes_conversacional"]:
+            if mensaje["role"] == "user":
+                chat_html_c += f'<div class="msg-user"><div class="msg-title">Tú</div>{mensaje["content"]}</div>'
+            else:
+                chat_html_c += f'<div class="msg-assistant"><div class="msg-title">Asistente IA</div>{mensaje["content"]}</div>'
+        chat_html_c += '</div>'
+        st.markdown(chat_html_c, unsafe_allow_html=True)
 
-    if prompt_usuario := st.chat_input("Escribe un mensaje para el chat libre..."):
-        st.session_state["mensajes_asistente"].append({
-            "role": "user",
-            "content": prompt_usuario,
-        })
+        # Entrada de texto exclusiva para el chat libre
+        if prompt_usuario := st.chat_input("Escribe una consulta libre para la IA..."):
+            st.session_state["mensajes_conversacional"].append({
+                "role": "user",
+                "content": prompt_usuario,
+            })
 
-        with st.spinner("Pensando respuesta..."):
-            try:
-                api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-                client = genai.Client(api_key=api_key)
+            with st.spinner("Pensando respuesta..."):
+                try:
+                    api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                    client = genai.Client(api_key=api_key)
 
-                pensum_resumen = (
-                    st.session_state["pensum_df"].to_string()
-                    if st.session_state.get("pensum_df") is not None
-                    else "No cargado"
-                )
-                horario_resumen = (
-                    st.session_state["horario_df"].to_string()
-                    if st.session_state.get("horario_df") is not None
-                    else "No cargado"
-                )
+                    pensum_resumen = (
+                        st.session_state["pensum_df"].to_string()
+                        if st.session_state.get("pensum_df") is not None
+                        else "No cargado"
+                    )
+                    horario_resumen = (
+                        st.session_state["horario_df"].to_string()
+                        if st.session_state.get("horario_df") is not None
+                        else "No cargado"
+                    )
 
-                system_instruction = f"""
-                Eres un asistente virtual inteligente, amigable y versátil integrado en una aplicación universitaria.
-                Responde de forma natural, cordial y útil a cualquier saludo, pregunta general o consulta del usuario.
-                Si la pregunta está relacionada con su rendimiento, materias o clases, utiliza esta información de contexto del usuario:
-                --- PENSUM Y ESTADO DE MATERIAS ---
-                {pensum_resumen}
-                --- HORARIO DE CLASES ---
-                {horario_resumen}
-                """
+                    system_instruction = f"""
+                    Eres un asistente virtual inteligente, amigable y versátil integrado en una aplicación universitaria.
+                    Responde de forma natural, cordial y útil a cualquier saludo, pregunta general o consulta del usuario.
+                    Si la pregunta está relacionada con su rendimiento, materias o clases, utiliza esta información de contexto del usuario:
+                    --- PENSUM Y ESTADO DE MATERIAS ---
+                    {pensum_resumen}
+                    --- HORARIO DE CLASES ---
+                    {horario_resumen}
+                    """
 
-                modelos_a_probar = [modelo_seleccionado, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
-                modelos_a_probar = list(dict.fromkeys(modelos_a_probar))
-                response = None
-                ultimo_error = None
+                    modelos_a_probar = [modelo_seleccionado, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+                    modelos_a_probar = list(dict.fromkeys(modelos_a_probar))
+                    response = None
+                    ultimo_error = None
 
-                for mod in modelos_a_probar:
-                    try:
-                        response = client.models.generate_content(
-                            model=mod,
-                            contents=[
-                                system_instruction,
-                                f"Mensaje del usuario: {prompt_usuario}",
-                            ],
-                        )
-                        if response and response.text:
-                            break
-                    except Exception as ex:
-                        ultimo_error = ex
-                        continue
+                    for mod in modelos_a_probar:
+                        try:
+                            response = client.models.generate_content(
+                                model=mod,
+                                contents=[
+                                    system_instruction,
+                                    f"Mensaje del usuario: {prompt_usuario}",
+                                ],
+                            )
+                            if response and response.text:
+                                break
+                        except Exception as ex:
+                            ultimo_error = ex
+                            continue
 
-                if response and response.text:
-                    respuesta_ia = response.text
-                else:
-                    raise ultimo_error if ultimo_error else Exception("No se pudo obtener respuesta de ningún modelo.")
+                    if response and response.text:
+                        respuesta_ia = response.text
+                    else:
+                        raise ultimo_error if ultimo_error else Exception("No se pudo obtener respuesta de ningún modelo.")
 
-                st.session_state["mensajes_asistente"].append({
-                    "role": "assistant",
-                    "content": respuesta_ia,
-                })
-                st.rerun()
+                    st.session_state["mensajes_conversacional"].append({
+                        "role": "assistant",
+                        "content": respuesta_ia,
+                    })
+                    st.rerun()
 
-            except Exception as e:
-                error_msj = f"Ocurrió un error temporal por alta demanda. Por favor, intenta enviar tu mensaje nuevamente en unos segundos."
-                st.session_state["mensajes_asistente"].append({
-                    "role": "assistant",
-                    "content": error_msj,
-                })
-                st.rerun()
-
+                except Exception as e:
+                    error_msj = "Ocurrió un error temporal con la API de IA. Por favor, intenta de nuevo en unos segundos."
+                    st.session_state["mensajes_conversacional"].append({
+                        "role": "assistant",
+                        "content": error_msj,
+                    })
+                    st.rerun()
   # ==========================================
 # PESTAÑA 4: TÉCNICA POMODORO
 # ==========================================
