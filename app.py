@@ -946,22 +946,18 @@ with tab_asistente:
     if "sub_modo" not in st.session_state:
         st.session_state["sub_modo"] = None
     
-    # Historiales independientes o compartidos de mensajería estilo chat
+    # Mensaje inicial unificado para ambos chats
+    mensaje_inicial_comun = "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo ayudar hoy ?"
+
     if "mensajes_guiado" not in st.session_state:
         st.session_state["mensajes_guiado"] = [{
             "role": "assistant",
-            "content": (
-                "¡Hola! Soy tu asistente guiado. "
-                "Selecciona una de las opciones del menú superior para consultar tu información académica de forma rápida."
-            ),
+            "content": mensaje_inicial_comun,
         }]
     if "mensajes_conversacional" not in st.session_state:
         st.session_state["mensajes_conversacional"] = [{
             "role": "assistant",
-            "content": (
-                "¡Hola! Soy tu chat conversacional con IA. "
-                "Escribe cualquier duda sobre tu pensum, notas u horario y te responderé de inmediato."
-            ),
+            "content": mensaje_inicial_comun,
         }]
 
     # Estilos CSS inyectados para simular una interfaz limpia de mensajería instantánea
@@ -1015,8 +1011,7 @@ with tab_asistente:
             if st.button("🗑️ Reiniciar", key="btn_reiniciar_guiado"):
                 st.session_state["mensajes_guiado"] = [{
                     "role": "assistant",
-                    "content": "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo"
-            " ayudar?",
+                    "content": mensaje_inicial_comun,
                 }]
                 st.session_state["modo_asistente"] = "menu_principal"
                 st.session_state["sub_modo"] = None
@@ -1250,9 +1245,18 @@ with tab_asistente:
                 st.rerun()
 
     # ==========================================
-    # MODO 2: CHAT LIBRE CONVERSACIONAL (CON CAJA DE TEXTO ACTIVA)
+    # MODO 2: CHAT LIBRE CONVERSACIONAL (CON CAJA DE TEXTO ACTIVA Y BOTÓN REINICIAR)
     # ==========================================
     else:
+        col_c1, col_c2 = st.columns([4, 1])
+        with col_c2:
+            if st.button("🗑️ Reiniciar", key="btn_reiniciar_conversacional"):
+                st.session_state["mensajes_conversacional"] = [{
+                    "role": "assistant",
+                    "content": mensaje_inicial_comun,
+                }]
+                st.rerun()
+
         # Renderizar historial estilo chat para el modo conversacional
         chat_html_c = '<div class="chat-container">'
         for mensaje in st.session_state["mensajes_conversacional"]:
@@ -1262,16 +1266,6 @@ with tab_asistente:
                 chat_html_c += f'<div class="msg-assistant"><div class="msg-title">Asistente IA</div>{mensaje["content"]}</div>'
         chat_html_c += '</div>'
         st.markdown(chat_html_c, unsafe_allow_html=True)
-
-        if st.button("🗑️ Reiniciar", key="btn_reiniciar_guiado"):
-                st.session_state["mensajes_guiado"] = [{
-                    "role": "assistant",
-                    "content": "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo"
-            " ayudar?",
-                }]
-                st.session_state["modo_asistente"] = "menu_principal"
-                st.session_state["sub_modo"] = None
-                st.rerun()
 
         # Entrada de texto exclusiva para el chat libre
         if prompt_usuario := st.chat_input("Escribe una consulta libre para la IA..."):
@@ -1344,6 +1338,7 @@ with tab_asistente:
                         "content": error_msj,
                     })
                     st.rerun()
+                    
   # ==========================================
 # PESTAÑA 4: TÉCNICA POMODORO
 # ==========================================
