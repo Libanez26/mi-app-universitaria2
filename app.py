@@ -981,21 +981,27 @@ else:
           st.rerun()
 
     # ==========================================
-    # RAMIFICACIÓN 2: NOTAS (Filtrar Inscritas/En curso vs Aprobadas)
+    # RAMIFICACIÓN 2: NOTAS (Filtrar En curso, Aprobada o Reprobada)
     # ==========================================
     elif st.session_state["modo_asistente"] == "notas_filtro_estado":
       st.markdown("### 🔍 Selecciona el estado de las materias:")
-      col_f1, col_f2 = st.columns(2)
+      col_f1, col_f2, col_f3 = st.columns(3)
 
       with col_f1:
-        if st.button("📝 Materias en Curso", use_container_width=True):
+        if st.button("📝 En Curso", use_container_width=True):
           st.session_state["sub_modo"] = "en curso"
           st.session_state["modo_asistente"] = "seleccionar_materia_notas"
           st.rerun()
 
       with col_f2:
-        if st.button("✅ Materias Aprobadas", use_container_width=True):
+        if st.button("✅ Aprobadas", use_container_width=True):
           st.session_state["sub_modo"] = "aprobada"
+          st.session_state["modo_asistente"] = "seleccionar_materia_notas"
+          st.rerun()
+
+      with col_f3:
+        if st.button("❌ Reprobadas", use_container_width=True):
+          st.session_state["sub_modo"] = "reprobada"
           st.session_state["modo_asistente"] = "seleccionar_materia_notas"
           st.rerun()
 
@@ -1004,7 +1010,7 @@ else:
         st.rerun()
 
     # ==========================================
-    # RAMIFICACIÓN 3: LISTAR SOLO MATERIAS VÁLIDAS Y MOSTRAR NOTAS REALES
+    # RAMIFICACIÓN 3: LISTAR SOLO MATERIAS VÁLIDAS Y LEER NOTAS DE LA TABLA
     # ==========================================
     elif st.session_state["modo_asistente"] == "seleccionar_materia_notas":
       filtro_estado = st.session_state["sub_modo"]
@@ -1017,7 +1023,7 @@ else:
         col_est = next((c for c in df_p.columns if "estado" in c.lower() or "status" in c.lower() or "condicion" in c.lower()), None)
 
         if col_mat and col_est:
-          # Filtra estrictamente excluyendo "no inscrita" y matcheando el estado seleccionado
+          # Excluye estrictamente las que digan "no inscrita" y filtra por el estado exacto
           df_valido = df_p[
               ~df_p[col_est].astype(str).str.lower().str.contains("no inscrita") &
               df_p[col_est].astype(str).str.lower().str.contains(filtro_estado)
@@ -1034,32 +1040,61 @@ else:
               "content": f"Quiero ver las notas de la materia {materia_elegida} ({filtro_estado})"
           })
 
-          # Búsqueda de notas reales guardadas en el estado de la aplicación
           detalle_notas = f"📊 **Notas exactas para: {materia_elegida}**\n\n- Condición: **{filtro_estado.capitalize()}**\n"
           
-          # Intentar extraer las evaluaciones reales de la sesión o DataFrame de notas si existe
-          clave_evals = f"evaluaciones_{materia_elegida}"
-          if clave_evals in st.session_state and isinstance(st.session_state[clave_evals], list):
-            evals = st.session_state[clave_evals]
-            suma_notas_ponderadas = 0
-            suma_porcentajes = 0
-            for ev in evals:
-              nombre_ev = ev.get("Evaluación", "Evaluación")
-              nota_ev = float(ev.get("Nota (0-20 pts)", 0.0))
-              valor_ev = float(ev.get("Valor (%)", 0.0))
-              detalle_notas += f"- **{nombre_ev}**: {nota_ev} pts (Ponderación: {valor_ev}%)\n"
-              suma_notas_ponderadas += nota_ev * (valor_ev / 100.0)
-              suma_porcentajes += valor_ev
-            
-            if suma_porcentajes > 0:
-              promedio_final = (suma_notas_ponderadas / suma_porcentajes) * 20 if suma_porcentajes <= 1 else suma_notas_ponderadas
-              detalle_notas += f"\n⭐ **Promedio Definitivo:** **{promedio_final:.2f} / 20.0**"
+          # Buscamos en el session_state del editor de notas de Streamlit (claves comunes generadas por st.data_editor)
+          clave_editor = None
+          for k in st.session_state.keys():
+            if materia_elegida.lower() in k.lower() and ("editor" in k.lower() or "nota" in k.lower()):
+              clave_editor = k
+              break
+
+          datos_evals = None
+          if clave_editor and isinstance(st.session_state[clave_editor], (list, dict)):
+            datos_evals = st.session_state[clave_editor]
+          elif f"evaluaciones_{materia_elegida}" in st.session_state:
+            datos_evals = st.session_state[f"evaluaciones_{materia_elegida}"]
+
+          # Si Streamlit devuelve los datos modificados como diccionario (ej. {"edited_rows": ...}) o DataFrame/Lista
+          if datos_evals is not None:
+            # Si es un DataFrame guardado o una lista de diccionarios
+            import pandas as pd
+            if isinstance(datos_evals, pd.DataFrame):
+              df_evals = datos_evals
+            elif isinstance(datos_evals, list):
+              df_evals = pd.DataFrame(datos_evals)
+            elif isinstance(datos_evals, dict) and "data" in datos_evals:
+              df_evals = pd.DataFrame(datos_evals["data"])
             else:
-              detalle_notas += f"\n⭐ **Promedio Definitivo:** Sin calificaciones ponderadas cargadas aún."
+              df_evals = None
+
+            if df_evals is not None and not df_evals.empty:
+              suma_ponderada = 0
+              total_porcentaje = 0
+              
+              # Identificar nombres de columnas flexibles
+              c_nom = next((c for c in df_evals.columns if "evaluación" in c.lower() or "tema" in c.lower() or "nombre" in c.lower()), df_evals.columns[0])
+              c_nota = next((c for c in df_evals.columns if "nota" in c.lower() or "puntos" in c.lower()), None)
+              c_val = next((c for c in df_evals.columns if "valor" in c.lower() or "%" in c.lower()), None)
+
+              for idx, row in df_evals.iterrows():
+                nombre_ev = row.get(c_nom, f"Evaluación {idx+1}")
+                val_nota = float(row.get(c_nota, 0.0)) if c_nota else 0.0
+                val_porc = float(row.get(c_val, 0.0)) if c_val else 25.0  # Asume equitativo si no hay columna
+                
+                detalle_notas += f"- **{nombre_ev}**: {val_nota} pts (Valor: {val_porc}%)\n"
+                suma_ponderada += val_nota * (val_porc / 100.0)
+                total_porcentaje += val_porc
+
+              if total_porcentaje > 0:
+                promedio_calculado = (suma_ponderada / total_porcentaje) * 20 if total_porcentaje <= 1 else suma_ponderada
+                detalle_notas += f"\n⭐ **Promedio Definitivo:** **{promedio_calculado:.2f} / 20.0**"
+              else:
+                detalle_notas += f"\n⭐ **Promedio Definitivo:** En proceso de cálculo."
+            else:
+              detalle_notas += "\n⚠️ No se encontraron filas con notas guardadas en la tabla de esta materia."
           else:
-            # Búsqueda alternativa si almacena diccionarios o DataFrames generales de notas
-            detalle_notas += "*(No se encontraron evaluaciones registradas o guardadas para esta materia en los componentes de notas).* 📝\n"
-            detalle_notas += "Asegúrate de haber guardado las notas en la sección correspondiente de la materia."
+            detalle_notas += "\n⚠️ No hay datos registrados aún. Asegúrate de hacer clic en **Guardar Notas** en la sección de la materia."
 
           st.session_state["mensajes_asistente"].append({
               "role": "assistant",
@@ -1116,16 +1151,19 @@ else:
     # ==========================================
     elif st.session_state["modo_asistente"] == "proximas_tareas":
       st.markdown("### ⏳ Próximas Evaluaciones (Primeras 3 entregas)")
-      st.write("¿De qué materias te gustaría consultar las actividades pendientes?")
+      st.write("¿De qué tipo de materias te gustaría consultar las actividades pendientes?")
       
-      col_t1, col_t2 = st.columns(2)
+      col_t1, col_t2, col_t3 = st.columns(3)
       tipo_t_elegido = None
       with col_t1:
-        if st.button("📝 Solo Materias en Curso", use_container_width=True):
+        if st.button("📝 En Curso", use_container_width=True):
           tipo_t_elegido = "en curso"
       with col_t2:
-        if st.button("✅ Materias Aprobadas", use_container_width=True):
+        if st.button("✅ Aprobadas", use_container_width=True):
           tipo_t_elegido = "aprobada"
+      with col_t3:
+        if st.button("❌ Reprobadas", use_container_width=True):
+          tipo_t_elegido = "reprobada"
 
       if tipo_t_elegido:
         st.session_state["mensajes_asistente"].append({
@@ -1133,7 +1171,7 @@ else:
             "content": f"Ver las 3 próximas actividades de materias {tipo_t_elegido}"
         })
 
-        # Mostrar las primeras 3 actividades reales o filtradas por el estado
+        # Mostrar las primeras 3 actividades de la categoría seleccionada
         tareas_destacadas = (
             f"⏳ **Primeras 3 actividades próximas ({tipo_t_elegido}):**\n\n"
             f"1. **Parcial 1** - Unidad 1 (Fecha: 2026-08-12) - Pendiente\n"
