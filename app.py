@@ -1256,54 +1256,77 @@ else:
       st.markdown("---")
 
       # ==========================================
-      # RENDERIZADO VISUAL DEL CHAT (Estilo WhatsApp Ultra Limpio)
+      # RENDERIZADO VISUAL (Estilo Mensajería Limpia con Hora Abajo)
       # ==========================================
       st.markdown("""
           <style>
-          .whatsapp-container {
-              background-color: #0b141a;
+          .chat-container {
+              background-color: #1e1e2f;
               padding: 20px;
               border-radius: 12px;
               margin-bottom: 20px;
               max-height: 450px;
               overflow-y: auto;
-              border: 1px solid #222d34;
+              border: 1px solid #2d2d44;
           }
-          .whatsapp-msg-user {
-              background-color: #005c4b;
-              color: #e9edef;
+          .chat-bubble-user {
+              background-color: #2b5278;
+              color: #ffffff;
               padding: 10px 14px 6px 14px;
-              border-radius: 8px 0px 8px 8px;
+              border-radius: 12px 12px 2px 12px;
               margin: 8px 0;
               max-width: 75%;
               margin-left: auto;
               word-wrap: break-word;
               font-family: sans-serif;
               font-size: 14px;
-              position: relative;
+              box-shadow: 0 2px 5px rgba(0,0,0,0.2);
           }
-          .whatsapp-msg-assistant {
-              background-color: #202c33;
-              color: #e9edef;
+          .chat-bubble-assistant {
+              background-color: #2b2d42;
+              color: #ffffff;
               padding: 10px 14px 6px 14px;
-              border-radius: 0px 8px 8px 8px;
+              border-radius: 12px 12px 12px 2px;
               margin: 8px 0;
               max-width: 75%;
               margin-right: auto;
               word-wrap: break-word;
               font-family: sans-serif;
               font-size: 14px;
-              position: relative;
+              box-shadow: 0 2px 5px rgba(0,0,0,0.2);
           }
-          .msg-time {
-              font-size: 11px;
-              color: #8696a0;
-              float: right;
-              margin-left: 8px;
+          .msg-time-bottom {
+              font-size: 10px;
+              color: #a0a0b0;
+              text-align: right;
               margin-top: 4px;
+              display: block;
           }
           </style>
       """, unsafe_allow_html=True)
+
+      chat_html = '<div class="chat-container">'
+      for mensaje in st.session_state["mensajes_asistente"]:
+        timestamp = mensaje.get("hora", datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m."))
+        
+        contenido_limpio = mensaje["content"].replace("\n", "<br>")
+        
+        if mensaje["role"] == "user":
+          chat_html += f"""
+            <div class="chat-bubble-user">
+              <b>Tú:</b><br>{contenido_limpio}
+              <span class="msg-time-bottom">{timestamp}</span>
+            </div>
+          """
+        else:
+          chat_html += f"""
+            <div class="chat-bubble-assistant">
+              <b>Asistente:</b><br>{contenido_limpio}
+              <span class="msg-time-bottom">{timestamp}</span>
+            </div>
+          """
+      chat_html += '</div>'
+      st.markdown(chat_html, unsafe_allow_html=True)
             
   # ==========================================
   # PESTAÑA 4: TÉCNICA POMODORO
