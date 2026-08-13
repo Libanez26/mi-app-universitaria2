@@ -1341,7 +1341,7 @@ with tab_asistente:
                     })
                     st.rerun()
 
-except Exception as e:
+                except Exception as e:
                     # Verificamos si el error es por límite de cuota (429)
                     error_str = str(e)
                     if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
