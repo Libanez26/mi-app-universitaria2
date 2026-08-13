@@ -1015,7 +1015,8 @@ with tab_asistente:
             if st.button("🗑️ Reiniciar", key="btn_reiniciar_guiado"):
                 st.session_state["mensajes_guiado"] = [{
                     "role": "assistant",
-                    "content": "¡Hola! Menú reiniciado. ¿Qué deseas consultar hoy?",
+                    "content": "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo"
+            " ayudar?",
                 }]
                 st.session_state["modo_asistente"] = "menu_principal"
                 st.session_state["sub_modo"] = None
@@ -1261,6 +1262,16 @@ with tab_asistente:
                 chat_html_c += f'<div class="msg-assistant"><div class="msg-title">Asistente IA</div>{mensaje["content"]}</div>'
         chat_html_c += '</div>'
         st.markdown(chat_html_c, unsafe_allow_html=True)
+
+        if st.button("🗑️ Reiniciar", key="btn_reiniciar_guiado"):
+                st.session_state["mensajes_guiado"] = [{
+                    "role": "assistant",
+                    "content": "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo"
+            " ayudar?",
+                }]
+                st.session_state["modo_asistente"] = "menu_principal"
+                st.session_state["sub_modo"] = None
+                st.rerun()
 
         # Entrada de texto exclusiva para el chat libre
         if prompt_usuario := st.chat_input("Escribe una consulta libre para la IA..."):
