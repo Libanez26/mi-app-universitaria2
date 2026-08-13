@@ -973,21 +973,122 @@ else:
         c1, c2 = st.columns(2)
 
         with c1:
-          if st.button("📊 Consultar Notas por Materia", use_container_width=True):
+          if st.button("📊 Consultar Notas por Materia", use_container_width=True, key="btn_menu_notas"):
             st.session_state["modo_asistente"] = "notas_filtro_estado"
             st.rerun()
 
-          if st.button("🕒 ¿A qué hora es la clase de...?", use_container_width=True):
+          if st.button("🕒 ¿A qué hora es la clase de...?", use_container_width=True, key="btn_menu_horario"):
             st.session_state["modo_asistente"] = "horario_por_materia"
             st.rerun()
 
         with c2:
-          if st.button("⏳ Ver Próximas 5 Tareas / Evaluaciones", use_container_width=True):
-            st.session_state["modo_asistente"] = "proximas_tareas"
+          if st.button("⏳ Ver Próximas 5 Tareas / Evaluaciones", use_container_width=True, key="btn_menu_tareas"):
+            hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
+            
+            # Agregamos los mensajes UNA sola vez de forma controlada
+            st.session_state["mensajes_asistente"].append({
+                "role": "user",
+                "content": "Ver las 5 próximas actividades de materias en curso",
+                "hora": hora_msg
+            })
+
+            lista_proximas = []
+            pensum_df = st.session_state.get("pensum_df")
+            evaluaciones_dict = st.session_state.get("evaluaciones", {})
+
+            if pensum_df is not None and not pensum_df.empty:
+              col_est = next((c for c in pensum_df.columns if "estado" in c.lower() or "status" in c.lower()), None)
+              col_cod = next((c for c in pensum_df.columns if "codigo" in c.lower() or "código" in c.lower()), None)
+              col_mat = next((c for c in pensum_df.columns if "materia" in c.lower() or "asignatura" in c.lower()), None)
+
+              if col_est and col_cod and col_mat:
+                materias_en_curso = pensum_df[pensum_df[col_est].astype(str).str.lower() == "en curso"]
+                for _, row in materias_en_curso.iterrows():
+                  cod = str(row[col_cod])
+                  nom_materia = str(row[col_mat])
+                  if cod in evaluaciones_dict:
+                    plan = evaluaciones_dict[cod].get("plan", [])
+                    for ev in plan:
+                      if not ev.get("Entregada", False):
+                        lista_proximas.append({
+                            "materia": nom_materia,
+                            "codigo": cod,
+                            "evaluacion": ev.get("Evaluación", "Evaluación"),
+                            "tema": ev.get("Tema", ""),
+                            "fecha": ev.get("Fecha", datetime.date.today())
+                        })
+
+            lista_proximas = sorted(lista_proximas, key=lambda x: str(x["fecha"]))
+            primeras_5 = lista_proximas[:5]
+
+            if primeras_5:
+              tareas_destacadas = "⏳ **Primeras 5 actividades próximas (Materias en Curso):**\n\n"
+              for idx, item in enumerate(primeras_5, 1):
+                tareas_destacadas += f"{idx}. **{item['materia']}** ({item['codigo']}) - *{item['evaluacion']}* ({item['tema']}) | 📅 **Fecha:** {item['fecha']}\n"
+            else:
+              tareas_destacadas = "⏳ No hay actividades pendientes registradas para las materias en curso actualmente."
+
+            st.session_state["mensajes_asistente"].append({
+                "role": "assistant",
+                "content": tareas_destacadas,
+                "hora": hora_msg
+            })
+            st.session_state["modo_asistente"] = "menu_principal"
             st.rerun()
 
-          if st.button("⚠️ Alertas o Materias con Riesgo", use_container_width=True):
-            st.session_state["modo_asistente"] = "materias_riesgo"
+          if st.button("⚠️ Alertas o Materias con Riesgo", use_container_width=True, key="btn_menu_riesgo"):
+            hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
+            
+            # Agregamos los mensajes UNA sola vez de forma controlada
+            st.session_state["mensajes_asistente"].append({
+                "role": "user",
+                "content": "Consultar materias en riesgo o con alertas pendientes",
+                "hora": hora_msg
+            })
+
+            alertas_txt = "⚠️ **Reporte de Alertas y Materias en Riesgo:**\n\n"
+            materias_en_riesgo = []
+
+            pensum_df = st.session_state.get("pensum_df")
+            evaluaciones_dict = st.session_state.get("evaluaciones", {})
+
+            if pensum_df is not None and not pensum_df.empty:
+              col_est = next((c for c in pensum_df.columns if "estado" in c.lower() or "status" in c.lower()), None)
+              col_cod = next((c for c in pensum_df.columns if "codigo" in c.lower() or "código" in c.lower()), None)
+              col_mat = next((c for c in pensum_df.columns if "materia" in c.lower() or "asignatura" in c.lower()), None)
+
+              if col_est and col_cod and col_mat:
+                materias_en_curso = pensum_df[pensum_df[col_est].astype(str).str.lower() == "en curso"]
+                for _, row in materias_en_curso.iterrows():
+                  cod = str(row[col_cod])
+                  nom_materia = str(row[col_mat])
+                  
+                  if cod in evaluaciones_dict:
+                    plan = evaluaciones_dict[cod].get("plan", [])
+                    suma_parcial = 0
+                    total_val = 0
+
+                    for ev in plan:
+                      nota = ev.get("Nota")
+                      val = ev.get("Valor", 25)
+                      if nota is not None:
+                        suma_parcial += float(nota) * (float(val) / 100.0)
+                        total_val += float(val)
+
+                    if total_val > 30 and (suma_parcial / (total_val / 100.0)) < 10:
+                      materias_en_riesgo.append(f"- **{nom_materia}** ({cod}): Promedio parcial bajo ({suma_parcial:.2f}).")
+
+            if materias_en_riesgo:
+              alertas_txt += "Se detectaron las siguientes materias con rendimiento bajo:\n" + "\n".join(materias_en_riesgo)
+            else:
+              alertas_txt += "✅ ¡Excelente noticia! No se registran materias en curso con notas en zona de riesgo actualmente."
+
+            st.session_state["mensajes_asistente"].append({
+                "role": "assistant",
+                "content": alertas_txt,
+                "hora": hora_msg
+            })
+            st.session_state["modo_asistente"] = "menu_principal"
             st.rerun()
 
       # ==========================================
@@ -998,24 +1099,24 @@ else:
         col_f1, col_f2, col_f3 = st.columns(3)
 
         with col_f1:
-          if st.button("📝 En Curso", use_container_width=True):
+          if st.button("📝 En Curso", use_container_width=True, key="btn_f_curso"):
             st.session_state["sub_modo"] = "en curso"
             st.session_state["modo_asistente"] = "seleccionar_materia_notas"
             st.rerun()
 
         with col_f2:
-          if st.button("✅ Aprobadas", use_container_width=True):
+          if st.button("✅ Aprobadas", use_container_width=True, key="btn_f_aprobada"):
             st.session_state["sub_modo"] = "aprobada"
             st.session_state["modo_asistente"] = "seleccionar_materia_notas"
             st.rerun()
 
         with col_f3:
-          if st.button("❌ Reprobadas", use_container_width=True):
+          if st.button("❌ Reprobadas", use_container_width=True, key="btn_f_reprobada"):
             st.session_state["sub_modo"] = "reprobada"
             st.session_state["modo_asistente"] = "seleccionar_materia_notas"
             st.rerun()
 
-        if st.button("⬅️ Volver al Menú Principal", use_container_width=True):
+        if st.button("⬅️ Volver al Menú Principal", use_container_width=True, key="btn_volver_menu_1"):
           st.session_state["modo_asistente"] = "menu_principal"
           st.rerun()
 
@@ -1043,11 +1144,11 @@ else:
 
         if materias_filtradas:
           nombres_materias = [m[0] for m in materias_filtradas]
-          materia_elegida = st.selectbox("Selecciona una unidad curricular:", nombres_materias)
+          materia_elegida = st.selectbox("Selecciona una unidad curricular:", nombres_materias, key="select_materia_notas")
           
           codigo_elegido = next((m[1] for m in materias_filtradas if m[0] == materia_elegida), None)
 
-          if st.button("Ver notas exactas y promedio", use_container_width=True):
+          if st.button("Ver notas exactas y promedio", use_container_width=True, key="btn_ver_notas_exactas"):
             hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
             st.session_state["mensajes_asistente"].append({
                 "role": "user",
@@ -1098,7 +1199,7 @@ else:
         else:
           st.info("No se encontraron materias bajo este criterio que no estén marcadas como 'no inscrita'.")
 
-        if st.button("⬅️ Volver", use_container_width=True):
+        if st.button("⬅️ Volver", use_container_width=True, key="btn_volver_notas_filtro"):
           st.session_state["modo_asistente"] = "notas_filtro_estado"
           st.rerun()
 
@@ -1116,8 +1217,8 @@ else:
             materias_horario = df_h[col_m_h].dropna().unique().tolist()
 
         if materias_horario:
-          mat_h_elegida = st.selectbox("Selecciona la materia para ver su horario:", materias_horario)
-          if st.button("Consultar hora de clase", use_container_width=True):
+          mat_h_elegida = st.selectbox("Selecciona la materia para ver su horario:", materias_horario, key="select_materia_horario")
+          if st.button("Consultar hora de clase", use_container_width=True, key="btn_consultar_hora"):
             hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
             st.session_state["mensajes_asistente"].append({
                 "role": "user",
@@ -1138,120 +1239,9 @@ else:
         else:
           st.info("No hay datos de horario cargados para consultar materias específicas.")
 
-        if st.button("⬅️ Volver al Menú Principal", use_container_width=True):
+        if st.button("⬅️ Volver al Menú Principal", use_container_width=True, key="btn_volver_menu_2"):
           st.session_state["modo_asistente"] = "menu_principal"
           st.rerun()
-
-      # ==========================================
-      # RAMIFICACIÓN 5: PRÓXIMAS 5 TAREAS (SOLO MATERIAS EN CURSO)
-      # ==========================================
-      elif st.session_state["modo_asistente"] == "proximas_tareas":
-        hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
-        st.session_state["mensajes_asistente"].append({
-            "role": "user",
-            "content": "Ver las 5 próximas actividades de materias en curso",
-            "hora": hora_msg
-        })
-
-        lista_proximas = []
-        pensum_df = st.session_state.get("pensum_df")
-        evaluaciones_dict = st.session_state.get("evaluaciones", {})
-
-        if pensum_df is not None and not pensum_df.empty:
-          col_est = next((c for c in pensum_df.columns if "estado" in c.lower() or "status" in c.lower()), None)
-          col_cod = next((c for c in pensum_df.columns if "codigo" in c.lower() or "código" in c.lower()), None)
-          col_mat = next((c for c in pensum_df.columns if "materia" in c.lower() or "asignatura" in c.lower()), None)
-
-          if col_est and col_cod and col_mat:
-            materias_en_curso = pensum_df[pensum_df[col_est].astype(str).str.lower() == "en curso"]
-            for _, row in materias_en_curso.iterrows():
-              cod = str(row[col_cod])
-              nom_materia = str(row[col_mat])
-              if cod in evaluaciones_dict:
-                plan = evaluaciones_dict[cod].get("plan", [])
-                for ev in plan:
-                  if not ev.get("Entregada", False):
-                    lista_proximas.append({
-                        "materia": nom_materia,
-                        "codigo": cod,
-                        "evaluacion": ev.get("Evaluación", "Evaluación"),
-                        "tema": ev.get("Tema", ""),
-                        "fecha": ev.get("Fecha", datetime.date.today())
-                    })
-
-        lista_proximas = sorted(lista_proximas, key=lambda x: str(x["fecha"]))
-        primeras_5 = lista_proximas[:5]
-
-        if primeras_5:
-          tareas_destacadas = "⏳ **Primeras 5 actividades próximas (Materias en Curso):**\n\n"
-          for idx, item in enumerate(primeras_5, 1):
-            tareas_destacadas += f"{idx}. **{item['materia']}** ({item['codigo']}) - *{item['evaluacion']}* ({item['tema']}) | 📅 **Fecha:** {item['fecha']}\n"
-        else:
-          tareas_destacadas = "⏳ No hay actividades pendientes registradas para las materias en curso actualmente."
-
-        st.session_state["mensajes_asistente"].append({
-            "role": "assistant",
-            "content": tareas_destacadas,
-            "hora": hora_msg
-        })
-        st.session_state["modo_asistente"] = "menu_principal"
-        st.rerun()
-
-      # ==========================================
-      # RAMIFICACIÓN 6: MATERIAS CON RIESGO / ALERTAS
-      # ==========================================
-      elif st.session_state["modo_asistente"] == "materias_riesgo":
-        hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
-        st.session_state["mensajes_asistente"].append({
-            "role": "user",
-            "content": "Consultar materias en riesgo o con alertas pendientes",
-            "hora": hora_msg
-        })
-
-        alertas_txt = "⚠️ **Reporte de Alertas y Materias en Riesgo:**\n\n"
-        materias_en_riesgo = []
-
-        pensum_df = st.session_state.get("pensum_df")
-        evaluaciones_dict = st.session_state.get("evaluaciones", {})
-
-        if pensum_df is not None and not pensum_df.empty:
-          col_est = next((c for c in pensum_df.columns if "estado" in c.lower() or "status" in c.lower()), None)
-          col_cod = next((c for c in pensum_df.columns if "codigo" in c.lower() or "código" in c.lower()), None)
-          col_mat = next((c for c in pensum_df.columns if "materia" in c.lower() or "asignatura" in c.lower()), None)
-
-          if col_est and col_cod and col_mat:
-            materias_en_curso = pensum_df[pensum_df[col_est].astype(str).str.lower() == "en curso"]
-            for _, row in materias_en_curso.iterrows():
-              cod = str(row[col_cod])
-              nom_materia = str(row[col_mat])
-              
-              if cod in evaluaciones_dict:
-                plan = evaluaciones_dict[cod].get("plan", [])
-                suma_parcial = 0
-                total_val = 0
-
-                for ev in plan:
-                  nota = ev.get("Nota")
-                  val = ev.get("Valor", 25)
-                  if nota is not None:
-                    suma_parcial += float(nota) * (float(val) / 100.0)
-                    total_val += float(val)
-
-                if total_val > 30 and (suma_parcial / (total_val / 100.0)) < 10:
-                  materias_en_riesgo.append(f"- **{nom_materia}** ({cod}): Promedio parcial bajo ({suma_parcial:.2f}).")
-
-        if materias_en_riesgo:
-          alertas_txt += "Se detectaron las siguientes materias con rendimiento bajo:\n" + "\n".join(materias_en_riesgo)
-        else:
-          alertas_txt += "✅ ¡Excelente noticia! No se registran materias en curso con notas en zona de riesgo actualmente."
-
-        st.session_state["mensajes_asistente"].append({
-            "role": "assistant",
-            "content": alertas_txt,
-            "hora": hora_msg
-        })
-        st.session_state["modo_asistente"] = "menu_principal"
-        st.rerun()
 
       st.markdown("---")
 
