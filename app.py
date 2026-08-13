@@ -287,7 +287,6 @@ if st.session_state["usuario"] is None:
                   "nombre_dispositivo": "Dispositivo Confiable Independiente",
               }).execute()
 
-              # --- INTEGRACIÓN: PEDIR PERMISO DE NOTIFICACIÓN NATIVA AL RECORDAR DISPOSITIVO ---
               js_pedir_permiso = """
               <script>
                   if (window.Notification && Notification.permission !== "granted") {
@@ -814,6 +813,31 @@ else:
   with tab_horario:
     st.subheader("📅 Gestión de Horario de Clases")
 
+    # --- RELOJ EN TIEMPO REAL (SOLO EN LA PESTAÑA DE HORARIO) ---
+    components.html(
+        """
+        <div style="background-color: #1e1e1e; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #333; margin-bottom: 20px;">
+            <span style="color: #a0a0a0; font-size: 14px; font-family: sans-serif;">🕒 Hora Actual del Sistema: </span>
+            <span id="reloj-digital" style="color: #00ffcc; font-size: 20px; font-weight: bold; font-family: monospace;">--:--:--</span>
+            <span id="fecha-digital" style="color: #ffffff; font-size: 14px; margin-left: 15px; font-family: sans-serif;">---</span>
+        </div>
+        <script>
+            function actualizarReloj() {
+                const ahora = new Date();
+                const hora = ahora.toLocaleTimeString();
+                const opciones = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                const fecha = ahora.toLocaleDateString('es-ES', opciones);
+                
+                document.getElementById('reloj-digital').innerText = hora;
+                document.getElementById('fecha-digital').innerText = fecha;
+            }
+            setInterval(actualizarReloj, 1000);
+            actualizarReloj();
+        </script>
+        """,
+        height=70,
+    )
+
     if st.session_state.get("horario_df") is None:
       st.info(
           "👋 Sube tu horario de clases en formato PDF para organizarlo"
@@ -1005,6 +1029,77 @@ else:
                   components.html(js_voz, height=0)
             except Exception:
               pass
+
+      # --- SECCIÓN DE SINCRONIZACIÓN CON GOOGLE CALENDAR ---
+      st.markdown("---")
+      st.subheader("📅 Sincronización con Google Calendar")
+
+      def get_calendar_service():
+        if "google_calendar" not in st.secrets:
+          st.warning("Faltan las credenciales de Google Calendar en los secretos.")
+          return None
+
+        creds_data = {
+            "web": {
+                "client_id": st.secrets["google_calendar"]["client_id"],
+                "client_secret": st.secrets["google_calendar"]["client_secret"],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": st.secrets["google_calendar"]["redirect_uris"]
+            }
+        }
+
+        flow = Flow.from_client_config(
+            creds_data,
+            scopes=["https://www.googleapis.com/auth/calendar"],
+            redirect_uri=st.secrets["google_calendar"]["redirect_uris"][0]
+        )
+        
+        if "google_creds" not in st.session_state:
+          auth_url, _ = flow.authorization_url(prompt='consent')
+          st.markdown(f"[🔗 Haz clic aquí para autorizar el acceso a tu Google Calendar]({auth_url})")
+          code = st.text_input("Pega el código de autorización aquí:")
+          if code:
+            try:
+              flow.fetch_token(code=code)
+              st.session_state["google_creds"] = flow.credentials
+              st.success("¡Autorización exitosa! Vuelve a hacer clic en el botón de sincronizar.")
+              st.rerun()
+            except Exception as auth_err:
+              st.error(f"Error al obtener el token: {auth_err}")
+          return None
+        else:
+          creds_info = st.session_state["google_creds"]
+          if hasattr(creds_info, "to_json"):
+            creds = Credentials.from_authorized_user_info(json.loads(creds_info.to_json()))
+          else:
+            creds = Credentials.from_authorized_user_info(creds_info)
+          return build('calendar', 'v3', credentials=creds)
+
+      if st.button("Conectar y Sincronizar Clases con Google Calendar"):
+        service = get_calendar_service()
+        if service:
+          horario_sinc = st.session_state.get("horario_df")
+          if horario_sinc is not None and not horario_sinc.empty:
+            with st.spinner("Sincronizando eventos con Google Calendar..."):
+              for _, row in horario_sinc.iterrows():
+                event = {
+                    'summary': f"Clase: {row['materia']}",
+                    'location': str(row.get('aula', 'Virtual')),
+                    'description': 'Clase registrada automáticamente desde Mi App Universitaria',
+                    'start': {
+                        'dateTime': f"2026-08-12T{row['inicio']}:00",
+                        'timeZone': 'America/Caracas',
+                    },
+                    'end': {
+                        'dateTime': f"2026-08-12T{row['fin']}:00",
+                        'timeZone': 'America/Caracas',
+                    },
+                }
+                service.events().insert(calendarId='primary', body=event).execute()
+              st.success("¡Tus clases han sido sincronizadas con Google Calendar con éxito!")
+          else:
+            st.error("No se encontró un horario cargado para sincronizar.")
 
   # ==========================================
   # PESTAÑA 3: Técnica Pomodoro
