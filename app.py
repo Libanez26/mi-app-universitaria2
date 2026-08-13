@@ -341,18 +341,20 @@ else:
             " por minuto (RPM)."
         ),
     )
-    
-    if st.button("🔄 Refrescar Página Completa", key="btn_refrescar_pagina"):
-      components.html(
-          """
-          <script>
-              window.parent.location.reload();
-          </script>
-          """,
-          height=0,
-      )
 
   st.sidebar.markdown("---")
+
+  # --- BOTÓN PARA REFRESCAR LA PÁGINA COMPLETA ---
+  if st.sidebar.button("🔄 Refrescar Página", key="btn_refrescar_pagina"):
+    components.html(
+        """
+        <script>
+            window.parent.location.reload();
+        </script>
+        """,
+        height=0,
+    )
+
   if st.sidebar.button("Cerrar Sesión en este equipo", key="btn_logout"):
     if device_token_cookie:
       try:
