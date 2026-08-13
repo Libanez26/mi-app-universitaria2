@@ -932,6 +932,14 @@ else:
         "Conversa libremente con el asistente. Puede ayudarte con tus materias, horarios o responder cualquier otra pregunta."
     )
 
+    # Botón para vaciar / borrar el historial del chat
+    if st.button("🗑️ Borrar chat", key="btn_borrar_chat"):
+      st.session_state["mensajes_asistente"] = [{
+          "role": "assistant",
+          "content": "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?",
+      }]
+      st.rerun()
+
     # Estilos CSS personalizados simulando la interfaz moderna de WhatsApp
     st.markdown("""
         <style>
@@ -1018,33 +1026,18 @@ else:
                     {horario_resumen}
                     """
 
-          # Lógica con reintento automático (Fallback) ante errores 503 de alta demanda
-          modelos_a_probar = [modelo_seleccionado, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
-          # Eliminar duplicados manteniendo el orden
-          modelos_a_probar = list(dict.fromkeys(modelos_a_probar))
-          
-          response = None
-          ultimo_error = None
-
-          for mod in modelos_a_probar:
-            try:
-              response = client.models.generate_content(
-                  model=mod,
-                  contents=[
-                      system_instruction,
-                      f"Mensaje del usuario: {prompt_usuario}",
-                  ],
-              )
-              if response and response.text:
-                break
-            except Exception as ex:
-              ultimo_error = ex
-              continue
+          response = client.models.generate_content(
+              model=modelo_seleccionado,
+              contents=[
+                  system_instruction,
+                  f"Mensaje del usuario: {prompt_usuario}",
+              ],
+          )
 
           if response and response.text:
             respuesta_ia = response.text
           else:
-            raise ultimo_error if ultimo_error else Exception("No se pudo obtener respuesta de ningún modelo.")
+            respuesta_ia = "Hola, ¿en qué te puedo ayudar hoy?"
 
           st.session_state["mensajes_asistente"].append({
               "role": "assistant",
@@ -1053,13 +1046,13 @@ else:
           st.rerun()
 
         except Exception as e:
-          error_msj = f"Ocurrió un error temporal por alta demanda. Por favor, intenta enviar tu mensaje nuevamente en unos segundos."
+          error_msj = f"Ocurrió un error temporal: {e}. Por favor, intenta de nuevo."
           st.session_state["mensajes_asistente"].append({
               "role": "assistant",
               "content": error_msj,
           })
           st.rerun()
-
+            
   # ==========================================
   # PESTAÑA 4: TÉCNICA POMODORO
   # ==========================================
