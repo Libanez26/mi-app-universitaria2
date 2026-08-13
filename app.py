@@ -938,20 +938,24 @@ else:
         st.session_state["sub_modo"] = None
 
       if "mensajes_asistente" not in st.session_state or not st.session_state["mensajes_asistente"]:
+        hora_inicial = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
         st.session_state["mensajes_asistente"] = [{
             "role": "assistant",
             "content": (
                 "¡Hola! Soy tu asistente académico. "
                 "Selecciona una opción del menú para comenzar:"
             ),
+            "hora": hora_inicial
         }]
 
       col_bt1, col_bt2 = st.columns([4, 1])
       with col_bt2:
         if st.button("🗑️ Reiniciar", key="btn_reiniciar_asistente"):
+          hora_reinicio = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
           st.session_state["mensajes_asistente"] = [{
               "role": "assistant",
               "content": "¡Conversación reiniciada! ¿Qué deseas consultar?",
+              "hora": hora_reinicio
           }]
           st.session_state["modo_asistente"] = "menu_principal"
           st.session_state["sub_modo"] = None
@@ -976,6 +980,10 @@ else:
         with c2:
           if st.button("⏳ Ver Próximas 5 Tareas / Evaluaciones", use_container_width=True):
             st.session_state["modo_asistente"] = "proximas_tareas"
+            st.rerun()
+
+          if st.button("⚠️ Alertas o Materias con Riesgo", use_container_width=True):
+            st.session_state["modo_asistente"] = "materias_riesgo"
             st.rerun()
 
       # ==========================================
@@ -1036,9 +1044,11 @@ else:
           codigo_elegido = next((m[1] for m in materias_filtradas if m[0] == materia_elegida), None)
 
           if st.button("Ver notas exactas y promedio", use_container_width=True):
+            hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
             st.session_state["mensajes_asistente"].append({
                 "role": "user",
-                "content": f"Quiero ver las notas de la materia {materia_elegida} ({filtro_estado})"
+                "content": f"Quiero ver las notas de la materia {materia_elegida} ({filtro_estado})",
+                "hora": hora_msg
             })
 
             detalle_notas = f"📊 **Notas exactas para: {materia_elegida}**\n\n- Condición: **{filtro_estado.capitalize()}**\n\n"
@@ -1076,7 +1086,8 @@ else:
 
             st.session_state["mensajes_asistente"].append({
                 "role": "assistant",
-                "content": detalle_notas
+                "content": detalle_notas,
+                "hora": hora_msg
             })
             st.session_state["modo_asistente"] = "menu_principal"
             st.rerun()
@@ -1103,9 +1114,11 @@ else:
         if materias_horario:
           mat_h_elegida = st.selectbox("Selecciona la materia para ver su horario:", materias_horario)
           if st.button("Consultar hora de clase", use_container_width=True):
+            hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
             st.session_state["mensajes_asistente"].append({
                 "role": "user",
-                "content": f"¿A qué hora es la clase de {mat_h_elegida}?"
+                "content": f"¿A qué hora es la clase de {mat_h_elegida}?",
+                "hora": hora_msg
             })
             
             fila_h = df_h[df_h[col_m_h] == mat_h_elegida]
@@ -1113,7 +1126,8 @@ else:
             
             st.session_state["mensajes_asistente"].append({
                 "role": "assistant",
-                "content": info_horario_txt
+                "content": info_horario_txt,
+                "hora": hora_msg
             })
             st.session_state["modo_asistente"] = "menu_principal"
             st.rerun()
@@ -1130,12 +1144,13 @@ else:
       elif st.session_state["modo_asistente"] == "proximas_tareas":
         st.markdown("### ⏳ Próximas Evaluaciones (Primeras 5 entregas - Materias en Curso)")
         
+        hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
         st.session_state["mensajes_asistente"].append({
             "role": "user",
-            "content": "Ver las 5 próximas actividades de materias en curso"
+            "content": "Ver las 5 próximas actividades de materias en curso",
+            "hora": hora_msg
         })
 
-        # Recopilar evaluaciones de las materias que tengan estado "En Curso"
         lista_proximas = []
         pensum_df = st.session_state.get("pensum_df")
         evaluaciones_dict = st.session_state.get("evaluaciones", {})
@@ -1153,7 +1168,6 @@ else:
               if cod in evaluaciones_dict:
                 plan = evaluaciones_dict[cod].get("plan", [])
                 for ev in plan:
-                  # Solo agregar si no está marcada como entregada o completada
                   if not ev.get("Entregada", False):
                     lista_proximas.append({
                         "materia": nom_materia,
@@ -1163,7 +1177,6 @@ else:
                         "fecha": ev.get("Fecha", datetime.date.today())
                     })
 
-        # Ordenar por fecha más cercana
         lista_proximas = sorted(lista_proximas, key=lambda x: str(x["fecha"]))
         primeras_5 = lista_proximas[:5]
 
@@ -1176,14 +1189,75 @@ else:
 
         st.session_state["mensajes_asistente"].append({
             "role": "assistant",
-            "content": tareas_destacadas
+            "content": tareas_destacadas,
+            "hora": hora_msg
+        })
+        st.session_state["modo_asistente"] = "menu_principal"
+        st.rerun()
+
+      # ==========================================
+      # RAMIFICACIÓN 6: MATERIAS CON RIESGO / ALERTAS
+      # ==========================================
+      elif st.session_state["modo_asistente"] == "materias_riesgo":
+        st.markdown("### ⚠️ Alertas y Materias con Riesgo")
+        
+        hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
+        st.session_state["mensajes_asistente"].append({
+            "role": "user",
+            "content": "Consultar materias en riesgo o con alertas pendientes",
+            "hora": hora_msg
+        })
+
+        alertas_txt = "⚠️ **Reporte de Alertas y Materias en Riesgo:**\n\n"
+        materias_en_riesgo = []
+
+        pensum_df = st.session_state.get("pensum_df")
+        evaluaciones_dict = st.session_state.get("evaluaciones", {})
+
+        if pensum_df is not None and not pensum_df.empty:
+          col_est = next((c for c in pensum_df.columns if "estado" in c.lower() or "status" in c.lower()), None)
+          col_cod = next((c for c in pensum_df.columns if "codigo" in c.lower() or "código" in c.lower()), None)
+          col_mat = next((c for c in pensum_df.columns if "materia" in c.lower() or "asignatura" in c.lower()), None)
+
+          if col_est and col_cod and col_mat:
+            materias_en_curso = pensum_df[pensum_df[col_est].astype(str).str.lower() == "en curso"]
+            for _, row in materias_en_curso.iterrows():
+              cod = str(row[col_cod])
+              nom_materia = str(row[col_mat])
+              
+              if cod in evaluaciones_dict:
+                plan = evaluaciones_dict[cod].get("plan", [])
+                suma_parcial = 0
+                total_val = 0
+
+                for ev in plan:
+                  nota = ev.get("Nota")
+                  val = ev.get("Valor", 25)
+                  if nota is not None:
+                    suma_parcial += float(nota) * (float(val) / 100.0)
+                    total_val += float(val)
+
+                if total_val > 30 and (suma_parcial / (total_val / 100.0)) < 10:
+                  materias_en_riesgo.append(f"- **{nom_materia}** ({cod}): Promedio parcial bajo ({suma_parcial:.2f}).")
+
+        if materias_en_riesgo:
+          alertas_txt += "Se detectaron las siguientes materias con rendimiento bajo:\n" + "\n".join(materias_en_riesgo)
+        else:
+          alertas_txt += "✅ ¡Excelente noticia! No se registran materias en curso con notas en zona de riesgo actualmente."
+
+        st.session_state["mensajes_asistente"].append({
+            "role": "assistant",
+            "content": alertas_txt,
+            "hora": hora_msg
         })
         st.session_state["modo_asistente"] = "menu_principal"
         st.rerun()
 
       st.markdown("---")
 
-      # Renderizado visual del chat en contenedor estilo WhatsApp
+      # ==========================================
+      # RENDERIZADO VISUAL DEL CHAT (Estilo WhatsApp con Hora y Check)
+      # ==========================================
       st.markdown("""
           <style>
           .whatsapp-container {
@@ -1198,7 +1272,7 @@ else:
           .whatsapp-msg-user {
               background-color: #005c4b;
               color: #e9edef;
-              padding: 10px 14px;
+              padding: 10px 14px 6px 14px;
               border-radius: 8px 0px 8px 8px;
               margin: 8px 0;
               max-width: 75%;
@@ -1206,11 +1280,12 @@ else:
               word-wrap: break-word;
               font-family: sans-serif;
               font-size: 14px;
+              position: relative;
           }
           .whatsapp-msg-assistant {
               background-color: #202c33;
               color: #e9edef;
-              padding: 10px 14px;
+              padding: 10px 14px 6px 14px;
               border-radius: 0px 8px 8px 8px;
               margin: 8px 0;
               max-width: 75%;
@@ -1218,16 +1293,39 @@ else:
               word-wrap: break-word;
               font-family: sans-serif;
               font-size: 14px;
+              position: relative;
+          }
+          .msg-time {
+              font-size: 11px;
+              color: #8696a0;
+              float: right;
+              margin-left: 8px;
+              margin-top: 4px;
+              display: inline-flex;
+              align-items: center;
+              gap: 2px;
           }
           </style>
       """, unsafe_allow_html=True)
 
       chat_html = '<div class="whatsapp-container">'
       for mensaje in st.session_state["mensajes_asistente"]:
+        timestamp = mensaje.get("hora", datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m."))
+        
         if mensaje["role"] == "user":
-          chat_html += f'<div class="whatsapp-msg-user"><b>Tú:</b><br>{mensaje["content"]}</div>'
+          chat_html += f"""
+            <div class="whatsapp-msg-user">
+              <b>Tú:</b><br>{mensaje["content"]}
+              <div class="msg-time">{timestamp} <span style="color: #53bdeb; font-weight: bold;">✓✓</span></div>
+            </div>
+          """
         else:
-          chat_html += f'<div class="whatsapp-msg-assistant"><b>Asistente:</b><br>{mensaje["content"]}</div>'
+          chat_html += f"""
+            <div class="whatsapp-msg-assistant">
+              <b>Asistente:</b><br>{mensaje["content"]}
+              <div class="msg-time">{timestamp}</div>
+            </div>
+          """
       chat_html += '</div>'
       st.markdown(chat_html, unsafe_allow_html=True)
             
