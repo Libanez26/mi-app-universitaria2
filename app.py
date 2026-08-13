@@ -932,7 +932,6 @@ else:
         "Navega por las opciones para consultar notas exactas de tus registros, horarios detallados y las próximas entregas."
     )
 
-    # Inicialización de estados para las ramificaciones
     if "modo_asistente" not in st.session_state:
       st.session_state["modo_asistente"] = "menu_principal"
     if "sub_modo" not in st.session_state:
@@ -947,7 +946,6 @@ else:
           ),
       }]
 
-    # Botón global para reiniciar el flujo del chat
     col_bt1, col_bt2 = st.columns([4, 1])
     with col_bt2:
       if st.button("🗑️ Reiniciar", key="btn_reiniciar_asistente"):
@@ -1010,30 +1008,35 @@ else:
         st.rerun()
 
     # ==========================================
-    # RAMIFICACIÓN 3: LISTAR MATERIAS Y EXTRAER DE LA TABLA DE NOTAS
+    # RAMIFICACIÓN 3: LISTAR MATERIAS Y EXTRAER DE EVALUACIONES
     # ==========================================
     elif st.session_state["modo_asistente"] == "seleccionar_materia_notas":
       filtro_estado = st.session_state["sub_modo"]
       st.markdown(f"### 📚 Materias con estado: **{filtro_estado.upper()}**")
 
-      materias_filtradas = []
+      materias_filtradas = [] # Guardará tuplas (nombre_materia, codigo_materia)
       if "pensum_df" in st.session_state and st.session_state["pensum_df"] is not None and not st.session_state["pensum_df"].empty:
         df_p = st.session_state["pensum_df"]
         col_mat = next((c for c in df_p.columns if "materia" in c.lower() or "asignatura" in c.lower() or "nombre" in c.lower()), None)
+        col_cod = next((c for c in df_p.columns if "codigo" in c.lower() or "código" in c.lower()), None)
         col_est = next((c for c in df_p.columns if "estado" in c.lower() or "status" in c.lower() or "condicion" in c.lower()), None)
 
-        if col_mat and col_est:
+        if col_mat and col_cod and col_est:
           df_valido = df_p[
               ~df_p[col_est].astype(str).str.lower().str.contains("no inscrita") &
               df_p[col_est].astype(str).str.lower().str.contains(filtro_estado)
           ]
-          materias_filtradas = df_valido[col_mat].dropna().unique().tolist()
-        elif col_mat:
-          materias_filtradas = df_p[col_mat].dropna().unique().tolist()
+          for _, r in df_valido.iterrows():
+            materias_filtradas.append((str(r[col_mat]), str(r[col_cod])))
 
       if materias_filtradas:
-        materia_elegida = st.selectbox("Selecciona una unidad curricular:", materias_filtradas)
-        if st.button("Ver notas exactas y promedio de la tabla", use_container_width=True):
+        nombres_materias = [m[0] for m in materias_filtradas]
+        materia_elegida = st.selectbox("Selecciona una unidad curricular:", nombres_materias)
+        
+        # Encontrar el código correspondiente a la materia seleccionada
+        codigo_elegido = next((m[1] for m in materias_filtradas if m[0] == materia_elegida), None)
+
+        if st.button("Ver notas exactas y promedio", use_container_width=True):
           st.session_state["mensajes_asistente"].append({
               "role": "user",
               "content": f"Quiero ver las notas de la materia {materia_elegida} ({filtro_estado})"
@@ -1041,31 +1044,11 @@ else:
 
           detalle_notas = f"📊 **Notas exactas para: {materia_elegida}**\n\n- Condición: **{filtro_estado.capitalize()}**\n\n"
           
-          # Búsqueda directa en las posibles fuentes de datos de la tabla de notas de la Pestaña 1
           df_tabla_notas = None
-          
-          # 1. Buscar en variable de sesión específica de la materia
-          posibles_claves = [
-              f"df_evaluaciones_{materia_elegida}",
-              f"evaluaciones_{materia_elegida}",
-              f"tabla_notas_{materia_elegida}",
-              materia_elegida
-          ]
-          
-          for pk in posibles_claves:
-            if pk in st.session_state and hasattr(st.session_state[pk], "columns"):
-              df_tabla_notas = st.session_state[pk]
-              break
-
-          # 2. Si no está en clave directa, buscar en cualquier DataFrame guardado en session_state que tenga columnas de evaluación
-          if df_tabla_notas is None:
-            import pandas as pd
-            for k, val in st.session_state.items():
-              if isinstance(val, pd.DataFrame) and not val.empty:
-                if any(c.lower() in "evaluación" for c in val.columns) or any(c.lower() in "nota" for c in val.columns):
-                  # Validar si corresponde a esta materia o si es la única tabla activa
-                  df_tabla_notas = val
-                  break
+          if codigo_elegido and codigo_elegido in st.session_state.get("evaluaciones", {}):
+            plan_datos = st.session_state["evaluaciones"][codigo_elegido].get("plan", [])
+            if plan_datos:
+              df_tabla_notas = pd.DataFrame(plan_datos)
 
           import pandas as pd
           if df_tabla_notas is not None and not df_tabla_notas.empty:
@@ -1091,7 +1074,7 @@ else:
             else:
               detalle_notas += f"\n⭐ **Promedio Definitivo:** Sin ponderación válida."
           else:
-            detalle_notas += "⚠️ No se encontró la tabla de evaluaciones vinculada a esta materia en la Pestaña 1."
+            detalle_notas += "⚠️ No hay notas registradas para esta materia en el sistema todavía."
 
           st.session_state["mensajes_asistente"].append({
               "role": "assistant",
