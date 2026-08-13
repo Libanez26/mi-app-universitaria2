@@ -655,37 +655,41 @@ else:
 
               max_nota = 20.0 if "20" in escala_sel else 100.0
 
-              edited_df = st.data_editor(
-                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
-                  num_rows="dynamic",
-                  use_container_width=True,
-                  key=f"editor_{codigo_mat}",
-                  column_config={
-                      "Evaluación": st.column_config.TextColumn("Evaluación"),
-                      "Tema": st.column_config.TextColumn("Tema"),
-                      "Valor (%)": st.column_config.NumberColumn(
-                          "Valor (%)", min_value=0, max_value=100, step=1
-                      ),
-                      "Nota": st.column_config.NumberColumn(
-                          f"Nota ({'0-20 pts' if '20' in escala_sel else '0-100%'})",
-                          min_value=0.0,
-                          max_value=max_nota,
-                          step=0.5,
-                      ),
-                      "Fecha": st.column_config.DateColumn(
-                          "Fecha de Entrega", format="YYYY-MM-DD"
-                      ),
-                      "Entregada": st.column_config.CheckboxColumn("¿Entregada?"),
-                  },
-              )
-
-              if not edited_df.equals(
-                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]]
-              ):
-                st.session_state["evaluaciones"][codigo_mat]["plan"] = (
-                    edited_df.to_dict("records")
+              # --- ENVOLVER EN FORMULARIO PARA EVITAR RECARGAS Y PÉRDIDA DE DATOS AL EDITAR ---
+              with st.form(key=f"form_editor_notas_{codigo_mat}"):
+                edited_df = st.data_editor(
+                    df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    key=f"editor_{codigo_mat}",
+                    column_config={
+                        "Evaluación": st.column_config.TextColumn("Evaluación"),
+                        "Tema": st.column_config.TextColumn("Tema"),
+                        "Valor (%)": st.column_config.NumberColumn(
+                            "Valor (%)", min_value=0, max_value=100, step=1
+                        ),
+                        "Nota": st.column_config.NumberColumn(
+                            f"Nota ({'0-20 pts' if '20' in escala_sel else '0-100%'})",
+                            min_value=0.0,
+                            max_value=max_nota,
+                            step=0.5,
+                        ),
+                        "Fecha": st.column_config.DateColumn(
+                            "Fecha de Entrega", format="YYYY-MM-DD"
+                        ),
+                        "Entregada": st.column_config.CheckboxColumn("¿Entregada?"),
+                    },
                 )
-                guardar_datos_usuario()
+
+                submit_notas = st.form_submit_button("💾 Guardar Notas")
+
+                if submit_notas:
+                  st.session_state["evaluaciones"][codigo_mat]["plan"] = (
+                      edited_df.to_dict("records")
+                  )
+                  guardar_datos_usuario()
+                  st.success("¡Notas guardadas correctamente!")
+                  st.rerun()
 
               st.markdown("---")
               st.markdown("#### 📊 Resumen de Rendimiento")
