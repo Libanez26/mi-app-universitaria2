@@ -1332,7 +1332,7 @@ with tab_asistente:
                     })
                     st.rerun()
 
-                xcept Exception as e:
+                except Exception as e:
                     # Capturamos el texto del error en una variable
                     error_str = str(e)
                     
