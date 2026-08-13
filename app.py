@@ -1304,13 +1304,13 @@ with tab_asistente:
                 st.rerun()
 
   # ==========================================
-  # PESTAÑA 4: TÉCNICA POMODORO
-  # ==========================================
-  with tab_pomodoro:
+# PESTAÑA 4: TÉCNICA POMODORO
+# ==========================================
+with tab_pomodoro:
     st.subheader("🍅 Técnica Pomodoro")
 
     with st.expander("¿Qué es esto?"):
-      st.write("""
+        st.write("""
             Esta herramienta utiliza la técnica **Pomodoro** para mejorar tu productividad:
             1. **Foco:** Trabaja durante 25 minutos sin distracciones.
             2. **Descanso corto:** 5 minutos para estirar las piernas.
@@ -1318,21 +1318,19 @@ with tab_asistente:
             """)
 
     if "pomodoro_tiempo" not in st.session_state:
-      st.session_state["pomodoro_tiempo"] = 25 * 60
+        st.session_state["pomodoro_tiempo"] = 25 * 60
     if "pomodoro_activo" not in st.session_state:
-      st.session_state["pomodoro_activo"] = False
-
+        st.session_state["pomodoro_activo"] = False
 
     def actualizar_tiempo():
-      modo = st.session_state["modo_seleccionado"]
-      if "25m" in modo:
-        st.session_state["pomodoro_tiempo"] = 25 * 60
-      elif "5m" in modo:
-        st.session_state["pomodoro_tiempo"] = 5 * 60
-      else:
-        st.session_state["pomodoro_tiempo"] = 20 * 60
-      st.session_state["pomodoro_activo"] = False
-
+        modo = st.session_state["modo_seleccionado"]
+        if "25m" in modo:
+            st.session_state["pomodoro_tiempo"] = 25 * 60
+        elif "5m" in modo:
+            st.session_state["pomodoro_tiempo"] = 5 * 60
+        else:
+            st.session_state["pomodoro_tiempo"] = 20 * 60
+        st.session_state["pomodoro_activo"] = False
 
     st.radio(
         "Selecciona tu sesión:",
@@ -1349,19 +1347,19 @@ with tab_asistente:
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-      if st.button("▶️ Iniciar", key="btn_pomo_iniciar"):
-        st.session_state["pomodoro_activo"] = True
+        if st.button("▶️ Iniciar", key="btn_pomo_iniciar"):
+            st.session_state["pomodoro_activo"] = True
     with col2:
-      if st.button("⏸️ Pausar", key="btn_pomo_pausar"):
-        st.session_state["pomodoro_activo"] = False
+        if st.button("⏸️ Pausar", key="btn_pomo_pausar"):
+            st.session_state["pomodoro_activo"] = False
     with col3:
-      if st.button("🔄 Reiniciar", key="btn_pomo_reiniciar"):
-        actualizar_tiempo()
-        st.session_state["pomodoro_activo"] = True
+        if st.button("🔄 Reiniciar", key="btn_pomo_reiniciar"):
+            actualizar_tiempo()
+            st.session_state["pomodoro_activo"] = True
     with col4:
-      if st.button("⏹️ Detener", key="btn_pomo_detener"):
-        st.session_state["pomodoro_activo"] = False
-        actualizar_tiempo()
+        if st.button("⏹️ Detener", key="btn_pomo_detener"):
+            st.session_state["pomodoro_activo"] = False
+            actualizar_tiempo()
 
     import time
 
@@ -1369,13 +1367,13 @@ with tab_asistente:
         st.session_state["pomodoro_activo"]
         and st.session_state["pomodoro_tiempo"] > 0
     ):
-      time.sleep(1)
-      st.session_state["pomodoro_tiempo"] -= 1
-      st.rerun()
+        time.sleep(1)
+        st.session_state["pomodoro_tiempo"] -= 1
+        st.rerun()
     elif (
         st.session_state["pomodoro_tiempo"] == 0
         and st.session_state["pomodoro_activo"]
     ):
-      st.balloons()
-      st.success("¡Tiempo finalizado!")
-      st.session_state["pomodoro_activo"] = False
+        st.balloons()
+        st.success("¡Tiempo finalizado!")
+        st.session_state["pomodoro_activo"] = False
