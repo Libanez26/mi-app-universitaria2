@@ -830,7 +830,7 @@ else:
                             "aula": "Aula 101"
                           }
                         ]
-                        Asegúrate de que las horas estén en formato de 24 horas (HH:MM).
+                        Asegúrate de que las horas estén en formato de 12 horas (HH:MM).
                         """
 
             response = client.models.generate_content(
