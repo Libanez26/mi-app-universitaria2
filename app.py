@@ -9,9 +9,25 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 from supabase import Client, create_client
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
-from googleapiclient.discovery import build
+
+# --- INTEGRACIÓN: COMPONENTE DE NOTIFICACIONES ---
+push_js = """
+<script>
+async function registrarDispositivo() {
+    if (!("Notification" in window)) {
+        console.log("Este navegador no soporta notificaciones de escritorio.");
+        return;
+    }
+    
+    let permission = await Notification.requestPermission();
+    if (permission === "granted") {
+        console.log("Permiso de notificaciones concedido.");
+    }
+}
+registrarDispositivo();
+</script>
+"""
+components.html(push_js, height=0)
 
 # --- 1. MUST BE THE FIRST STREAMLIT COMMAND ---
 st.set_page_config(
@@ -268,6 +284,19 @@ if st.session_state["usuario"] is None:
                   "nombre_dispositivo": "Dispositivo Confiable Independiente",
               }).execute()
 
+              js_pedir_permiso = """
+              <script>
+                  if (window.Notification && Notification.permission !== "granted") {
+                      Notification.requestPermission().then(permission => {
+                          if (permission === "granted") {
+                              console.log("Permiso de notificación concedido.");
+                          }
+                      });
+                  }
+              </script>
+              """
+              st.components.v1.html(js_pedir_permiso, height=0)
+
             cargar_datos_usuario(res.user.id)
             st.success("¡Sesión iniciada con éxito!")
             st.rerun()
@@ -312,6 +341,16 @@ else:
             " por minuto (RPM)."
         ),
     )
+    
+    if st.button("🔄 Refrescar Página Completa", key="btn_refrescar_pagina"):
+      components.html(
+          """
+          <script>
+              window.parent.location.reload();
+          </script>
+          """,
+          height=0,
+      )
 
   st.sidebar.markdown("---")
   if st.sidebar.button("Cerrar Sesión en este equipo", key="btn_logout"):
@@ -332,6 +371,57 @@ else:
     st.rerun()
 
   st.title("🎓 Mi App Universitaria")
+
+  # --- NOTIFICACIONES AUTOMÁTICAS DE ACTIVIDADES PENDIENTES ---
+  if st.session_state["pensum_df"] is not None:
+    hoy_fecha = datetime.date.today()
+    avisos_pendientes = []
+    
+    df_pensum_temp = st.session_state["pensum_df"]
+    materias_en_curso = df_pensum_temp[df_pensum_temp["estado"] == "En Curso"]["codigo"].tolist()
+    
+    for cod_mat in materias_en_curso:
+      if cod_mat in st.session_state["evaluaciones"]:
+        plan_evals = st.session_state["evaluaciones"][cod_mat].get("plan", [])
+      else:
+        plan_evals = [
+            {"Evaluación": "Parcial 1", "Fecha": hoy_fecha, "Entregada": False},
+            {"Evaluación": "Parcial 2", "Fecha": hoy_fecha, "Entregada": False},
+            {"Evaluación": "Trabajo / Proyecto", "Fecha": hoy_fecha, "Entregada": False},
+            {"Evaluación": "Exposición / Quices", "Fecha": hoy_fecha, "Entregada": False},
+        ]
+        
+      for eval_item in plan_evals:
+        if eval_item.get("Entregada", False):
+          continue
+          
+        f_eval = eval_item.get("Fecha")
+        if isinstance(f_eval, str):
+          try:
+            f_eval = datetime.datetime.strptime(f_eval, "%Y-%m-%d").date()
+          except ValueError:
+            f_eval = hoy_fecha
+        
+        if isinstance(f_eval, datetime.date):
+          dias_restantes = (f_eval - hoy_fecha).days
+          if dias_restantes <= 7:
+            nombre_eval = eval_item.get("Evaluación", "Actividad")
+            
+            if dias_restantes == 0:
+              texto_tiempo = "la entrega es **hoy**"
+            elif dias_restantes == 1:
+              texto_tiempo = "vence **mañana**"
+            elif dias_restantes < 0:
+              texto_tiempo = f"está atrasada por **{abs(dias_restantes)} días**"
+            else:
+              texto_tiempo = f"faltan **{dias_restantes} días**"
+              
+            avisos_pendientes.append(f"📌 **{cod_mat}** - _{nombre_eval}_: {texto_tiempo}.")
+
+    if avisos_pendientes:
+      with st.expander("🔔 Notificaciones de Entregas Próximas", expanded=True):
+        for aviso in avisos_pendientes:
+          st.warning(aviso)
 
   tab_pensum, tab_horario, tab_chat = st.tabs([
       "📚 Pensum y Calificaciones",
@@ -614,39 +704,37 @@ else:
 
               max_nota = 20.0 if "20" in escala_sel else 100.0
 
-              # --- FORMULARIO PARA EVITAR REFRESCAMIENTO AUTOMÁTICO AL EDITAR ---
-              with st.form(key=f"form_editor_eval_{codigo_mat}"):
-                edited_df = st.data_editor(
-                    df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
-                    num_rows="dynamic",
-                    use_container_width=True,
-                    key=f"editor_{codigo_mat}",
-                    column_config={
-                        "Evaluación": st.column_config.TextColumn("Evaluación"),
-                        "Tema": st.column_config.TextColumn("Tema"),
-                        "Valor (%)": st.column_config.NumberColumn(
-                            "Valor (%)", min_value=0, max_value=100, step=1
-                        ),
-                        "Nota": st.column_config.NumberColumn(
-                            f"Nota ({'0-20 pts' if '20' in escala_sel else '0-100%'})",
-                            min_value=0.0,
-                            max_value=max_nota,
-                            step=0.5,
-                        ),
-                        "Fecha": st.column_config.DateColumn(
-                            "Fecha de Entrega", format="YYYY-MM-DD"
-                        ),
-                        "Entregada": st.column_config.CheckboxColumn("¿Entregada?"),
-                    },
-                )
-                submit_cambios = st.form_submit_button("💾 Guardar cambios de evaluaciones")
+              edited_df = st.data_editor(
+                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
+                  num_rows="dynamic",
+                  use_container_width=True,
+                  key=f"editor_{codigo_mat}",
+                  column_config={
+                      "Evaluación": st.column_config.TextColumn("Evaluación"),
+                      "Tema": st.column_config.TextColumn("Tema"),
+                      "Valor (%)": st.column_config.NumberColumn(
+                          "Valor (%)", min_value=0, max_value=100, step=1
+                      ),
+                      "Nota": st.column_config.NumberColumn(
+                          f"Nota ({'0-20 pts' if '20' in escala_sel else '0-100%'})",
+                          min_value=0.0,
+                          max_value=max_nota,
+                          step=0.5,
+                      ),
+                      "Fecha": st.column_config.DateColumn(
+                          "Fecha de Entrega", format="YYYY-MM-DD"
+                      ),
+                      "Entregada": st.column_config.CheckboxColumn("¿Entregada?"),
+                  },
+              )
 
-                if submit_cambios:
-                  st.session_state["evaluaciones"][codigo_mat]["plan"] = (
-                      edited_df.to_dict("records")
-                  )
-                  guardar_datos_usuario()
-                  st.success("¡Evaluaciones actualizadas correctamente!")
+              if not edited_df.equals(
+                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]]
+              ):
+                st.session_state["evaluaciones"][codigo_mat]["plan"] = (
+                    edited_df.to_dict("records")
+                )
+                guardar_datos_usuario()
 
               st.markdown("---")
               st.markdown("#### 📊 Resumen de Rendimiento")
@@ -867,14 +955,6 @@ else:
         guardar_datos_usuario()
         st.rerun()
 
-      col1, col2 = st.columns([1, 3])
-      with col1:
-        activar_alertas = st.toggle("Activar alertas", value=True)
-      with col2:
-        tiempo_alerta = st.select_slider(
-            "Anticipación (min):", [5, 10, 15], value=5
-        )
-
       df_horario_actual = st.session_state["horario_df"]
 
       if "notificar" not in df_horario_actual.columns:
@@ -892,116 +972,6 @@ else:
           key="editor_horario",
       )
       st.session_state["horario_df"] = df_editado
-
-      # --- BOTÓN MANUAL PARA REFRESCAR LA PÁGINA (SUSTITUYE AL RELOAD AUTOMÁTICO DE 60s) ---
-      if st.button("🔄 Refrescar datos ahora"):
-        st.rerun()
-
-      ahora_dt = datetime.datetime.now()
-      hora_actual_minutos = ahora_dt.hour * 60 + ahora_dt.minute
-
-      # Obtener el día actual de la semana en español
-      dias_semana_español = {
-          0: "Lunes",
-          1: "Martes",
-          2: "Miércoles",
-          3: "Jueves",
-          4: "Viernes",
-          5: "Sábado",
-          6: "Domingo",
-      }
-      dia_actual_str = dias_semana_español[datetime.datetime.now().weekday()]
-
-      if activar_alertas:
-        for _, clase in df_editado.iterrows():
-          if clase.get("notificar", True):
-            try:
-              dia_clase = str(clase.get("dia", "")).capitalize()
-              if dia_clase == dia_actual_str:
-                h_ini, m_ini = map(int, str(clase["inicio"]).split(":"))
-                inicio_en_minutos = h_ini * 60 + m_ini
-
-                diferencia = inicio_en_minutos - hora_actual_minutos
-
-                if diferencia == tiempo_alerta:
-                  materia_alerta = clase["materia"]
-                  aula_alerta = clase.get("aula", "asignada")
-                  mensaje_alerta = f"Atención: La clase de {materia_alerta} en el aula {aula_alerta} comienza en {tiempo_alerta} minutos."
-
-                  st.toast(f"🚨 {mensaje_alerta}", icon="⏳")
-            except Exception:
-              pass
-
-      # --- SECCIÓN DE SINCRONIZACIÓN CON GOOGLE CALENDAR ---
-      st.markdown("---")
-      st.subheader("📅 Sincronización con Google Calendar")
-
-      def get_calendar_service():
-        if "google_calendar" not in st.secrets:
-          st.warning("Faltan las credenciales de Google Calendar en los secretos.")
-          return None
-
-        creds_data = {
-            "web": {
-                "client_id": st.secrets["google_calendar"]["client_id"],
-                "client_secret": st.secrets["google_calendar"]["client_secret"],
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": st.secrets["google_calendar"]["redirect_uris"]
-            }
-        }
-
-        flow = Flow.from_client_config(
-            creds_data,
-            scopes=["https://www.googleapis.com/auth/calendar"],
-            redirect_uri=st.secrets["google_calendar"]["redirect_uris"][0]
-        )
-        
-        if "google_creds" not in st.session_state:
-          auth_url, _ = flow.authorization_url(prompt='consent')
-          st.markdown(f"[🔗 Haz clic aquí para autorizar el acceso a tu Google Calendar]({auth_url})")
-          code = st.text_input("Pega el código de autorización aquí:")
-          if code:
-            try:
-              flow.fetch_token(code=code)
-              st.session_state["google_creds"] = flow.credentials
-              st.success("¡Autorización exitosa! Vuelve a hacer clic en el botón de sincronizar.")
-              st.rerun()
-            except Exception as auth_err:
-              st.error(f"Error al obtener el token: {auth_err}")
-          return None
-        else:
-          creds_info = st.session_state["google_creds"]
-          if hasattr(creds_info, "to_json"):
-            creds = Credentials.from_authorized_user_info(json.loads(creds_info.to_json()))
-          else:
-            creds = Credentials.from_authorized_user_info(creds_info)
-          return build('calendar', 'v3', credentials=creds)
-
-      if st.button("Conectar y Sincronizar Clases con Google Calendar"):
-        service = get_calendar_service()
-        if service:
-          horario_sinc = st.session_state.get("horario_df")
-          if horario_sinc is not None and not horario_sinc.empty:
-            with st.spinner("Sincronizando eventos con Google Calendar..."):
-              for _, row in horario_sinc.iterrows():
-                event = {
-                    'summary': f"Clase: {row['materia']}",
-                    'location': str(row.get('aula', 'Virtual')),
-                    'description': 'Clase registrada automáticamente desde Mi App Universitaria',
-                    'start': {
-                        'dateTime': f"2026-08-12T{row['inicio']}:00",
-                        'timeZone': 'America/Caracas',
-                    },
-                    'end': {
-                        'dateTime': f"2026-08-12T{row['fin']}:00",
-                        'timeZone': 'America/Caracas',
-                    },
-                }
-                service.events().insert(calendarId='primary', body=event).execute()
-              st.success("¡Tus clases han sido sincronizadas con Google Calendar con éxito!")
-          else:
-            st.error("No se encontró un horario cargado para sincronizar.")
 
   # ==========================================
   # PESTAÑA 3: Técnica Pomodoro
