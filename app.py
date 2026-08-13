@@ -956,7 +956,7 @@ else:
           st.session_state["mensajes_asistente"] = [{
               "role": "assistant",
               "content": (
-                  "¡Hola de nuevo! He reiniciado nuestra conversación para empezar con el pie derecho. "
+                  "¡Hola! Soy tu asistente virtual académico. "
                   "¿En qué te puedo colaborar en este momento?"
               ),
               "hora": hora_reinicio
@@ -1146,8 +1146,6 @@ else:
       # RAMIFICACIÓN 5: PRÓXIMAS 5 TAREAS (SOLO MATERIAS EN CURSO)
       # ==========================================
       elif st.session_state["modo_asistente"] == "proximas_tareas":
-        st.markdown("### ⏳ Próximas Evaluaciones (Primeras 5 entregas - Materias en Curso)")
-        
         hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
         st.session_state["mensajes_asistente"].append({
             "role": "user",
@@ -1203,8 +1201,6 @@ else:
       # RAMIFICACIÓN 6: MATERIAS CON RIESGO / ALERTAS
       # ==========================================
       elif st.session_state["modo_asistente"] == "materias_riesgo":
-        st.markdown("### ⚠️ Alertas y Materias con Riesgo")
-        
         hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
         st.session_state["mensajes_asistente"].append({
             "role": "user",
@@ -1260,7 +1256,7 @@ else:
       st.markdown("---")
 
       # ==========================================
-      # RENDERIZADO VISUAL DEL CHAT (Estilo WhatsApp con Hora y Check)
+      # RENDERIZADO VISUAL DEL CHAT (Estilo WhatsApp Ultra Limpio)
       # ==========================================
       st.markdown("""
           <style>
@@ -1305,9 +1301,6 @@ else:
               float: right;
               margin-left: 8px;
               margin-top: 4px;
-              display: inline-flex;
-              align-items: center;
-              gap: 2px;
           }
           </style>
       """, unsafe_allow_html=True)
@@ -1315,13 +1308,15 @@ else:
       chat_html = '<div class="whatsapp-container">'
       for mensaje in st.session_state["mensajes_asistente"]:
         timestamp = mensaje.get("hora", datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m."))
-        contenido_limpio = mensaje["content"].replace("\n", "<br>").replace("**", "")
+        
+        # Convertimos saltos de línea a <br> de manera segura
+        contenido_limpio = mensaje["content"].replace("\n", "<br>")
         
         if mensaje["role"] == "user":
           chat_html += f"""
             <div class="whatsapp-msg-user">
               <b>Tú:</b><br>{contenido_limpio}
-              <div class="msg-time">{timestamp} <span style="color: #53bdeb; font-weight: bold;">✓✓</span></div>
+              <div class="msg-time">{timestamp}</div>
             </div>
           """
         else:
