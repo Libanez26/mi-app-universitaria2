@@ -643,12 +643,31 @@ else:
                   st.rerun()
 
               with col_e2:
+                # Detectar cambio previo de escala para conversión automática
+                key_escala_anterior = f"escala_anterior_{codigo_mat}"
+                if key_escala_anterior not in st.session_state:
+                    st.session_state[key_escala_anterior] = "0 - 20 pts"
+
                 escala_sel = st.radio(
                     "Escala para ingresar notas:",
                     ["0 - 20 pts", "0 - 100%"],
                     horizontal=True,
                     key=f"radio_esc_{codigo_mat}",
                 )
+
+                # Si el usuario cambió de escala, convertimos automáticamente los valores de las notas
+                if escala_sel != st.session_state[key_escala_anterior]:
+                    for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
+                        nota_actual = item.get("Nota", 0.0)
+                        if nota_actual is not None:
+                            if escala_sel == "0 - 100%":
+                                # Convertir de 20 pts a porcentaje (0-100)
+                                item["Nota"] = round((nota_actual / 20.0) * 100.0, 2)
+                            else:
+                                # Convertir de porcentaje a 20 pts
+                                item["Nota"] = round((nota_actual / 100.0) * 20.0, 2)
+                    st.session_state[key_escala_anterior] = escala_sel
+                    guardar_datos_usuario()
 
               for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
                 if "Entregada" not in item:
