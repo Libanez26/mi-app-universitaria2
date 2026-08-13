@@ -7,7 +7,27 @@ from google.genai import types
 from pypdf import PdfReader
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from supabase import Client, create_client
+
+# --- INTEGRACIÓN: COMPONENTE DE NOTIFICACIONES ---
+push_js = """
+<script>
+async function registrarDispositivo() {
+    if (!("Notification" in window)) {
+        console.log("Este navegador no soporta notificaciones de escritorio.");
+        return;
+    }
+    
+    let permission = await Notification.requestPermission();
+    if (permission === "granted") {
+        console.log("Permiso de notificaciones concedido.");
+    }
+}
+registrarDispositivo();
+</script>
+"""
+components.html(push_js, height=0)
 
 # --- 1. MUST BE THE FIRST STREAMLIT COMMAND ---
 st.set_page_config(
@@ -927,8 +947,7 @@ else:
       )
       st.session_state["horario_df"] = df_editado
 
-      # Componente JS para refrescar automáticamente la página cada 60 segundos (permite que corran las alertas en tiempo real)
-      import streamlit.components.v1 as components
+      # Componente JS para refrescar automáticamente la página cada 60 segundos
       components.html(
           """
           <script>
@@ -980,7 +999,7 @@ else:
                                       window.speechSynthesis.speak(utterance);
                                   </script>
                                   """
-                  st.components.v1.html(js_voz, height=0)
+                  components.html(js_voz, height=0)
             except Exception:
               pass
 
@@ -1057,9 +1076,6 @@ else:
         st.session_state["pomodoro_tiempo"] == 0
         and st.session_state["pomodoro_activo"]
     ):
-      st.balloons()
-      st.success("¡Tiempo finalizado!")
-      st.session_state["pomodoro_activo"] = False
       st.balloons()
       st.success("¡Tiempo finalizado!")
       st.session_state["pomodoro_activo"] = False
