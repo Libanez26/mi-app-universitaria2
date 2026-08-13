@@ -937,6 +937,8 @@ else:
       st.session_state["modo_asistente"] = "menu_principal"
     if "sub_modo" not in st.session_state:
       st.session_state["sub_modo"] = None
+    if "notas_guardadas" not in st.session_state:
+      st.session_state["notas_guardadas"] = {}
 
     if "mensajes_asistente" not in st.session_state or not st.session_state["mensajes_asistente"]:
       st.session_state["mensajes_asistente"] = [{
@@ -1010,7 +1012,7 @@ else:
         st.rerun()
 
     # ==========================================
-    # RAMIFICACIÓN 3: LISTAR SOLO MATERIAS VÁLIDAS Y LEER NOTAS DE LA TABLA
+    # RAMIFICACIÓN 3: LISTAR MATERIAS Y LEER NOTAS GLOBALES
     # ==========================================
     elif st.session_state["modo_asistente"] == "seleccionar_materia_notas":
       filtro_estado = st.session_state["sub_modo"]
@@ -1023,7 +1025,6 @@ else:
         col_est = next((c for c in df_p.columns if "estado" in c.lower() or "status" in c.lower() or "condicion" in c.lower()), None)
 
         if col_mat and col_est:
-          # Excluye estrictamente las que digan "no inscrita" y filtra por el estado exacto
           df_valido = df_p[
               ~df_p[col_est].astype(str).str.lower().str.contains("no inscrita") &
               df_p[col_est].astype(str).str.lower().str.contains(filtro_estado)
@@ -1040,61 +1041,44 @@ else:
               "content": f"Quiero ver las notas de la materia {materia_elegida} ({filtro_estado})"
           })
 
-          detalle_notas = f"📊 **Notas exactas para: {materia_elegida}**\n\n- Condición: **{filtro_estado.capitalize()}**\n"
+          detalle_notas = f"📊 **Notas exactas para: {materia_elegida}**\n\n- Condición: **{filtro_estado.capitalize()}**\n\n"
           
-          # Buscamos en el session_state del editor de notas de Streamlit (claves comunes generadas por st.data_editor)
-          clave_editor = None
-          for k in st.session_state.keys():
-            if materia_elegida.lower() in k.lower() and ("editor" in k.lower() or "nota" in k.lower()):
-              clave_editor = k
-              break
-
-          datos_evals = None
-          if clave_editor and isinstance(st.session_state[clave_editor], (list, dict)):
-            datos_evals = st.session_state[clave_editor]
-          elif f"evaluaciones_{materia_elegida}" in st.session_state:
-            datos_evals = st.session_state[f"evaluaciones_{materia_elegida}"]
-
-          # Si Streamlit devuelve los datos modificados como diccionario (ej. {"edited_rows": ...}) o DataFrame/Lista
-          if datos_evals is not None:
-            # Si es un DataFrame guardado o una lista de diccionarios
-            import pandas as pd
-            if isinstance(datos_evals, pd.DataFrame):
-              df_evals = datos_evals
-            elif isinstance(datos_evals, list):
-              df_evals = pd.DataFrame(datos_evals)
-            elif isinstance(datos_evals, dict) and "data" in datos_evals:
-              df_evals = pd.DataFrame(datos_evals["data"])
-            else:
-              df_evals = None
-
-            if df_evals is not None and not df_evals.empty:
-              suma_ponderada = 0
-              total_porcentaje = 0
-              
-              # Identificar nombres de columnas flexibles
-              c_nom = next((c for c in df_evals.columns if "evaluación" in c.lower() or "tema" in c.lower() or "nombre" in c.lower()), df_evals.columns[0])
-              c_nota = next((c for c in df_evals.columns if "nota" in c.lower() or "puntos" in c.lower()), None)
-              c_val = next((c for c in df_evals.columns if "valor" in c.lower() or "%" in c.lower()), None)
-
-              for idx, row in df_evals.iterrows():
-                nombre_ev = row.get(c_nom, f"Evaluación {idx+1}")
-                val_nota = float(row.get(c_nota, 0.0)) if c_nota else 0.0
-                val_porc = float(row.get(c_val, 0.0)) if c_val else 25.0  # Asume equitativo si no hay columna
-                
-                detalle_notas += f"- **{nombre_ev}**: {val_nota} pts (Valor: {val_porc}%)\n"
-                suma_ponderada += val_nota * (val_porc / 100.0)
-                total_porcentaje += val_porc
-
-              if total_porcentaje > 0:
-                promedio_calculado = (suma_ponderada / total_porcentaje) * 20 if total_porcentaje <= 1 else suma_ponderada
-                detalle_notas += f"\n⭐ **Promedio Definitivo:** **{promedio_calculado:.2f} / 20.0**"
-              else:
-                detalle_notas += f"\n⭐ **Promedio Definitivo:** En proceso de cálculo."
-            else:
-              detalle_notas += "\n⚠️ No se encontraron filas con notas guardadas en la tabla de esta materia."
+          # Buscamos en el diccionario global de notas guardadas (asegúrate de guardar tus dataframes aquí al dar click en 'Guardar Notas')
+          df_evals = None
+          if materia_elegida in st.session_state["notas_guardadas"]:
+            df_evals = st.session_state["notas_guardadas"][materia_elegida]
           else:
-            detalle_notas += "\n⚠️ No hay datos registrados aún. Asegúrate de hacer clic en **Guardar Notas** en la sección de la materia."
+            # Búsqueda alternativa en cualquier clave de session_state que coincida con la materia
+            for k, val in st.session_state.items():
+              if materia_elegida.lower() in k.lower() and hasattr(val, "columns"):
+                df_evals = val
+                break
+
+          import pandas as pd
+          if df_evals is not None and not df_evals.empty:
+            suma_ponderada = 0
+            total_porcentaje = 0
+
+            c_nom = next((c for c in df_evals.columns if "evaluación" in c.lower() or "tema" in c.lower() or "nombre" in c.lower()), df_evals.columns[0])
+            c_nota = next((c for c in df_evals.columns if "nota" in c.lower() or "puntos" in c.lower()), None)
+            c_val = next((c for c in df_evals.columns if "valor" in c.lower() or "%" in c.lower()), None)
+
+            for idx, row in df_evals.iterrows():
+              nombre_ev = row.get(c_nom, f"Evaluación {idx+1}")
+              val_nota = float(row.get(c_nota, 0.0)) if c_nota and pd.notna(row.get(c_nota)) else 0.0
+              val_porc = float(row.get(c_val, 0.0)) if c_val and pd.notna(row.get(c_val)) else 25.0
+              
+              detalle_notas += f"- **{nombre_ev}**: {val_nota} pts (Valor: {val_porc}%)\n"
+              suma_ponderada += val_nota * (val_porc / 100.0)
+              total_porcentaje += val_porc
+
+            if total_porcentaje > 0:
+              promedio_calculado = (suma_ponderada / total_porcentaje) * 20 if total_porcentaje <= 1 else suma_ponderada
+              detalle_notas += f"\n⭐ **Promedio Definitivo:** **{promedio_calculado:.2f} / 20.0**"
+            else:
+              detalle_notas += f"\n⭐ **Promedio Definitivo:** Sin ponderación válida."
+          else:
+            detalle_notas += "⚠️ No hay notas guardadas registradas para esta materia. Asegúrate de presionar el botón **Guardar Notas** en la sección de evaluaciones de la materia para que el asistente pueda leerlas."
 
           st.session_state["mensajes_asistente"].append({
               "role": "assistant",
@@ -1147,7 +1131,7 @@ else:
         st.rerun()
 
     # ==========================================
-    # RAMIFICACIÓN 5: PRÓXIMAS 3 TAREAS Y FILTRO POR ESTADO DE MATERIA
+    # RAMIFICACIÓN 5: PRÓXIMAS 3 TAREAS
     # ==========================================
     elif st.session_state["modo_asistente"] == "proximas_tareas":
       st.markdown("### ⏳ Próximas Evaluaciones (Primeras 3 entregas)")
@@ -1171,7 +1155,6 @@ else:
             "content": f"Ver las 3 próximas actividades de materias {tipo_t_elegido}"
         })
 
-        # Mostrar las primeras 3 actividades de la categoría seleccionada
         tareas_destacadas = (
             f"⏳ **Primeras 3 actividades próximas ({tipo_t_elegido}):**\n\n"
             f"1. **Parcial 1** - Unidad 1 (Fecha: 2026-08-12) - Pendiente\n"
