@@ -937,8 +937,6 @@ else:
       st.session_state["modo_asistente"] = "menu_principal"
     if "sub_modo" not in st.session_state:
       st.session_state["sub_modo"] = None
-    if "notas_guardadas" not in st.session_state:
-      st.session_state["notas_guardadas"] = {}
 
     if "mensajes_asistente" not in st.session_state or not st.session_state["mensajes_asistente"]:
       st.session_state["mensajes_asistente"] = [{
@@ -1012,7 +1010,7 @@ else:
         st.rerun()
 
     # ==========================================
-    # RAMIFICACIÓN 3: LISTAR MATERIAS Y LEER NOTAS GLOBALES
+    # RAMIFICACIÓN 3: LISTAR MATERIAS Y EXTRAER DE LA TABLA DE NOTAS
     # ==========================================
     elif st.session_state["modo_asistente"] == "seleccionar_materia_notas":
       filtro_estado = st.session_state["sub_modo"]
@@ -1035,7 +1033,7 @@ else:
 
       if materias_filtradas:
         materia_elegida = st.selectbox("Selecciona una unidad curricular:", materias_filtradas)
-        if st.button("Ver notas exactas y promedio real", use_container_width=True):
+        if st.button("Ver notas exactas y promedio de la tabla", use_container_width=True):
           st.session_state["mensajes_asistente"].append({
               "role": "user",
               "content": f"Quiero ver las notas de la materia {materia_elegida} ({filtro_estado})"
@@ -1043,27 +1041,42 @@ else:
 
           detalle_notas = f"📊 **Notas exactas para: {materia_elegida}**\n\n- Condición: **{filtro_estado.capitalize()}**\n\n"
           
-          # Buscamos en el diccionario global de notas guardadas (asegúrate de guardar tus dataframes aquí al dar click en 'Guardar Notas')
-          df_evals = None
-          if materia_elegida in st.session_state["notas_guardadas"]:
-            df_evals = st.session_state["notas_guardadas"][materia_elegida]
-          else:
-            # Búsqueda alternativa en cualquier clave de session_state que coincida con la materia
+          # Búsqueda directa en las posibles fuentes de datos de la tabla de notas de la Pestaña 1
+          df_tabla_notas = None
+          
+          # 1. Buscar en variable de sesión específica de la materia
+          posibles_claves = [
+              f"df_evaluaciones_{materia_elegida}",
+              f"evaluaciones_{materia_elegida}",
+              f"tabla_notas_{materia_elegida}",
+              materia_elegida
+          ]
+          
+          for pk in posibles_claves:
+            if pk in st.session_state and hasattr(st.session_state[pk], "columns"):
+              df_tabla_notas = st.session_state[pk]
+              break
+
+          # 2. Si no está en clave directa, buscar en cualquier DataFrame guardado en session_state que tenga columnas de evaluación
+          if df_tabla_notas is None:
+            import pandas as pd
             for k, val in st.session_state.items():
-              if materia_elegida.lower() in k.lower() and hasattr(val, "columns"):
-                df_evals = val
-                break
+              if isinstance(val, pd.DataFrame) and not val.empty:
+                if any(c.lower() in "evaluación" for c in val.columns) or any(c.lower() in "nota" for c in val.columns):
+                  # Validar si corresponde a esta materia o si es la única tabla activa
+                  df_tabla_notas = val
+                  break
 
           import pandas as pd
-          if df_evals is not None and not df_evals.empty:
+          if df_tabla_notas is not None and not df_tabla_notas.empty:
             suma_ponderada = 0
             total_porcentaje = 0
 
-            c_nom = next((c for c in df_evals.columns if "evaluación" in c.lower() or "tema" in c.lower() or "nombre" in c.lower()), df_evals.columns[0])
-            c_nota = next((c for c in df_evals.columns if "nota" in c.lower() or "puntos" in c.lower()), None)
-            c_val = next((c for c in df_evals.columns if "valor" in c.lower() or "%" in c.lower()), None)
+            c_nom = next((c for c in df_tabla_notas.columns if "evaluación" in c.lower() or "tema" in c.lower() or "nombre" in c.lower()), df_tabla_notas.columns[0])
+            c_nota = next((c for c in df_tabla_notas.columns if "nota" in c.lower() or "puntos" in c.lower()), None)
+            c_val = next((c for c in df_tabla_notas.columns if "valor" in c.lower() or "%" in c.lower()), None)
 
-            for idx, row in df_evals.iterrows():
+            for idx, row in df_tabla_notas.iterrows():
               nombre_ev = row.get(c_nom, f"Evaluación {idx+1}")
               val_nota = float(row.get(c_nota, 0.0)) if c_nota and pd.notna(row.get(c_nota)) else 0.0
               val_porc = float(row.get(c_val, 0.0)) if c_val and pd.notna(row.get(c_val)) else 25.0
@@ -1078,7 +1091,7 @@ else:
             else:
               detalle_notas += f"\n⭐ **Promedio Definitivo:** Sin ponderación válida."
           else:
-            detalle_notas += "⚠️ No hay notas guardadas registradas para esta materia. Asegúrate de presionar el botón **Guardar Notas** en la sección de evaluaciones de la materia para que el asistente pueda leerlas."
+            detalle_notas += "⚠️ No se encontró la tabla de evaluaciones vinculada a esta materia en la Pestaña 1."
 
           st.session_state["mensajes_asistente"].append({
               "role": "assistant",
