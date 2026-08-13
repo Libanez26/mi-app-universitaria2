@@ -374,57 +374,6 @@ else:
 
   st.title("🎓 Mi App Universitaria")
 
-  # --- NOTIFICACIONES AUTOMÁTICAS DE ACTIVIDADES PENDIENTES ---
-  if st.session_state["pensum_df"] is not None:
-    hoy_fecha = datetime.date.today()
-    avisos_pendientes = []
-    
-    df_pensum_temp = st.session_state["pensum_df"]
-    materias_en_curso = df_pensum_temp[df_pensum_temp["estado"] == "En Curso"]["codigo"].tolist()
-    
-    for cod_mat in materias_en_curso:
-      if cod_mat in st.session_state["evaluaciones"]:
-        plan_evals = st.session_state["evaluaciones"][cod_mat].get("plan", [])
-      else:
-        plan_evals = [
-            {"Evaluación": "Parcial 1", "Fecha": hoy_fecha, "Entregada": False},
-            {"Evaluación": "Parcial 2", "Fecha": hoy_fecha, "Entregada": False},
-            {"Evaluación": "Trabajo / Proyecto", "Fecha": hoy_fecha, "Entregada": False},
-            {"Evaluación": "Exposición / Quices", "Fecha": hoy_fecha, "Entregada": False},
-        ]
-        
-      for eval_item in plan_evals:
-        if eval_item.get("Entregada", False):
-          continue
-          
-        f_eval = eval_item.get("Fecha")
-        if isinstance(f_eval, str):
-          try:
-            f_eval = datetime.datetime.strptime(f_eval, "%Y-%m-%d").date()
-          except ValueError:
-            f_eval = hoy_fecha
-        
-        if isinstance(f_eval, datetime.date):
-          dias_restantes = (f_eval - hoy_fecha).days
-          if dias_restantes <= 7:
-            nombre_eval = eval_item.get("Evaluación", "Actividad")
-            
-            if dias_restantes == 0:
-              texto_tiempo = "la entrega es **hoy**"
-            elif dias_restantes == 1:
-              texto_tiempo = "vence **mañana**"
-            elif dias_restantes < 0:
-              texto_tiempo = f"está atrasada por **{abs(dias_restantes)} días**"
-            else:
-              texto_tiempo = f"faltan **{dias_restantes} días**"
-              
-            avisos_pendientes.append(f"📌 **{cod_mat}** - _{nombre_eval}_: {texto_tiempo}.")
-
-    if avisos_pendientes:
-      with st.expander("🔔 Notificaciones de Entregas Próximas", expanded=True):
-        for aviso in avisos_pendientes:
-          st.warning(aviso)
-
   tab_pensum, tab_horario, tab_chat = st.tabs([
       "📚 Pensum y Calificaciones",
       "📅 Horario de Clases",
@@ -938,8 +887,6 @@ else:
               if "d_orden" in df_final_horario.columns:
                 df_final_horario = df_final_horario.drop(columns=["d_orden"])
 
-              df_final_horario["notificar"] = True
-
               st.session_state["horario_df"] = df_final_horario
               guardar_datos_usuario()
               st.success(
@@ -959,16 +906,10 @@ else:
 
       df_horario_actual = st.session_state["horario_df"]
 
-      if "notificar" not in df_horario_actual.columns:
-        df_horario_actual["notificar"] = True
-
       st.markdown("### 📋 Tu Horario Académico Organizado")
 
       df_editado = st.data_editor(
           df_horario_actual,
-          column_config={
-              "notificar": st.column_config.CheckboxColumn("¿Recibir aviso?")
-          },
           use_container_width=True,
           hide_index=True,
           key="editor_horario",
