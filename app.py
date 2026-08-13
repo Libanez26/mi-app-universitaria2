@@ -70,8 +70,7 @@ if "mensajes_asistente" not in st.session_state:
   st.session_state["mensajes_asistente"] = [{
       "role": "assistant",
       "content": (
-          "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo"
-          " ayudar hoy con tus materias o tu horario?"
+          "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?"
       ),
   }]
 
@@ -350,7 +349,6 @@ else:
 
   st.sidebar.markdown("---")
 
-  # --- BOTÓN PARA REFRESCAR LA PÁGINA COMPLETA ---
   if st.sidebar.button("🔄 Refrescar Página", key="btn_refrescar_pagina"):
     components.html(
         """
@@ -378,8 +376,7 @@ else:
     st.session_state["mensajes_asistente"] = [{
         "role": "assistant",
         "content": (
-            "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo"
-            " ayudar hoy con tus materias o tu horario?"
+            "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?"
         ),
     }]
     st.rerun()
@@ -668,7 +665,6 @@ else:
 
               max_nota = 20.0 if "20" in escala_sel else 100.0
 
-              # --- ENVOLVER EN FORMULARIO PARA EVITAR RECARGAS Y PÉRDIDA DE DATOS AL EDITAR ---
               with st.form(key=f"form_editor_notas_{codigo_mat}"):
                 edited_df = st.data_editor(
                     df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
@@ -788,7 +784,6 @@ else:
   with tab_horario:
     st.subheader("📅 Gestión de Horario de Clases")
 
-    # --- RELOJ EN TIEMPO REAL (SOLO EN LA PESTAÑA DE HORARIO) ---
     components.html(
         """
         <div style="background-color: #1e1e1e; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #333; margin-bottom: 20px;">
@@ -870,7 +865,6 @@ else:
                   c.lower().strip().replace(" ", "_") for c in df_h.columns
               ]
               
-              # Reordenar columnas estrictamente a: dia, materia, aula, inicio, fin
               columnas_deseadas = ["dia", "materia", "aula", "inicio", "fin"]
               for col in columnas_deseadas:
                 if col not in df_h.columns:
@@ -913,7 +907,6 @@ else:
 
       df_horario_actual = st.session_state["horario_df"]
 
-      # Asegurar que las columnas sigan el orden exacto solicitado y sin notificar
       columnas_deseadas = ["dia", "materia", "aula", "inicio", "fin"]
       for col in columnas_deseadas:
         if col not in df_horario_actual.columns:
@@ -931,92 +924,128 @@ else:
       st.session_state["horario_df"] = df_editado
 
   # ==========================================
-  # PESTAÑA 3: ASISTENTE VIRTUAL IA (CONVERSACIONAL)
+  # PESTAÑA 3: ASISTENTE VIRTUAL IA (ESTILO WHATSAPP)
   # ==========================================
   with tab_asistente:
-    st.subheader("🤖 Asistente Virtual Académico")
+    st.subheader("🤖 Asistente Virtual IA")
     st.write(
-        "Pregúntale al asistente sobre tu horario, tu pensum, qué materias tienes"
-        " pendientes o qué necesitas para aprobar."
+        "Conversa libremente con el asistente. Puede ayudarte con tus materias, horarios o responder cualquier otra pregunta."
     )
 
-    # Mostrar el historial de mensajes en la interfaz
-    for mensaje in st.session_state["mensajes_asistente"]:
-      with st.chat_message(mensaje["role"]):
-        st.markdown(mensaje["content"])
+    # Estilos CSS personalizados simulando la interfaz moderna de WhatsApp
+    st.markdown("""
+        <style>
+        .whatsapp-container {
+            background-color: #0b141a;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #222d34;
+        }
+        .whatsapp-msg-user {
+            background-color: #005c4b;
+            color: #e9edef;
+            padding: 10px 14px;
+            border-radius: 8px 0px 8px 8px;
+            margin: 8px 0;
+            max-width: 75%;
+            margin-left: auto;
+            word-wrap: break-word;
+            font-family: sans-serif;
+            font-size: 14px;
+            box-shadow: 0 1px 0.5px rgba(0,0,0,0.3);
+        }
+        .whatsapp-msg-assistant {
+            background-color: #202c33;
+            color: #e9edef;
+            padding: 10px 14px;
+            border-radius: 0px 8px 8px 8px;
+            margin: 8px 0;
+            max-width: 75%;
+            margin-right: auto;
+            word-wrap: break-word;
+            font-family: sans-serif;
+            font-size: 14px;
+            box-shadow: 0 1px 0.5px rgba(0,0,0,0.3);
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
-    # Entrada de texto para hablar con el asistente
-    if prompt_usuario := st.chat_input(
-        "Escribe tu pregunta aquí (ej. ¿Qué materias tengo pendientes?)"
-    ):
-      # Añadir mensaje del usuario al historial
+    # Contenedor visual del chat
+    chat_html = '<div class="whatsapp-container">'
+    for mensaje in st.session_state["mensajes_asistente"]:
+      if mensaje["role"] == "user":
+        chat_html += f'<div class="whatsapp-msg-user"><b>Tú:</b><br>{mensaje["content"]}</div>'
+      else:
+        chat_html += f'<div class="whatsapp-msg-assistant"><b>Asistente:</b><br>{mensaje["content"]}</div>'
+    chat_html += '</div>'
+    st.markdown(chat_html, unsafe_allow_html=True)
+
+    # Entrada de texto del usuario
+    if prompt_usuario := st.chat_input("Escribe un mensaje..."):
       st.session_state["mensajes_asistente"].append({
           "role": "user",
           "content": prompt_usuario,
       })
-      with st.chat_message("user"):
-        st.markdown(prompt_usuario)
 
-      # Generar la respuesta con Gemini utilizando el contexto del usuario
-      with st.chat_message("assistant"):
-        with st.spinner("Analizando tu información académica..."):
-          try:
-            api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-            client = genai.Client(api_key=api_key)
+      with st.spinner("Pensando respuesta..."):
+        try:
+          api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+          client = genai.Client(api_key=api_key)
 
-            pensum_resumen = (
-                st.session_state["pensum_df"].to_string()
-                if st.session_state["pensum_df"] is not None
-                else "No cargado"
-            )
-            horario_resumen = (
-                st.session_state["horario_df"].to_string()
-                if st.session_state["horario_df"] is not None
-                else "No cargado"
-            )
+          pensum_resumen = (
+              st.session_state["pensum_df"].to_string()
+              if st.session_state["pensum_df"] is not None
+              else "No cargado"
+          )
+          horario_resumen = (
+              st.session_state["horario_df"].to_string()
+              if st.session_state["horario_df"] is not None
+              else "No cargado"
+          )
 
-            system_instruction = f"""
-                    Eres un asistente virtual universitario inteligente, amigable y directo.
-                    Tu trabajo es ayudar al estudiante basándote estrictamente en sus datos reales actuales:
+          # Prompt general sin restricciones estrictas para que pueda responder saludos y cualquier tema
+          system_instruction = f"""
+                    Eres un asistente virtual inteligente, amigable y versátil integrado en una aplicación universitaria.
+                    Responde de forma natural, cordial y útil a cualquier saludo, pregunta general o consulta del usuario.
                     
+                    Si la pregunta está relacionada con su rendimiento, materias o clases, utiliza esta información de contexto del usuario:
                     --- PENSUM Y ESTADO DE MATERIAS ---
                     {pensum_resumen}
                     
                     --- HORARIO DE CLASES ---
                     {horario_resumen}
-                    
-                    Responde de forma clara a la pregunta del usuario utilizando esta información. Si no hay datos cargados, pídele que suba sus archivos PDF primero.
                     """
 
-            response = client.models.generate_content(
-                model=modelo_seleccionado,
-                contents=[
-                    system_instruction,
-                    f"Pregunta del usuario: {prompt_usuario}",
-                ],
-            )
+          response = client.models.generate_content(
+              model=modelo_seleccionado,
+              contents=[
+                  system_instruction,
+                  f"Mensaje del usuario: {prompt_usuario}",
+              ],
+          )
 
-            respuesta_ia = (
-                response.text
-                if response and response.text
-                else (
-                    "Lo siento, no pude procesar una respuesta en este momento."
-                )
-            )
+          respuesta_ia = (
+              response.text
+              if response and response.text
+              else "Hola, ¿en qué te puedo ayudar hoy?"
+          )
 
-            st.markdown(respuesta_ia)
-            st.session_state["mensajes_asistente"].append({
-                "role": "assistant",
-                "content": respuesta_ia,
-            })
+          st.session_state["mensajes_asistente"].append({
+              "role": "assistant",
+              "content": respuesta_ia,
+          })
+          st.rerun()
 
-          except Exception as e:
-            error_msj = f"Ocurrió un error al conectar con el asistente: {e}"
-            st.error(error_msj)
-            st.session_state["mensajes_asistente"].append({
-                "role": "assistant",
-                "content": error_msj,
-            })
+        except Exception as e:
+          error_msj = f"Ocurrió un error al conectar con el asistente: {e}"
+          st.session_state["mensajes_asistente"].append({
+              "role": "assistant",
+              "content": error_msj,
+          })
+          st.rerun()
 
   # ==========================================
   # PESTAÑA 4: TÉCNICA POMODORO
