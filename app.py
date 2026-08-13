@@ -234,15 +234,11 @@ def calcular_indice_academico(df_pensum, evaluaciones):
       if plan:
         df_plan = pd.DataFrame(plan)
         if "Nota" in df_plan.columns and "Valor (%)" in df_plan.columns:
-          # Cada nota se evalúa respetando su porcentaje (Valor %) sobre la base de 20 puntos
-          nota_mat = 0.0
-          for _, ev_row in df_plan.iterrows():
-            n_val = float(ev_row.get("Nota", 0.0) or 0.0)
-            p_val = float(ev_row.get("Valor (%)", 0.0) or 0.0)
-            # Si la nota se ingresa en escala 0-20, la convertimos a puntos absolutos de esa ponderación
-            # Fórmula: Nota_obtenida * (Valor_porcentaje / 100)
-            nota_mat += n_val * (p_val / 100.0)
-
+          nota_mat = (
+              (df_plan["Nota"] / 20.0)
+              * (df_plan["Valor (%)"] / 100.0)
+              * 20.0
+          ).sum()
           if row["estado"] in ["Aprobada", "Reprobada", "En Curso"]:
             puntos_acumulados += nota_mat * cred
             total_creditos += cred
@@ -647,6 +643,7 @@ else:
                   st.rerun()
 
               with col_e2:
+                # Detectar cambio previo de escala para conversión automática
                 key_escala_anterior = f"escala_anterior_{codigo_mat}"
                 if key_escala_anterior not in st.session_state:
                     st.session_state[key_escala_anterior] = "0 - 20 pts"
@@ -658,13 +655,16 @@ else:
                     key=f"radio_esc_{codigo_mat}",
                 )
 
+                # Si el usuario cambió de escala, convertimos automáticamente los valores de las notas
                 if escala_sel != st.session_state[key_escala_anterior]:
                     for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
                         nota_actual = item.get("Nota", 0.0)
                         if nota_actual is not None:
                             if escala_sel == "0 - 100%":
+                                # Convertir de 20 pts a porcentaje (0-100)
                                 item["Nota"] = round((nota_actual / 20.0) * 100.0, 2)
                             else:
+                                # Convertir de porcentaje a 20 pts
                                 item["Nota"] = round((nota_actual / 100.0) * 20.0, 2)
                     st.session_state[key_escala_anterior] = escala_sel
                     guardar_datos_usuario()
@@ -682,6 +682,8 @@ else:
               if "Fecha" not in df_eval_actual.columns:
                 df_eval_actual["Fecha"] = datetime.date.today()
 
+              max_nota = 20.0 if "20" in escala_sel else 100.0
+
               with st.form(key=f"form_editor_notas_{codigo_mat}"):
                 edited_df = st.data_editor(
                     df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
@@ -697,7 +699,7 @@ else:
                         "Nota": st.column_config.NumberColumn(
                             f"Nota ({'0-20 pts' if '20' in escala_sel else '0-100%'})",
                             min_value=0.0,
-                            max_value=20.0 if "20" in escala_sel else 100.0,
+                            max_value=max_nota,
                             step=0.5,
                         ),
                         "Fecha": st.column_config.DateColumn(
@@ -727,24 +729,24 @@ else:
               )
 
               if "20" in escala_sel:
-                max_escala = 20.0
-                min_aprobar = 12.0
+                max_nota = 20.0
+                min_aprobar = 12
                 unidad = "puntos"
               else:
-                max_escala = 100.0
-                min_aprobar = 60.0
+                max_nota = 100.0
+                min_aprobar = 60
                 unidad = "%"
 
-              # Cálculo exacto ponderado respetando el Valor (%) de cada celda
               puntos_acum = 0.0
               if "Nota" in edited_df.columns and "Valor (%)" in edited_df.columns:
-                for _, row_ev in edited_df.iterrows():
-                  n_val = float(row_ev.get("Nota", 0.0) or 0.0)
-                  p_val = float(row_ev.get("Valor (%)", 0.0) or 0.0)
-                  puntos_acum += n_val * (p_val / 100.0)
+                puntos_acum = (
+                    (edited_df["Nota"] / max_nota)
+                    * (edited_df["Valor (%)"] / 100.0)
+                    * max_nota
+                ).sum()
 
               porcentaje_efectivo = (
-                  (puntos_acum / max_escala) * 100.0 if max_escala > 0 else 0.0
+                  (puntos_acum / max_nota) * 100.0 if max_nota > 0 else 0.0
               )
               falta_peso = 100.0 - peso_planificado
 
@@ -757,13 +759,15 @@ else:
 
               col_ac2.metric(
                   label="Nota Acumulada",
-                  value=f"{puntos_acum:.2f} / {max_escala:.1f} {unidad}",
+                  value=f"{puntos_acum:.2f} / {max_nota:.1f} {unidad}",
               )
 
               st.markdown("---")
               st.markdown("#### ✅ Resultado Final")
 
-              if puntos_acum >= min_aprobar:
+              nota_final_objetivo = 12 if "20" in escala_sel else 60
+
+              if puntos_acum >= nota_final_objetivo:
                 st.success(
                     f"¡Felicidades! Con {puntos_acum:.2f} {unidad}, estás"
                     " **APROBADO** en esta materia."
@@ -779,16 +783,16 @@ else:
                   guardar_datos_usuario()
                   st.rerun()
               else:
-                faltan = min_aprobar - puntos_acum
+                faltan = nota_final_objetivo - puntos_acum
                 st.warning(
                     f"Aún no alcanzas la nota mínima. Te faltan"
                     f" **{faltan:.2f} {unidad}** para aprobar."
                 )
 
                 if falta_peso > 0:
-                  nota_necesaria = (faltan / (falta_peso / 100.0))
+                  nota_necesaria = (faltan / falta_peso) * 100
                   st.info(
-                      "💡 Necesitas un promedio ponderado de"
+                      "💡 Necesitas un promedio de"
                       f" **{nota_necesaria:.1f} pts** en lo que queda por"
                       f" evaluar ({falta_peso:.1f}%) para aprobar."
                   )
@@ -947,6 +951,7 @@ else:
         "Elige si prefieres interactuar mediante el menú de botones guiados o conversar libremente con el chat de IA."
     )
 
+    # Selector superior para alternar los modos
     tipo_asistente = st.radio(
         "Selecciona el modo de interacción:",
         ["🧭 Asistente Guiado (Solo Botones)", "💬 Chat Libre (Conversacional)"],
@@ -954,11 +959,13 @@ else:
         key="selector_modo_asistente",
     )
 
+    # Inicialización de variables de sesión
     if "modo_asistente" not in st.session_state:
         st.session_state["modo_asistente"] = "menu_principal"
     if "sub_modo" not in st.session_state:
         st.session_state["sub_modo"] = None
     
+    # Mensaje inicial unificado para ambos chats
     mensaje_inicial_comun = "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo ayudar hoy?"
 
     if "mensajes_guiado" not in st.session_state:
@@ -972,6 +979,7 @@ else:
             "content": mensaje_inicial_comun,
         }]
 
+    # Estilos CSS inyectados para simular una interfaz limpia de mensajería instantánea
     st.markdown("""
         <style>
         .chat-container {
@@ -1013,6 +1021,9 @@ else:
         </style>
     """, unsafe_allow_html=True)
 
+    # ==========================================
+    # MODO 1: ASISTENTE GUIADO (SOLO BOTONES, SIN CAJA DE TEXTO)
+    # ==========================================
     if "Asistente Guiado" in tipo_asistente:
         col_bt1, col_bt2 = st.columns([4, 1])
         with col_bt2:
@@ -1025,6 +1036,7 @@ else:
                 st.session_state["sub_modo"] = None
                 st.rerun()
 
+        # Renderizar historial estilo chat para el modo guiado
         chat_html_g = '<div class="chat-container">'
         for mensaje in st.session_state["mensajes_guiado"]:
             if mensaje["role"] == "user":
@@ -1036,6 +1048,7 @@ else:
 
         st.markdown("---")
 
+        # RAMIFICACIÓN 1: MENÚ PRINCIPAL
         if st.session_state["modo_asistente"] == "menu_principal":
             st.markdown("### 📌 Menú de Opciones Disponibles")
             c1, c2 = st.columns(2)
@@ -1117,8 +1130,8 @@ else:
                                         if nota is not None:
                                             suma_parcial += float(nota) * (float(val) / 100.0)
                                             total_val += float(val)
-                                    if total_val > 30 and suma_parcial < 12:
-                                        materias_en_riesgo.append(f"- **{nom_materia}** ({cod}): Acumulado parcial bajo ({suma_parcial:.2f}).")
+                                    if total_val > 30 and (suma_parcial / (total_val / 100.0)) < 12:
+                                        materias_en_riesgo.append(f"- **{nom_materia}** ({cod}): Promedio parcial bajo ({suma_parcial:.2f}).")
 
                     if materias_en_riesgo:
                         alertas_txt += "Se detectaron las siguientes materias con rendimiento bajo:\n" + "\n".join(materias_en_riesgo)
@@ -1129,6 +1142,7 @@ else:
                     st.session_state["mensajes_guiado"].append({"role": "assistant", "content": alertas_txt})
                     st.rerun()
 
+        # RAMIFICACIÓN 2: FILTRO DE ESTADO DE NOTAS
         elif st.session_state["modo_asistente"] == "notas_filtro_estado":
             st.markdown("### 🔍 Selecciona el estado de las materias:")
             col_f1, col_f2, col_f3 = st.columns(3)
@@ -1152,6 +1166,7 @@ else:
                 st.session_state["modo_asistente"] = "menu_principal"
                 st.rerun()
 
+        # RAMIFICACIÓN 3: SELECCIONAR MATERIA ESPECÍFICA PARA NOTAS
         elif st.session_state["modo_asistente"] == "seleccionar_materia_notas":
             filtro_estado = st.session_state.get("sub_modo", "en curso")
             st.markdown(f"### 📚 Materias con estado: **{filtro_estado.upper()}**")
@@ -1186,19 +1201,25 @@ else:
 
                     if df_tabla_notas is not None and not df_tabla_notas.empty:
                         suma_ponderada = 0
+                        total_porcentaje = 0
                         c_nom = next((c for c in df_tabla_notas.columns if "evaluación" in c.lower() or "tema" in c.lower() or "nombre" in c.lower()), df_tabla_notas.columns[0])
                         c_nota = next((c for c in df_tabla_notas.columns if "nota" in c.lower() or "puntos" in c.lower()), None)
                         c_val = next((c for c in df_tabla_notas.columns if "valor" in c.lower() or "%" in c.lower()), None)
 
                         for idx, row in df_tabla_notas.iterrows():
                             nombre_ev = row.get(c_nom, f"Evaluación {idx+1}")
-                            val_nota = float(row.get(c_nota, 0.0) or 0.0) if c_nota and pd.notna(row.get(c_nota)) else 0.0
-                            val_porc = float(row.get(c_val, 0.0) or 0.0) if c_val and pd.notna(row.get(c_val)) else 25.0
+                            val_nota = float(row.get(c_nota, 0.0)) if c_nota and pd.notna(row.get(c_nota)) else 0.0
+                            val_porc = float(row.get(c_val, 0.0)) if c_val and pd.notna(row.get(c_val)) else 25.0
                             
                             detalle_notas += f"- **{nombre_ev}**: {val_nota} pts (Valor: {val_porc}%)\n"
                             suma_ponderada += val_nota * (val_porc / 100.0)
+                            total_porcentaje += val_porc
 
-                        detalle_notas += f"\n⭐ **Acumulado Definitivo:** **{suma_ponderada:.2f} / 20.0**"
+                        if total_porcentaje > 0:
+                            promedio_calculado = (suma_ponderada / total_porcentaje) * 20 if total_porcentaje <= 1 else suma_ponderada
+                            detalle_notas += f"\n⭐ **Promedio Definitivo:** **{promedio_calculado:.2f} / 20.0**"
+                        else:
+                            detalle_notas += f"\n⭐ **Promedio Definitivo:** Sin ponderación válida."
                     else:
                         detalle_notas += "⚠️ No hay notas registradas para esta materia en el sistema todavía."
 
@@ -1213,6 +1234,7 @@ else:
                 st.session_state["modo_asistente"] = "notas_filtro_estado"
                 st.rerun()
 
+        # RAMIFICACIÓN 4: CONSULTAR HORARIO POR MATERIA
         elif st.session_state["modo_asistente"] == "horario_por_materia":
             st.markdown("### 🕒 Consultar horario de clases por materia")
             materias_horario = []
@@ -1241,6 +1263,9 @@ else:
                 st.session_state["modo_asistente"] = "menu_principal"
                 st.rerun()
 
+    # ==========================================
+    # MODO 2: CHAT LIBRE CONVERSACIONAL (CON CAJA DE TEXTO ACTIVA Y BOTÓN REINICIAR)
+    # ==========================================
     else:
         col_c1, col_c2 = st.columns([4, 1])
         with col_c2:
@@ -1251,6 +1276,7 @@ else:
                 }]
                 st.rerun()
 
+        # Renderizar historial estilo chat para el modo conversacional
         chat_html_c = '<div class="chat-container">'
         for mensaje in st.session_state["mensajes_conversacional"]:
             if mensaje["role"] == "user":
@@ -1260,6 +1286,7 @@ else:
         chat_html_c += '</div>'
         st.markdown(chat_html_c, unsafe_allow_html=True)
 
+        # Entrada de texto exclusiva para el chat libre
         if prompt_usuario := st.chat_input("Escribe una consulta libre para la IA..."):
             st.session_state["mensajes_conversacional"].append({
                 "role": "user",
@@ -1292,12 +1319,14 @@ else:
                     {horario_resumen}
                     """
 
+                    # Lista de modelos seguros a probar
                     modelos_a_probar = ["gemini-3.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"]
                     response = None
                     ultimo_error = None
 
                     for mod in modelos_a_probar:
                         try:
+                            # Forma correcta utilizando system_instruction en la configuración
                             response = client.models.generate_content(
                                 model=mod,
                                 contents=prompt_usuario,
