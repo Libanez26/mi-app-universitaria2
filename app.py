@@ -924,9 +924,9 @@ else:
       st.session_state["horario_df"] = df_editado
 
   # ==========================================
-# PESTAÑA 3: ASISTENTE VIRTUAL UNIVERSITARIO
-# ==========================================
-with tab_asistente:
+  # PESTAÑA 3: ASISTENTE VIRTUAL UNIVERSITARIO
+  # ==========================================
+  with tab_asistente:
     st.subheader("🤖 Asistente Virtual Universitario")
     st.write(
         "Elige si prefieres interactuar mediante el menú de botones guiados o conversar libremente con el chat de IA."
@@ -947,7 +947,7 @@ with tab_asistente:
         st.session_state["sub_modo"] = None
     
     # Mensaje inicial unificado para ambos chats
-    mensaje_inicial_comun = "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo ayudar hoy ?"
+    mensaje_inicial_comun = "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo ayudar hoy?"
 
     if "mensajes_guiado" not in st.session_state:
         st.session_state["mensajes_guiado"] = [{
@@ -1333,10 +1333,8 @@ with tab_asistente:
                     st.rerun()
 
                 except Exception as e:
-                    # Capturamos el texto del error en una variable
                     error_str = str(e)
                     
-                    # Verificamos si es el error de cuota agotada de Google
                     if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
                         error_msj = (
                             "⚠️ **Has alcanzado el límite de cuotas diarias.**\n\n"
@@ -1344,7 +1342,6 @@ with tab_asistente:
                             "Por favor, intenta nuevamente más tarde."
                         )
                     else:
-                        # Si es cualquier otro error técnico, mostramos un mensaje general limpio
                         error_msj = "⚠️ Ocurrió un error temporal con la API de IA. Por favor, intenta de nuevo en unos segundos."
 
                     st.session_state["mensajes_conversacional"].append({
@@ -1354,9 +1351,9 @@ with tab_asistente:
                     st.rerun()
 
   # ==========================================
-# PESTAÑA 4: TÉCNICA POMODORO
-# ==========================================
-with tab_pomodoro:
+  # PESTAÑA 4: TÉCNICA POMODORO
+  # ==========================================
+  with tab_pomodoro:
     st.subheader("🍅 Técnica Pomodoro")
 
     with st.expander("¿Qué es esto?"):
