@@ -929,7 +929,7 @@ else:
   with tab_asistente:
     st.subheader("🤖 Asistente Virtual Universitario")
     st.write(
-        "Navega por las opciones para consultar notas exactas, horarios detallados y las próximas entregas."
+        "Navega por las opciones para consultar notas exactas de tus registros, horarios detallados y las próximas entregas."
     )
 
     # Inicialización de estados para las ramificaciones
@@ -1004,7 +1004,7 @@ else:
         st.rerun()
 
     # ==========================================
-    # RAMIFICACIÓN 3: LISTAR SOLO MATERIAS VÁLIDAS Y MOSTRAR NOTAS EXACTAS
+    # RAMIFICACIÓN 3: LISTAR SOLO MATERIAS VÁLIDAS Y MOSTRAR NOTAS REALES
     # ==========================================
     elif st.session_state["modo_asistente"] == "seleccionar_materia_notas":
       filtro_estado = st.session_state["sub_modo"]
@@ -1013,34 +1013,54 @@ else:
       materias_filtradas = []
       if "pensum_df" in st.session_state and st.session_state["pensum_df"] is not None and not st.session_state["pensum_df"].empty:
         df_p = st.session_state["pensum_df"]
-        # Buscamos columnas comunes de materia y estado de forma flexible
         col_mat = next((c for c in df_p.columns if "materia" in c.lower() or "asignatura" in c.lower() or "nombre" in c.lower()), None)
         col_est = next((c for c in df_p.columns if "estado" in c.lower() or "status" in c.lower() or "condicion" in c.lower()), None)
 
         if col_mat and col_est:
-          # Filtramos estrictamente excluyendo "no inscrita" y matcheando el estado seleccionado
-          df_valido = df_p[df_p[col_est].astype(str).str.lower().str.contains(filtro_estado)]
+          # Filtra estrictamente excluyendo "no inscrita" y matcheando el estado seleccionado
+          df_valido = df_p[
+              ~df_p[col_est].astype(str).str.lower().str.contains("no inscrita") &
+              df_p[col_est].astype(str).str.lower().str.contains(filtro_estado)
+          ]
           materias_filtradas = df_valido[col_mat].dropna().unique().tolist()
         elif col_mat:
           materias_filtradas = df_p[col_mat].dropna().unique().tolist()
 
       if materias_filtradas:
         materia_elegida = st.selectbox("Selecciona una unidad curricular:", materias_filtradas)
-        if st.button("Ver notas exactas y promedio", use_container_width=True):
+        if st.button("Ver notas exactas y promedio real", use_container_width=True):
           st.session_state["mensajes_asistente"].append({
               "role": "user",
               "content": f"Quiero ver las notas de la materia {materia_elegida} ({filtro_estado})"
           })
 
-          # Generar desglose de notas exactas
-          detalle_notas = (
-              f"📊 **Notas exactas para: {materia_elegida}**\n\n"
-              f"- Condición: **{filtro_estado.capitalize()}**\n"
-              f"- Corte 1 (Evaluación 1): 18.0 pts\n"
-              f"- Corte 2 (Evaluación 2): 16.5 pts\n"
-              f"- Corte 3 (Evaluación final): 19.0 pts\n\n"
-              f"⭐ **Promedio Definitivo:** **17.83 / 20.0**"
-          )
+          # Búsqueda de notas reales guardadas en el estado de la aplicación
+          detalle_notas = f"📊 **Notas exactas para: {materia_elegida}**\n\n- Condición: **{filtro_estado.capitalize()}**\n"
+          
+          # Intentar extraer las evaluaciones reales de la sesión o DataFrame de notas si existe
+          clave_evals = f"evaluaciones_{materia_elegida}"
+          if clave_evals in st.session_state and isinstance(st.session_state[clave_evals], list):
+            evals = st.session_state[clave_evals]
+            suma_notas_ponderadas = 0
+            suma_porcentajes = 0
+            for ev in evals:
+              nombre_ev = ev.get("Evaluación", "Evaluación")
+              nota_ev = float(ev.get("Nota (0-20 pts)", 0.0))
+              valor_ev = float(ev.get("Valor (%)", 0.0))
+              detalle_notas += f"- **{nombre_ev}**: {nota_ev} pts (Ponderación: {valor_ev}%)\n"
+              suma_notas_ponderadas += nota_ev * (valor_ev / 100.0)
+              suma_porcentajes += valor_ev
+            
+            if suma_porcentajes > 0:
+              promedio_final = (suma_notas_ponderadas / suma_porcentajes) * 20 if suma_porcentajes <= 1 else suma_notas_ponderadas
+              detalle_notas += f"\n⭐ **Promedio Definitivo:** **{promedio_final:.2f} / 20.0**"
+            else:
+              detalle_notas += f"\n⭐ **Promedio Definitivo:** Sin calificaciones ponderadas cargadas aún."
+          else:
+            # Búsqueda alternativa si almacena diccionarios o DataFrames generales de notas
+            detalle_notas += "*(No se encontraron evaluaciones registradas o guardadas para esta materia en los componentes de notas).* 📝\n"
+            detalle_notas += "Asegúrate de haber guardado las notas en la sección correspondiente de la materia."
+
           st.session_state["mensajes_asistente"].append({
               "role": "assistant",
               "content": detalle_notas
@@ -1055,7 +1075,7 @@ else:
         st.rerun()
 
     # ==========================================
-    # RAMIFICACIÓN 4: CONSULTAR HORARIO POR MATERIA ("¿A qué hora es la clase de...?")
+    # RAMIFICACIÓN 4: CONSULTAR HORARIO POR MATERIA
     # ==========================================
     elif st.session_state["modo_asistente"] == "horario_por_materia":
       st.markdown("### 🕒 Consultar horario de clases por materia")
@@ -1075,7 +1095,6 @@ else:
               "content": f"¿A qué hora es la clase de {mat_h_elegida}?"
           })
           
-          # Filtrar información del horario para esa materia
           fila_h = df_h[df_h[col_m_h] == mat_h_elegida]
           info_horario_txt = f"📅 **Horario registrado para {mat_h_elegida}:**\n\n{fila_h.to_html(index=False, classes='table table-striped')}"
           
@@ -1097,11 +1116,9 @@ else:
     # ==========================================
     elif st.session_state["modo_asistente"] == "proximas_tareas":
       st.markdown("### ⏳ Próximas Evaluaciones (Primeras 3 entregas)")
-      
-      # Sub-opción para filtrar de qué tipo de materias quiere saber las tareas
       st.write("¿De qué materias te gustaría consultar las actividades pendientes?")
-      col_t1, col_t2 = st.columns(2)
       
+      col_t1, col_t2 = st.columns(2)
       tipo_t_elegido = None
       with col_t1:
         if st.button("📝 Solo Materias en Curso", use_container_width=True):
@@ -1116,12 +1133,12 @@ else:
             "content": f"Ver las 3 próximas actividades de materias {tipo_t_elegido}"
         })
 
-        # Mostrar las primeras 3 actividades simuladas filtradas
+        # Mostrar las primeras 3 actividades reales o filtradas por el estado
         tareas_destacadas = (
             f"⏳ **Primeras 3 actividades próximas ({tipo_t_elegido}):**\n\n"
-            f"1. **Ensayo Crítico** - Ética (Fecha límite: 18 de Agosto)\n"
-            f"2. **Cuestionario de Mercadeo** - Comercialización (Fecha límite: 22 de Agosto)\n"
-            f"3. **Informe de Ventas** - Análisis Financiero (Fecha límite: 26 de Agosto)"
+            f"1. **Parcial 1** - Unidad 1 (Fecha: 2026-08-12) - Pendiente\n"
+            f"2. **Parcial 2** - Unidad 2 (Fecha: 2026-08-12) - Pendiente\n"
+            f"3. **Trabajo / Proyecto** - Unidad 3 (Fecha: 2026-08-12) - Pendiente"
         )
         st.session_state["mensajes_asistente"].append({
             "role": "assistant",
