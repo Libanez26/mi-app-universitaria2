@@ -13,25 +13,6 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
-# --- INTEGRACIÓN: COMPONENTE DE NOTIFICACIONES ---
-push_js = """
-<script>
-async function registrarDispositivo() {
-    if (!("Notification" in window)) {
-        console.log("Este navegador no soporta notificaciones de escritorio.");
-        return;
-    }
-    
-    let permission = await Notification.requestPermission();
-    if (permission === "granted") {
-        console.log("Permiso de notificaciones concedido.");
-    }
-}
-registrarDispositivo();
-</script>
-"""
-components.html(push_js, height=0)
-
 # --- 1. MUST BE THE FIRST STREAMLIT COMMAND ---
 st.set_page_config(
     page_title="App Universitaria - Gestión de Materias",
@@ -287,19 +268,6 @@ if st.session_state["usuario"] is None:
                   "nombre_dispositivo": "Dispositivo Confiable Independiente",
               }).execute()
 
-              js_pedir_permiso = """
-              <script>
-                  if (window.Notification && Notification.permission !== "granted") {
-                      Notification.requestPermission().then(permission => {
-                          if (permission === "granted") {
-                              console.log("Permiso de notificación concedido.");
-                          }
-                      });
-                  }
-              </script>
-              """
-              st.components.v1.html(js_pedir_permiso, height=0)
-
             cargar_datos_usuario(res.user.id)
             st.success("¡Sesión iniciada con éxito!")
             st.rerun()
@@ -364,57 +332,6 @@ else:
     st.rerun()
 
   st.title("🎓 Mi App Universitaria")
-
-  # --- NOTIFICACIONES AUTOMÁTICAS DE ACTIVIDADES PENDIENTES ---
-  if st.session_state["pensum_df"] is not None:
-    hoy_fecha = datetime.date.today()
-    avisos_pendientes = []
-    
-    df_pensum_temp = st.session_state["pensum_df"]
-    materias_en_curso = df_pensum_temp[df_pensum_temp["estado"] == "En Curso"]["codigo"].tolist()
-    
-    for cod_mat in materias_en_curso:
-      if cod_mat in st.session_state["evaluaciones"]:
-        plan_evals = st.session_state["evaluaciones"][cod_mat].get("plan", [])
-      else:
-        plan_evals = [
-            {"Evaluación": "Parcial 1", "Fecha": hoy_fecha, "Entregada": False},
-            {"Evaluación": "Parcial 2", "Fecha": hoy_fecha, "Entregada": False},
-            {"Evaluación": "Trabajo / Proyecto", "Fecha": hoy_fecha, "Entregada": False},
-            {"Evaluación": "Exposición / Quices", "Fecha": hoy_fecha, "Entregada": False},
-        ]
-        
-      for eval_item in plan_evals:
-        if eval_item.get("Entregada", False):
-          continue
-          
-        f_eval = eval_item.get("Fecha")
-        if isinstance(f_eval, str):
-          try:
-            f_eval = datetime.datetime.strptime(f_eval, "%Y-%m-%d").date()
-          except ValueError:
-            f_eval = hoy_fecha
-        
-        if isinstance(f_eval, datetime.date):
-          dias_restantes = (f_eval - hoy_fecha).days
-          if dias_restantes <= 7:
-            nombre_eval = eval_item.get("Evaluación", "Actividad")
-            
-            if dias_restantes == 0:
-              texto_tiempo = "la entrega es **hoy**"
-            elif dias_restantes == 1:
-              texto_tiempo = "vence **mañana**"
-            elif dias_restantes < 0:
-              texto_tiempo = f"está atrasada por **{abs(dias_restantes)} días**"
-            else:
-              texto_tiempo = f"faltan **{dias_restantes} días**"
-              
-            avisos_pendientes.append(f"📌 **{cod_mat}** - _{nombre_eval}_: {texto_tiempo}.")
-
-    if avisos_pendientes:
-      with st.expander("🔔 Notificaciones de Entregas Próximas", expanded=True):
-        for aviso in avisos_pendientes:
-          st.warning(aviso)
 
   tab_pensum, tab_horario, tab_chat = st.tabs([
       "📚 Pensum y Calificaciones",
@@ -697,37 +614,39 @@ else:
 
               max_nota = 20.0 if "20" in escala_sel else 100.0
 
-              edited_df = st.data_editor(
-                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
-                  num_rows="dynamic",
-                  use_container_width=True,
-                  key=f"editor_{codigo_mat}",
-                  column_config={
-                      "Evaluación": st.column_config.TextColumn("Evaluación"),
-                      "Tema": st.column_config.TextColumn("Tema"),
-                      "Valor (%)": st.column_config.NumberColumn(
-                          "Valor (%)", min_value=0, max_value=100, step=1
-                      ),
-                      "Nota": st.column_config.NumberColumn(
-                          f"Nota ({'0-20 pts' if '20' in escala_sel else '0-100%'})",
-                          min_value=0.0,
-                          max_value=max_nota,
-                          step=0.5,
-                      ),
-                      "Fecha": st.column_config.DateColumn(
-                          "Fecha de Entrega", format="YYYY-MM-DD"
-                      ),
-                      "Entregada": st.column_config.CheckboxColumn("¿Entregada?"),
-                  },
-              )
-
-              if not edited_df.equals(
-                  df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]]
-              ):
-                st.session_state["evaluaciones"][codigo_mat]["plan"] = (
-                    edited_df.to_dict("records")
+              # --- FORMULARIO PARA EVITAR REFRESCAMIENTO AUTOMÁTICO AL EDITAR ---
+              with st.form(key=f"form_editor_eval_{codigo_mat}"):
+                edited_df = st.data_editor(
+                    df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    key=f"editor_{codigo_mat}",
+                    column_config={
+                        "Evaluación": st.column_config.TextColumn("Evaluación"),
+                        "Tema": st.column_config.TextColumn("Tema"),
+                        "Valor (%)": st.column_config.NumberColumn(
+                            "Valor (%)", min_value=0, max_value=100, step=1
+                        ),
+                        "Nota": st.column_config.NumberColumn(
+                            f"Nota ({'0-20 pts' if '20' in escala_sel else '0-100%'})",
+                            min_value=0.0,
+                            max_value=max_nota,
+                            step=0.5,
+                        ),
+                        "Fecha": st.column_config.DateColumn(
+                            "Fecha de Entrega", format="YYYY-MM-DD"
+                        ),
+                        "Entregada": st.column_config.CheckboxColumn("¿Entregada?"),
+                    },
                 )
-                guardar_datos_usuario()
+                submit_cambios = st.form_submit_button("💾 Guardar cambios de evaluaciones")
+
+                if submit_cambios:
+                  st.session_state["evaluaciones"][codigo_mat]["plan"] = (
+                      edited_df.to_dict("records")
+                  )
+                  guardar_datos_usuario()
+                  st.success("¡Evaluaciones actualizadas correctamente!")
 
               st.markdown("---")
               st.markdown("#### 📊 Resumen de Rendimiento")
@@ -974,17 +893,9 @@ else:
       )
       st.session_state["horario_df"] = df_editado
 
-      # Componente JS para refrescar automáticamente la página cada 60 segundos
-      components.html(
-          """
-          <script>
-              setTimeout(function(){
-                  window.parent.location.reload();
-              }, 60000);
-          </script>
-          """,
-          height=0,
-      )
+      # --- BOTÓN MANUAL PARA REFRESCAR LA PÁGINA (SUSTITUYE AL RELOAD AUTOMÁTICO DE 60s) ---
+      if st.button("🔄 Refrescar datos ahora"):
+        st.rerun()
 
       ahora_dt = datetime.datetime.now()
       hora_actual_minutos = ahora_dt.hour * 60 + ahora_dt.minute
@@ -1018,15 +929,6 @@ else:
                   mensaje_alerta = f"Atención: La clase de {materia_alerta} en el aula {aula_alerta} comienza en {tiempo_alerta} minutos."
 
                   st.toast(f"🚨 {mensaje_alerta}", icon="⏳")
-
-                  js_voz = f"""
-                                  <script>
-                                      var utterance = new SpeechSynthesisUtterance("{mensaje_alerta}");
-                                      utterance.lang = 'es-ES';
-                                      window.speechSynthesis.speak(utterance);
-                                  </script>
-                                  """
-                  components.html(js_voz, height=0)
             except Exception:
               pass
 
