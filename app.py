@@ -924,9 +924,9 @@ else:
       st.session_state["horario_df"] = df_editado
 
   # ==========================================
-    # PESTAÑA 3: ASISTENTE INTERACTIVO AVANZADO CON RAMIFICACIONES
-    # ==========================================
-    with tab_asistente:
+  # PESTAÑA 3: ASISTENTE INTERACTIVO AVANZADO CON RAMIFICACIONES
+  # ==========================================
+  with tab_asistente:
       st.subheader("🤖 Asistente Virtual Universitario")
       st.write(
           "Navega por las opciones para consultar notas exactas de tus registros, horarios detallados y las próximas entregas."
@@ -985,7 +985,6 @@ else:
           if st.button("⏳ Ver Próximas 5 Tareas / Evaluaciones", use_container_width=True, key="btn_menu_tareas"):
             hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
             
-            # Agregamos los mensajes UNA sola vez de forma controlada
             st.session_state["mensajes_asistente"].append({
                 "role": "user",
                 "content": "Ver las 5 próximas actividades de materias en curso",
@@ -1039,7 +1038,6 @@ else:
           if st.button("⚠️ Alertas o Materias con Riesgo", use_container_width=True, key="btn_menu_riesgo"):
             hora_msg = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
             
-            # Agregamos los mensajes UNA sola vez de forma controlada
             st.session_state["mensajes_asistente"].append({
                 "role": "user",
                 "content": "Consultar materias en riesgo o con alertas pendientes",
@@ -1070,7 +1068,7 @@ else:
 
                     for ev in plan:
                       nota = ev.get("Nota")
-                      val = ev.get("Valor", 25)
+                      val = ev.get("Valor (%)", 25)
                       if nota is not None:
                         suma_parcial += float(nota) * (float(val) / 100.0)
                         total_val += float(val)
@@ -1245,7 +1243,6 @@ else:
 
       st.markdown("---")
 
-      # Renderizado visual del chat en contenedor estilo WhatsApp
       st.markdown("""
           <style>
           .whatsapp-container {
