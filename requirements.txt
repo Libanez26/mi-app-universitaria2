@@ -4,3 +4,5 @@ pypdf
 google-genai
 supabase
 extra-streamlit-components
+google-auth-oauthlib
+google-api-python-client
