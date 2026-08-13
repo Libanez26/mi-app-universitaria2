@@ -335,10 +335,10 @@ else:
     modelo_seleccionado = st.selectbox(
         "Selecciona el Modelo",
         [
-            "gemini-3.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-            "gemini-2.5-flash",
+            "Gemini-3.5-flash",
+            "Gemini-3.5-Live-Translate",
+            "Gemini-3-Flash-Live",
+            "Antigravity",
         ],
         index=0,
         help=(
