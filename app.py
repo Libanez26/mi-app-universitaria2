@@ -820,17 +820,17 @@ else:
 
             prompt = """
                         Extrae exhaustivamente todas las clases del documento de horario proporcionado.
-                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves:
+                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves y ordenadas exactamente de esta forma:
                         [
                           {
                             "dia": "Lunes",
                             "materia": "Matemática I",
-                            "inicio": "08:00",
-                            "fin": "10:00",
-                            "aula": "Aula 101"
+                            "aula": "Aula 101",
+                            "inicio": "08:00 AM",
+                            "fin": "10:00 AM"
                           }
                         ]
-                        Asegúrate de que las horas estén en formato de 12 horas (HH:MM).
+                        Asegúrate de que las horas estén en formato de 12 horas con AM o PM (ej. "08:00 AM", "02:30 PM").
                         """
 
             response = client.models.generate_content(
@@ -852,6 +852,14 @@ else:
               df_h.columns = [
                   c.lower().strip().replace(" ", "_") for c in df_h.columns
               ]
+              
+              # Reordenar columnas estrictamente a: dia, materia, aula, inicio, fin
+              columnas_deseadas = ["dia", "materia", "aula", "inicio", "fin"]
+              for col in columnas_deseadas:
+                if col not in df_h.columns:
+                  df_h[col] = ""
+              df_h = df_h[columnas_deseadas]
+
               dias_map = {
                   "lunes": 1,
                   "martes": 2,
@@ -867,27 +875,9 @@ else:
                   df_h["dia"].str.lower().map(dias_map).fillna(8)
               )
               df_h = df_h.sort_values(by=["d_orden", "inicio"])
+              df_h = df_h.drop(columns=["d_orden"])
 
-              resultado_agrupado = []
-              for _, row in df_h.iterrows():
-                if not resultado_agrupado:
-                  resultado_agrupado.append(row.to_dict())
-                else:
-                  prev = resultado_agrupado[-1]
-                  if (
-                      row["dia"] == prev["dia"]
-                      and row["materia"] == prev["materia"]
-                      and row["inicio"] == prev["fin"]
-                  ):
-                    prev["fin"] = row["fin"]
-                  else:
-                    resultado_agrupado.append(row.to_dict())
-
-              df_final_horario = pd.DataFrame(resultado_agrupado)
-              if "d_orden" in df_final_horario.columns:
-                df_final_horario = df_final_horario.drop(columns=["d_orden"])
-
-              st.session_state["horario_df"] = df_final_horario
+              st.session_state["horario_df"] = df_h
               guardar_datos_usuario()
               st.success(
                   "¡Horario procesado, organizado y guardado con éxito!"
@@ -905,6 +895,13 @@ else:
         st.rerun()
 
       df_horario_actual = st.session_state["horario_df"]
+
+      # Asegurar que las columnas sigan el orden exacto solicitado y sin notificar
+      columnas_deseadas = ["dia", "materia", "aula", "inicio", "fin"]
+      for col in columnas_deseadas:
+        if col not in df_horario_actual.columns:
+          df_horario_actual[col] = ""
+      df_horario_actual = df_horario_actual[columnas_deseadas]
 
       st.markdown("### 📋 Tu Horario Académico Organizado")
 
