@@ -942,8 +942,9 @@ else:
         st.session_state["mensajes_asistente"] = [{
             "role": "assistant",
             "content": (
-                "¡Hola! Soy tu asistente académico. "
-                "Selecciona una opción del menú para comenzar:"
+                "¡Hola! Soy tu asistente virtual académico. "
+                "Estoy aquí para ayudarte a consultar tus notas, revisar tus horarios y estar al tanto de tus próximas evaluaciones. "
+                "¿Qué te gustaría gestionar hoy?"
             ),
             "hora": hora_inicial
         }]
@@ -954,7 +955,10 @@ else:
           hora_reinicio = datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
           st.session_state["mensajes_asistente"] = [{
               "role": "assistant",
-              "content": "¡Conversación reiniciada! ¿Qué deseas consultar?",
+              "content": (
+                  "¡Hola de nuevo! He reiniciado nuestra conversación para empezar con el pie derecho. "
+                  "¿En qué te puedo colaborar en este momento?"
+              ),
               "hora": hora_reinicio
           }]
           st.session_state["modo_asistente"] = "menu_principal"
@@ -1311,18 +1315,19 @@ else:
       chat_html = '<div class="whatsapp-container">'
       for mensaje in st.session_state["mensajes_asistente"]:
         timestamp = mensaje.get("hora", datetime.datetime.now().strftime("%I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m."))
+        contenido_limpio = mensaje["content"].replace("\n", "<br>").replace("**", "")
         
         if mensaje["role"] == "user":
           chat_html += f"""
             <div class="whatsapp-msg-user">
-              <b>Tú:</b><br>{mensaje["content"]}
+              <b>Tú:</b><br>{contenido_limpio}
               <div class="msg-time">{timestamp} <span style="color: #53bdeb; font-weight: bold;">✓✓</span></div>
             </div>
           """
         else:
           chat_html += f"""
             <div class="whatsapp-msg-assistant">
-              <b>Asistente:</b><br>{mensaje["content"]}
+              <b>Asistente:</b><br>{contenido_limpio}
               <div class="msg-time">{timestamp}</div>
             </div>
           """
