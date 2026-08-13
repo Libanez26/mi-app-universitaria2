@@ -1332,21 +1332,21 @@ with tab_asistente:
                     })
                     st.rerun()
 
-                except Exception as e:
-                    # Esto te mostrará el error real en pantalla temporalmente si vuelve a fallar
-                    error_msj = f"Error técnico: {str(e)}"
-                    st.session_state["mensajes_conversacional"].append({
-                        "role": "assistant",
-                        "content": error_msj,
-                    })
-                    st.rerun()
+                xcept Exception as e:
+                    # Capturamos el texto del error en una variable
+                    error_str = str(e)
+                    
+                    # Verificamos si es el error de cuota agotada de Google
+                    if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                        error_msj = (
+                            "⚠️ **Has alcanzado el límite de cuotas diarias.**\n\n"
+                            "Has superado temporalmente las consultas gratuitas permitidas para hoy. "
+                            "Por favor, intenta nuevamente más tarde."
+                        )
+                    else:
+                        # Si es cualquier otro error técnico, mostramos un mensaje general limpio
+                        error_msj = "⚠️ Ocurrió un error temporal con la API de IA. Por favor, intenta de nuevo en unos segundos."
 
-                except Exception as e:
-                    error_msj = (
-                        "⚠️ **Has alcanzado el límite de cuotas diarias.**\n\n"
-                        "Has superado temporalmente las consultas gratuitas permitidas para hoy. "
-                        "Por favor, intenta nuevamente más tarde."
-                    )
                     st.session_state["mensajes_conversacional"].append({
                         "role": "assistant",
                         "content": error_msj,
