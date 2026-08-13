@@ -335,15 +335,15 @@ else:
     modelo_seleccionado = st.selectbox(
         "Selecciona el Modelo",
         [
-            "gemini-3.5-flash",
+            "gemini-2.5-flash",
             "gemini-2.0-flash",
             "gemini-1.5-flash",
-            "gemini-2.5-flash",
+            "gemini-3.5-flash",
         ],
         index=0,
         help=(
-            "Elige un modelo alternativo si alcanzas el límite de solicitudes"
-            " por minuto (RPM)."
+            "Si un modelo presenta alta demanda (503), la aplicación intentará "
+            "automáticamente con otra versión disponible."
         ),
     )
 
@@ -1006,7 +1006,6 @@ else:
               else "No cargado"
           )
 
-          # Prompt general sin restricciones estrictas para que pueda responder saludos y cualquier tema
           system_instruction = f"""
                     Eres un asistente virtual inteligente, amigable y versátil integrado en una aplicación universitaria.
                     Responde de forma natural, cordial y útil a cualquier saludo, pregunta general o consulta del usuario.
@@ -1019,19 +1018,33 @@ else:
                     {horario_resumen}
                     """
 
-          response = client.models.generate_content(
-              model=modelo_seleccionado,
-              contents=[
-                  system_instruction,
-                  f"Mensaje del usuario: {prompt_usuario}",
-              ],
-          )
+          # Lógica con reintento automático (Fallback) ante errores 503 de alta demanda
+          modelos_a_probar = [modelo_seleccionado, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+          # Eliminar duplicados manteniendo el orden
+          modelos_a_probar = list(dict.fromkeys(modelos_a_probar))
+          
+          response = None
+          ultimo_error = None
 
-          respuesta_ia = (
-              response.text
-              if response and response.text
-              else "Hola, ¿en qué te puedo ayudar hoy?"
-          )
+          for mod in modelos_a_probar:
+            try:
+              response = client.models.generate_content(
+                  model=mod,
+                  contents=[
+                      system_instruction,
+                      f"Mensaje del usuario: {prompt_usuario}",
+                  ],
+              )
+              if response and response.text:
+                break
+            except Exception as ex:
+              ultimo_error = ex
+              continue
+
+          if response and response.text:
+            respuesta_ia = response.text
+          else:
+            raise ultimo_error if ultimo_error else Exception("No se pudo obtener respuesta de ningún modelo.")
 
           st.session_state["mensajes_asistente"].append({
               "role": "assistant",
@@ -1040,7 +1053,7 @@ else:
           st.rerun()
 
         except Exception as e:
-          error_msj = f"Ocurrió un error al conectar con el asistente: {e}"
+          error_msj = f"Ocurrió un error temporal por alta demanda. Por favor, intenta enviar tu mensaje nuevamente en unos segundos."
           st.session_state["mensajes_asistente"].append({
               "role": "assistant",
               "content": error_msj,
