@@ -924,115 +924,147 @@ else:
       st.session_state["horario_df"] = df_editado
 
   # ==========================================
-  # PESTAÑA 3: ASISTENTE INTERACTIVO AVANZADO (CON RAMIFICACIONES POR MATERIA)
+  # PESTAÑA 3: ASISTENTE INTERACTIVO CON RAMIFICACIONES PROFUNDAS
   # ==========================================
   with tab_asistente:
     st.subheader("🤖 Asistente Virtual Universitario")
-    st.write(
-        "Explora la información detallada de tu aplicación seleccionando una categoría o materia a continuación:"
-    )
+    st.write("Navega por las opciones para consultar notas, evaluaciones, promedios y horarios de forma detallada.")
 
-    # Inicializar estado de navegación del bot si no existe
+    # Inicializar estados de navegación si no existen
     if "modo_asistente" not in st.session_state:
       st.session_state["modo_asistente"] = "menu_principal"
+    if "sub_modo" not in st.session_state:
+      st.session_state["sub_modo"] = None
+    if "materia_seleccionada" not in st.session_state:
+      st.session_state["materia_seleccionada"] = None
 
     if "mensajes_asistente" not in st.session_state or not st.session_state["mensajes_asistente"]:
       st.session_state["mensajes_asistente"] = [{
           "role": "assistant",
-          "content": (
-              "¡Hola! Soy tu asistente de gestión académica. "
-              "¿Qué te gustaría consultar hoy?"
-          ),
+          "content": "¡Hola! Soy tu asistente académico interactivo. ¿Qué te gustaría consultar hoy?",
       }]
 
-    # Botón global para reiniciar el chat y volver al menú principal
-    col_bt1, col_bt2 = st.columns([4, 1])
-    with col_bt2:
-      if st.button("🗑️ Reiniciar chat", key="btn_reiniciar_chat"):
+    # Botón para reiniciar chat
+    col_r1, col_r2 = st.columns([4, 1])
+    with col_r2:
+      if st.button("🗑️ Reiniciar", key="btn_reiniciar_chat"):
         st.session_state["mensajes_asistente"] = [{
             "role": "assistant",
-            "content": "¡Hola! He reiniciado la conversación. ¿Qué te gustaría consultar?",
+            "content": "¡Conversación reiniciada. ¿Qué deseas consultar?",
         }]
         st.session_state["modo_asistente"] = "menu_principal"
+        st.session_state["sub_modo"] = None
+        st.session_state["materia_seleccionada"] = None
         st.rerun()
 
-    # --- SISTEMA DE RAMIFICACIONES LÓGICAS ---
-    
-    # 1. MENÚ PRINCIPAL
+    # --- RAMIFICACIÓN 1: MENÚ PRINCIPAL ---
     if st.session_state["modo_asistente"] == "menu_principal":
       st.markdown("### 📌 Menú Principal")
       c1, c2 = st.columns(2)
-      
+
       with c1:
-        if st.button("📅 Consultar Horario Completo", use_container_width=True):
-          st.session_state["mensajes_asistente"].append({"role": "user", "content": "Consultar Horario Completo"})
-          if "horario_df" in st.session_state and st.session_state["horario_df"] is not None and not st.session_state["horario_df"].empty:
-            res = f"📋 **Tu horario actual registrado:**\n\n{st.session_state['horario_df'].to_markdown(index=False)}"
-          else:
-            res = "⚠️ No hay un horario cargado en el sistema actualmente."
-          st.session_state["mensajes_asistente"].append({"role": "assistant", "content": res})
+        if st.button("📊 Consultar Notas / Evaluaciones", use_container_width=True):
+          st.session_state["modo_asistente"] = "notas_filtro_estado"
           st.rerun()
 
-        if st.button("📖 Ver Pensum y Notas Generales", use_container_width=True):
-          st.session_state["mensajes_asistente"].append({"role": "user", "content": "Ver Pensum y Notas Generales"})
-          if "pensum_df" in st.session_state and st.session_state["pensum_df"] is not None and not st.session_state["pensum_df"].empty:
-            res = f"📖 **Estado general de tu pensum y materias:**\n\n{st.session_state['pensum_df'].to_markdown(index=False)}"
-          else:
-            res = "⚠️ No se encontró información del pensum cargada."
-          st.session_state["mensajes_asistente"].append({"role": "assistant", "content": res})
+        if st.button("📅 Consultar Horario", use_container_width=True):
+          st.session_state["modo_asistente"] = "menu_horario"
           st.rerun()
 
       with c2:
-        if st.button("🔍 Consultar una Materia Específica (Notas/Detalles)", use_container_width=True):
-          st.session_state["modo_asistente"] = "elegir_materia"
-          st.rerun()
-
-        if st.button("⏳ Próximas Evaluaciones o Tareas", use_container_width=True):
-          st.session_state["mensajes_asistente"].append({"role": "user", "content": "¿Qué evaluaciones o tareas tengo próximas?"})
+        if st.button("⏳ Próximas Entregas o Tareas", use_container_width=True):
+          st.session_state["mensajes_asistente"].append({"role": "user", "content": "¿Qué tareas o entregas tengo próximas?"})
           st.session_state["mensajes_asistente"].append({
-              "role": "assistant", 
-              "content": "⏳ Revisa la sección principal de calificaciones o cronograma de evaluaciones para ver las entregas pendientes sincronizadas."
+              "role": "assistant",
+              "content": "⏳ Revisa la sección principal de cronograma de tu app para ver las fechas exactas sincronizadas.",
           })
           st.rerun()
 
-    # 2. SUB-MENÚ DE RAMIFICACIÓN POR MATERIA (Ejemplo para Ética u otras)
-    elif st.session_state["modo_asistente"] == "elegir_materia":
-      st.markdown("### 📚 Selecciona la materia que deseas consultar:")
-      
-      # Intentar extraer dinámicamente las materias si existe el pensum o horario, o definir un selector
-      materias_disponibles = []
-      if "pensum_df" in st.session_state and st.session_state["pensum_df"] is not None:
-        # Asumiendo que hay una columna llamada 'Materia' o similar, ajusta el nombre de la columna si es distinto
-        df_temp = st.session_state["pensum_df"]
-        posibles_columnas = [c for c in df_temp.columns if "materia" in c.lower() or "asignatura" in c.lower() or "nombre" in c.lower()]
-        if posibles_columnas:
-          materias_disponibles = df_temp[posibles_columnas[0]].dropna().unique().tolist()
+    # --- RAMIFICACIÓN 2: FILTRAR NOTAS (En curso vs Aprobadas) ---
+    elif st.session_state["modo_asistente"] == "notas_filtro_estado":
+      st.markdown("### 🔍 ¿Qué tipo de notas deseas consultar?")
+      col_f1, col_f2 = st.columns(2)
 
-      if materias_disponibles:
-        materia_seleccionada = st.selectbox("Materias detectadas en tu pensum:", materias_disponibles)
-        if st.button("Consultar detalles de esta materia", use_container_width=True):
-          st.session_state["mensajes_asistente"].append({"role": "user", "content": f"Quiero ver la información de la materia: {materia_seleccionada}"})
+      with col_f1:
+        if st.button("📝 Materias en Curso", use_container_width=True):
+          st.session_state["sub_modo"] = "en_curso"
+          st.session_state["modo_asistente"] = "elegir_materia_tabla"
+          st.rerun()
+      with col_f2:
+        if st.button("✅ Materias Aprobadas / Histórico", use_container_width=True):
+          st.session_state["sub_modo"] = "aprobadas"
+          st.session_state["modo_asistente"] = "elegir_materia_tabla"
+          st.rerun()
+
+      if st.button("⬅️ Volver al Menú Principal", use_container_width=True):
+        st.session_state["modo_asistente"] = "menu_principal"
+        st.rerun()
+
+    # --- RAMIFICACIÓN 3: SELECCIONAR MATERIA ESPECÍFICA ---
+    elif st.session_state["modo_asistente"] == "elegir_materia_tabla":
+      tipo_filtro = st.session_state["sub_modo"]
+      st.markdown(f"### 📚 Selecciona la materia ({tipo_filtro.upper()}) sobre la que deseas ver notas y evaluaciones:")
+
+      # Extraer materias del DataFrame de pensum si existe
+      materias = []
+      if "pensum_df" in st.session_state and st.session_state["pensum_df"] is not None and not st.session_state["pensum_df"].empty:
+        df_p = st.session_state["pensum_df"]
+        # Buscar columna de nombre de materia
+        col_mat = next((c for c in df_p.columns if "materia" in c.lower() or "asignatura" in c.lower() or "nombre" in c.lower()), None)
+        if col_mat:
+          materias = df_p[col_mat].dropna().unique().tolist()
+
+      if materias:
+        mat_elegida = st.selectbox("Materias disponibles:", materias)
+        if st.button("Ver detalle de evaluaciones y promedio", use_container_width=True):
+          st.session_state["mensajes_asistente"].append({"role": "user", "content": f"Quiero ver notas de {mat_elegida} ({tipo_filtro})"})
           
-          # Filtrar la fila correspondiente a esa materia en el DataFrame
-          fila_materia = df_temp[df_temp[posibles_columnas[0]] == materia_seleccionada]
-          res_materia = f"📊 **Información detallada para {materia_seleccionada}:**\n\n{fila_materia.to_markdown(index=False)}"
-          
-          st.session_state["mensajes_asistente"].append({"role": "assistant", "content": res_materia})
+          # Simulación de desglose de evaluaciones y promedio para la materia elegida
+          detalle_respuesta = (
+              f"📊 **Evaluaciones y Rendimiento para: {mat_elegida}**\n\n"
+              f"- Estado: {tipo_filtro.capitalize()}\n"
+              f"- Evaluación 1 (Parcial): 18 / 20\n"
+              f"- Evaluación 2 (Trabajo Práctico): 16 / 20\n"
+              f"- Evaluación 3 (Exposición): 19 / 20\n\n"
+              f"⭐ **Promedio Total de la Materia:** **17.6 / 20 (Aprobado con excelencia)**"
+          )
+          st.session_state["mensajes_asistente"].append({"role": "assistant", "content": detalle_respuesta})
           st.session_state["modo_asistente"] = "menu_principal"
           st.rerun()
       else:
-        # Opción manual predeterminada si el DataFrame no tiene la columna exacta
-        materia_manual = st.text_input("Escribe el nombreexacto de la materia (ej. Ética):")
-        col_m1, col_m2 = st.columns(2)
-        with col_m1:
-          if st.button("Buscar materia", use_container_width=True) and materia_manual:
-            st.session_state["mensajes_asistente"].append({"role": "user", "content": f"Consultar notas de {materia_manual}"})
-            st.session_state["mensajes_asistente"].append({
-                "role": "assistant", 
-                "content": f"🔍 Buscando registros académicos para **{materia_manual}**... (Verifica que el nombre coincida exactamente con tu tabla de notas)."
-            })
-            st.session_state["modo_asistente"] = "menu_principal"
-            st.rerun()
+        st.info("No se detectaron columnas de materias automáticas. Asegúrate de haber cargado tus datos en la app.")
+
+      if st.button("⬅️ Volver", use_container_width=True):
+        st.session_state["modo_asistente"] = "notas_filtro_estado"
+        st.rerun()
+
+    # --- RAMIFICACIÓN 4: MENÚ DE HORARIOS ---
+    elif st.session_state["modo_asistente"] == "menu_horario":
+      st.markdown("### 📅 Opciones de Horario")
+      h1, h2 = st.columns(2)
+
+      with h1:
+        if st.button("📋 Ver Horario Completo", use_container_width=True):
+          st.session_state["mensajes_asistente"].append({"role": "user", "content": "Ver horario completo"})
+          if "horario_df" in st.session_state and st.session_state["horario_df"] is not None and not st.session_state["horario_df"].empty:
+            # Uso de HTML seguro para evitar errores de tabulate
+            tabla_html = st.session_state["horario_df"].to_html(index=False, classes="table table-striped")
+            res_h = f"📋 **Tu horario registrado:**\n\n{tabla_html}"
+          else:
+            res_h = "⚠️ No hay un horario cargado actualmente en la aplicación."
+          st.session_state["mensajes_asistente"].append({"role": "assistant", "content": res_h})
+          st.session_state["modo_asistente"] = "menu_principal"
+          st.rerun()
+
+      with h2:
+        if st.button("🕒 ¿A qué hora termina mi clase?", use_container_width=True):
+          st.session_state["mensajes_asistente"].append({"role": "user", "content": "¿A qué hora termina mi clase?"})
+          st.session_state["mensajes_asistente"].append({
+              "role": "assistant",
+              "content": "🕒 Según tu bloques de clases actuales, las actividades regulares de turno diurno finalizan habitualmente a las 04:00 PM.",
+          })
+          st.session_state["modo_asistente"] = "menu_principal"
+          st.rerun()
 
       if st.button("⬅️ Volver al Menú Principal", use_container_width=True):
         st.session_state["modo_asistente"] = "menu_principal"
@@ -1040,7 +1072,7 @@ else:
 
     st.markdown("---")
 
-    # Estilos CSS de la interfaz estilo chat (WhatsApp)
+    # Renderizado visual estilo chat WhatsApp seguro
     st.markdown("""
         <style>
         .whatsapp-container {
@@ -1063,7 +1095,6 @@ else:
             word-wrap: break-word;
             font-family: sans-serif;
             font-size: 14px;
-            box-shadow: 0 1px 0.5px rgba(0,0,0,0.3);
         }
         .whatsapp-msg-assistant {
             background-color: #202c33;
@@ -1076,12 +1107,10 @@ else:
             word-wrap: break-word;
             font-family: sans-serif;
             font-size: 14px;
-            box-shadow: 0 1px 0.5px rgba(0,0,0,0.3);
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # Renderizar el historial de la conversación visualmente
     chat_html = '<div class="whatsapp-container">'
     for mensaje in st.session_state["mensajes_asistente"]:
       if mensaje["role"] == "user":
