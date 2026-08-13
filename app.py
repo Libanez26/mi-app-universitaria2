@@ -1342,13 +1342,11 @@ with tab_asistente:
                     st.rerun()
 
                 except Exception as e:
-                    # Forzamos un mensaje limpio y estético sin importar el error técnico de cuota
                     error_msj = (
                         "⚠️ **Has alcanzado el límite de cuotas diarias.**\n\n"
                         "Has superado temporalmente las consultas gratuitas permitidas para hoy. "
                         "Por favor, intenta nuevamente más tarde."
                     )
-
                     st.session_state["mensajes_conversacional"].append({
                         "role": "assistant",
                         "content": error_msj,
