@@ -650,11 +650,11 @@ else:
               with col_e2:
                 key_escala_anterior = f"escala_anterior_{codigo_mat}"
                 if key_escala_anterior not in st.session_state:
-                    st.session_state[key_escala_anterior] = "Promediada (Simple)"
+                    st.session_state[key_escala_anterior] = "Acumulativa (Suma de notas)"
 
                 escala_sel = st.radio(
                     "Tipo de Cálculo de Notas:",
-                    ["Acumulativa (Ponderada)", "Promediada (Simple)"],
+                    ["Acumulativa (Suma de notas)", "Promediada (Promedio de notas)"],
                     horizontal=True,
                     key=f"radio_esc_{codigo_mat}",
                 )
@@ -723,43 +723,28 @@ else:
               max_nota = 20.0
               min_aprobar = 12
 
-              peso_planificado = (
-                  edited_df["Valor (%)"].sum()
-                  if "Valor (%)" in edited_df.columns and es_acumulativa
-                  else 100.0
-              )
-
               puntos_acum = 0.0
               if "Nota" in edited_df.columns and not edited_df.empty:
-                if es_acumulativa:
-                  if "Valor (%)" in edited_df.columns:
-                    puntos_acum = (
-                        (edited_df["Nota"] / 20.0)
-                        * (edited_df["Valor (%)"] / 100.0)
-                        * 20.0
-                    ).sum()
-                else:
-                  # Cambio solicitado: Suma directa (acumulativa simple) de las notas ingresadas
-                  notas_validas = edited_df["Nota"].dropna()
-                  if len(notas_validas) > 0:
+                notas_validas = edited_df["Nota"].dropna()
+                if len(notas_validas) > 0:
+                  if es_acumulativa:
+                    # Acumulativa = Suma de todas las notas
                     puntos_acum = notas_validas.sum()
                   else:
-                    puntos_acum = 0.0
-
-              porcentaje_efectivo = (
-                  (puntos_acum / 20.0) * 100.0 if 20.0 > 0 else 0.0
-              )
-              falta_peso = 100.0 - peso_planificado if es_acumulativa else 0.0
+                    # Promediada = Promedio simple de todas las notas
+                    puntos_acum = notas_validas.mean()
+                else:
+                  puntos_acum = 0.0
 
               col_ac1, col_ac2, col_ac3 = st.columns(3)
 
               col_ac1.metric(
                   label="Modo de Cálculo",
-                  value="Acumulativo (Ponderado)" if es_acumulativa else "Acumulativa (Suma Directa)",
+                  value=escala_sel,
               )
 
               col_ac2.metric(
-                  label="Nota Acumulada Total",
+                  label="Resultado Obtenido",
                   value=f"{puntos_acum:.2f} / {max_nota:.1f} pts",
               )
 
@@ -787,14 +772,6 @@ else:
                     f"Aún no alcanzas la nota mínima. Te faltan"
                     f" **{faltan:.2f} pts** para aprobar."
                 )
-
-                if es_acumulativa and falta_peso > 0:
-                  nota_necesaria = (faltan / falta_peso) * 100
-                  st.info(
-                      "💡 Necesitas un promedio de"
-                      f" **{nota_necesaria:.1f} pts** en lo que queda por"
-                      f" evaluar ({falta_peso:.1f}%) para aprobar."
-                  )
 
   # ==========================================
   # PESTAÑA 2: HORARIO DE CLASES
@@ -1115,16 +1092,11 @@ else:
                                 nom_materia = str(row[col_mat])
                                 if cod in evaluaciones_dict:
                                     plan = evaluaciones_dict[cod].get("plan", [])
-                                    suma_parcial = 0
-                                    total_val = 0
-                                    for ev in plan:
-                                        nota = ev.get("Nota")
-                                        val = ev.get("Valor (%)", 25)
-                                        if nota is not None:
-                                            suma_parcial += float(nota) * (float(val) / 100.0)
-                                            total_val += float(val)
-                                    if total_val > 30 and (suma_parcial / (total_val / 100.0)) < 12:
-                                        materias_en_riesgo.append(f"- **{nom_materia}** ({cod}): Promedio parcial bajo ({suma_parcial:.2f}).")
+                                    notas_m = [float(e.get("Nota", 0)) for e in plan if e.get("Nota") is not None]
+                                    if notas_m:
+                                        prom_m = sum(notas_m) / len(notas_m)
+                                        if prom_m < 12:
+                                            materias_en_riesgo.append(f"- **{nom_materia}** ({cod}): Promedio actual bajo ({prom_m:.2f}).")
 
                     if materias_en_riesgo:
                         alertas_txt += "Se detectaron las siguientes materias con rendimiento bajo:\n" + "\n".join(materias_en_riesgo)
@@ -1182,7 +1154,7 @@ else:
                 materia_elegida = st.selectbox("Selecciona una unidad curricular:", nombres_materias, key="select_materia_g")
                 codigo_elegido = next((m[1] for m in materias_filtradas if m[0] == materia_elegida), None)
 
-                if st.button("Ver notas exactas y acumulado", use_container_width=True, key="btn_g_ver_notas"):
+                if st.button("Ver notas exactas", use_container_width=True, key="btn_g_ver_notas"):
                     detalle_notas = f"📊 **Notas exactas para: {materia_elegida}**\n\n- Condición: **{filtro_estado.capitalize()}**\n\n"
                     df_tabla_notas = None
                     if codigo_elegido and codigo_elegido in st.session_state.get("evaluaciones", {}):
@@ -1191,20 +1163,13 @@ else:
                             df_tabla_notas = pd.DataFrame(plan_datos)
 
                     if df_tabla_notas is not None and not df_tabla_notas.empty:
-                        suma_acumulada = 0
                         c_nom = next((c for c in df_tabla_notas.columns if "evaluación" in c.lower() or "tema" in c.lower() or "nombre" in c.lower()), df_tabla_notas.columns[0])
                         c_nota = next((c for c in df_tabla_notas.columns if "nota" in c.lower() or "puntos" in c.lower()), None)
-                        c_val = next((c for c in df_tabla_notas.columns if "valor" in c.lower() or "%" in c.lower()), None)
 
                         for idx, row in df_tabla_notas.iterrows():
                             nombre_ev = row.get(c_nom, f"Evaluación {idx+1}")
                             val_nota = float(row.get(c_nota, 0.0)) if c_nota and pd.notna(row.get(c_nota)) else 0.0
-                            val_porc = float(row.get(c_val, 0.0)) if c_val and pd.notna(row.get(c_val)) else 25.0
-                            
-                            detalle_notas += f"- **{nombre_ev}**: {val_nota} pts (Valor: {val_porc}%)\n"
-                            suma_acumulada += val_nota
-
-                        detalle_notas += f"\n⭐ **Total Acumulado:** **{suma_acumulada:.2f} pts**"
+                            detalle_notas += f"- **{nombre_ev}**: {val_nota} pts\n"
                     else:
                         detalle_notas += "⚠️ No hay notas registradas para esta materia en el sistema todavía."
 
