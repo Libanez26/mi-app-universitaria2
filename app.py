@@ -66,6 +66,8 @@ if "evaluaciones" not in st.session_state:
   st.session_state["evaluaciones"] = {}
 if "horario_df" not in st.session_state:
   st.session_state["horario_df"] = None
+if "escala_df" not in st.session_state:
+  st.session_state["escala_df"] = None
 if "mensajes_asistente" not in st.session_state:
   st.session_state["mensajes_asistente"] = [{
       "role": "assistant",
@@ -100,6 +102,9 @@ def cargar_datos_usuario(user_id):
 
       if datos.get("horario_data"):
         st.session_state["horario_df"] = pd.DataFrame(datos["horario_data"])
+
+      if datos.get("escala_data"):
+        st.session_state["escala_df"] = pd.DataFrame(datos["escala_data"])
   except Exception as e:
     st.error(f"Error cargando datos de la base de datos: {e}")
 
@@ -136,12 +141,19 @@ def guardar_datos_usuario():
       else None
   )
 
+  escala_json = (
+      st.session_state["escala_df"].to_dict("records")
+      if st.session_state["escala_df"] is not None
+      else None
+  )
+
   data = {
       "id": user_id,
       "correo": correo,
       "pensum_data": pensum_json,
       "evaluaciones_data": evals_json,
       "horario_data": horario_json,
+      "escala_data": escala_json,
   }
 
   try:
@@ -378,6 +390,8 @@ else:
     st.session_state["usuario"] = None
     st.session_state["pensum_df"] = None
     st.session_state["evaluaciones"] = {}
+    st.session_state["horario_df"] = None
+    st.session_state["escala_df"] = None
     st.session_state["mensajes_asistente"] = [{
         "role": "assistant",
         "content": (
@@ -388,9 +402,10 @@ else:
 
   st.title("🎓 Mi App Universitaria")
 
-  tab_pensum, tab_horario, tab_asistente, tab_pomodoro = st.tabs([
+  tab_pensum, tab_horario, tab_escala, tab_asistente, tab_pomodoro = st.tabs([
       "📚 Pensum y Calificaciones",
       "📅 Horario de Clases",
+      "📊 Escala Evaluativa",
       "🤖 Asistente Virtual IA",
       "⏱️ Pomodoro de Estudio Integrado",
   ])
@@ -728,10 +743,8 @@ else:
                 notas_validas = edited_df["Nota"].dropna()
                 if len(notas_validas) > 0:
                   if es_acumulativa:
-                    # Acumulativa = Suma de todas las notas
                     puntos_acum = notas_validas.sum()
                   else:
-                    # Promediada = Promedio simple de todas las notas
                     puntos_acum = notas_validas.mean()
                 else:
                   puntos_acum = 0.0
@@ -919,7 +932,123 @@ else:
       st.session_state["horario_df"] = df_editado
 
   # ==========================================
-  # PESTAÑA 3: ASISTENTE VIRTUAL UNIVERSITARIO
+  # PESTAÑA 3: ESCALA EVALUATIVA
+  # ==========================================
+  with tab_escala:
+    st.subheader("📊 Cargar y Ordenar la Escala Evaluativa")
+    st.write(
+        "Sube un PDF con los criterios, baremos o escalas de evaluación de tus materias, "
+        "o administra los datos directamente en la tabla interactiva."
+    )
+
+    if st.session_state["escala_df"] is None:
+      uploaded_escala = st.file_uploader(
+          "Sube el PDF de la escala evaluativa o baremo institucional", type=["pdf"], key="file_uploader_escala"
+      )
+
+      if uploaded_escala and st.button("📊 Procesar Escala con IA", key="btn_procesar_escala"):
+        with st.spinner("Procesando escala evaluativa con Gemini..."):
+          try:
+            api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+            client = genai.Client(api_key=api_key)
+
+            pdf_bytes = uploaded_escala.read()
+            pdf_part = types.Part.from_bytes(
+                data=pdf_bytes, mime_type="application/pdf"
+            )
+
+            prompt = """
+                        Extrae la escala evaluativa, baremo o tabla de calificaciones del documento proporcionado.
+                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves:
+                        [
+                          {
+                            "rango_desde": 0.0,
+                            "rango_hasta": 11.9,
+                            "calificacion_cualitativa": "Reprobado",
+                            "equivalencia_pts": 0.0,
+                            "descripcion": "No alcanza el objetivo mínimo"
+                          }
+                        ]
+                        """
+
+            response = client.models.generate_content(
+                model=modelo_seleccionado, contents=[prompt, pdf_part]
+            )
+
+            if response and response.text:
+              clean_text = response.text.strip()
+              if clean_text.startswith("```json"):
+                clean_text = clean_text[7:]
+              if clean_text.startswith("```"):
+                clean_text = clean_text[3:]
+              if clean_text.endswith("```"):
+                clean_text = clean_text[:-3]
+
+              data_escala = json.loads(clean_text.strip())
+              df_e = pd.DataFrame(data_escala)
+
+              st.session_state["escala_df"] = df_e
+              guardar_datos_usuario()
+              st.success("¡Escala evaluativa procesada y guardada con éxito!")
+              st.rerun()
+
+          except Exception as err:
+            st.error(f"Error procesando el documento de escala: {err}")
+      
+      if st.button("➕ Crear Escala Vacía / Manual", key="btn_escala_vacia"):
+        datos_base = [
+            {"rango_desde": 0.0, "rango_hasta": 11.9, "calificacion_cualitativa": "Reprobado", "equivalencia_pts": 0.0, "descripcion": "Insuficiente"},
+            {"rango_desde": 12.0, "rango_hasta": 14.0, "calificacion_cualitativa": "Aprobado", "equivalencia_pts": 12.0, "descripcion": "Suficiente"},
+            {"rango_desde": 14.1, "rango_hasta": 16.0, "calificacion_cualitativa": "Bueno", "equivalencia_pts": 14.0, "descripcion": "Notable"},
+            {"rango_desde": 16.1, "rango_hasta": 18.0, "calificacion_cualitativa": "Muy Bueno", "equivalencia_pts": 16.0, "descripcion": "Sobresaliente"},
+            {"rango_desde": 18.1, "rango_hasta": 20.0, "calificacion_cualitativa": "Excelente", "equivalencia_pts": 18.0, "descripcion": "Honorífico"}
+        ]
+        st.session_state["escala_df"] = pd.DataFrame(datos_base)
+        guardar_datos_usuario()
+        st.rerun()
+
+    else:
+      col_esc1, col_esc2 = st.columns([3, 1])
+      with col_esc2:
+        if st.button("🗑️ Eliminar Escala", key="btn_eliminar_escala"):
+          st.session_state["escala_df"] = None
+          guardar_datos_usuario()
+          st.rerun()
+
+      df_escala_actual = st.session_state["escala_df"]
+
+      columnas_req_escala = ["rango_desde", "rango_hasta", "calificacion_cualitativa", "equivalencia_pts", "descripcion"]
+      for col in columnas_req_escala:
+        if col not in df_escala_actual.columns:
+          df_escala_actual[col] = ""
+
+      st.markdown("### 📋 Tabla de Escala y Criterios Evaluativos")
+      
+      with st.form("form_editor_escala"):
+        df_escala_editado = st.data_editor(
+            df_escala_actual[columnas_req_escala],
+            num_rows="dynamic",
+            use_container_width=True,
+            key="editor_escala_evaluativa",
+            column_config={
+                "rango_desde": st.column_config.NumberColumn("Desde (Pts)", min_value=0.0, max_value=20.0, step=0.1),
+                "rango_hasta": st.column_config.NumberColumn("Hasta (Pts)", min_value=0.0, max_value=20.0, step=0.1),
+                "calificacion_cualitativa": st.column_config.TextColumn("Calificación / Concepto"),
+                "equivalencia_pts": st.column_config.NumberColumn("Puntaje Base", min_value=0.0, max_value=20.0, step=0.5),
+                "descripcion": st.column_config.TextColumn("Descripción del Criterio"),
+            }
+        )
+
+        submit_escala = st.form_submit_button("💾 Guardar Cambios en la Escala")
+
+        if submit_escala:
+          st.session_state["escala_df"] = df_escala_editado
+          guardar_datos_usuario()
+          st.success("¡Escala evaluativa actualizada correctamente!")
+          st.rerun()
+
+  # ==========================================
+  # PESTAÑA 4: ASISTENTE VIRTUAL UNIVERSITARIO
   # ==========================================
   with tab_asistente:
     st.subheader("🤖 Asistente Virtual Universitario")
@@ -1255,15 +1384,22 @@ else:
                         if st.session_state.get("horario_df") is not None
                         else "No cargado"
                     )
+                    escala_resumen = (
+                        st.session_state["escala_df"].to_string()
+                        if st.session_state.get("escala_df") is not None
+                        else "No cargado"
+                    )
 
                     system_instruction_text = f"""
                     Eres un asistente virtual inteligente, amigable y versátil integrado en una aplicación universitaria.
                     Responde de forma natural, cordial y útil a cualquier saludo, pregunta general o consulta del usuario.
-                    Si la pregunta está relacionada con su rendimiento, materias o clases, utiliza esta información de contexto del usuario:
+                    Si la pregunta está relacionada con su rendimiento, materias, clases o escala evaluativa, utiliza esta información de contexto del usuario:
                     --- PENSUM Y ESTADO DE MATERIAS ---
                     {pensum_resumen}
                     --- HORARIO DE CLASES ---
                     {horario_resumen}
+                    --- ESCALA EVALUATIVA ---
+                    {escala_resumen}
                     """
 
                     modelos_a_probar = ["gemini-3.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"]
@@ -1315,10 +1451,10 @@ else:
                     st.rerun()
 
   # ==========================================
-  # PESTAÑA 4: TÉCNICA POMODORO
+  # PESTAÑA 5: TÉCNICA POMODORO
   # ==========================================
   with tab_pomodoro:
-    st.subheader("🍅 Técnica Pomodoro")
+    st.subheader("⏱️ Pomodoro de Estudio Integrado")
 
     with st.expander("¿Qué es esto?"):
         st.write("""
