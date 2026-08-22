@@ -121,6 +121,7 @@ def guardar_datos_usuario():
   for cod, info in st.session_state["evaluaciones"].items():
     evals_json[cod] = {
         "estado": info.get("estado", "No Inscrita"),
+        "escala_ia_texto": info.get("escala_ia_texto", ""),
         "plan": []
     }
     for item in info.get("plan", []):
@@ -339,7 +340,7 @@ else:
     modelo_seleccionado = st.selectbox(
         "Selecciona el Modelo",
         [
-            "gemini-3.5-flash",
+            "gemini-2.5-flash",
             "gemini-2.0-flash",
         ],
         index=0,
@@ -571,6 +572,7 @@ else:
                 hoy = datetime.date.today()
                 st.session_state["evaluaciones"][codigo_mat] = {
                     "estado": materia_sel.get("estado", "No Inscrita"),
+                    "escala_ia_texto": "",
                     "plan": [
                         {
                             "Evaluación": "Parcial 1",
@@ -665,12 +667,9 @@ else:
                       from google.genai import types
                       
                       api_key_str = str(st.secrets["GEMINI_API_KEY"]).strip()
-                      
-                      # Limpiamos variables de entorno de Google Cloud para evitar que intercepten el token AQ.
                       os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
                       os.environ["GEMINI_API_KEY"] = api_key_str
                       
-                      # Inicializamos el cliente forzando el uso de la API Key
                       client = genai.Client(api_key=api_key_str)
                       
                       pdf_bytes = pdf_escala.read()
@@ -683,9 +682,17 @@ else:
                       )
                       
                       if resp_escala and resp_escala.text:
+                        st.session_state["evaluaciones"][codigo_mat]["escala_ia_texto"] = resp_escala.text
+                        guardar_datos_usuario()
                         st.success(f"Escala leída exitosamente:\n\n{resp_escala.text}")
                     except Exception as e_pdf:
                       st.error(f"Error procesando el PDF de escala: {e_pdf}")
+
+              # Mostrar texto analizado previamente si existe
+              texto_escala_guardado = st.session_state["evaluaciones"][codigo_mat].get("escala_ia_texto", "")
+              if texto_escala_guardado:
+                st.info(f"📌 **Base de escala activa para conversiones:**\n\n{texto_escala_guardado}")
+
               for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
                 if "Entregada" not in item:
                   item["Entregada"] = False
@@ -1329,7 +1336,7 @@ else:
                     {horario_resumen}
                     """
 
-                    modelos_a_probar = ["gemini-3.5-flash", "gemini-2.0-flash"]
+                    modelos_a_probar = ["gemini-2.5-flash", "gemini-2.0-flash"]
                     response = None
                     ultimo_error = None
 
