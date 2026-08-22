@@ -67,7 +67,14 @@ if "evaluaciones" not in st.session_state:
 if "horario_df" not in st.session_state:
   st.session_state["horario_df"] = None
 if "escala_df" not in st.session_state:
-  st.session_state["escala_df"] = None
+  # Escala evaluativa por defecto inicializada para todas las materias
+  st.session_state["escala_df"] = pd.DataFrame([
+      {"Nivel de logro de la asignatura": "Insuficiente", "Calificación Cuantitativa": "0.0 - 11.9", "Calificación Cualitativa": "Reprobado"},
+      {"Nivel de logro de la asignatura": "Suficiente", "Calificación Cuantitativa": "12.0 - 14.0", "Calificación Cualitativa": "Aprobado"},
+      {"Nivel de logro de la asignatura": "Notable", "Calificación Cuantitativa": "14.1 - 16.0", "Calificación Cualitativa": "Aprobado"},
+      {"Nivel de logro de la asignatura": "Sobresaliente", "Calificación Cuantitativa": "16.1 - 18.0", "Calificación Cualitativa": "Aprobado"},
+      {"Nivel de logro de la asignatura": "Excelente", "Calificación Cuantitativa": "18.1 - 20.0", "Calificación Cualitativa": "Aprobado"}
+  ])
 if "mensajes_asistente" not in st.session_state:
   st.session_state["mensajes_asistente"] = [{
       "role": "assistant",
@@ -391,7 +398,6 @@ else:
     st.session_state["pensum_df"] = None
     st.session_state["evaluaciones"] = {}
     st.session_state["horario_df"] = None
-    st.session_state["escala_df"] = None
     st.session_state["mensajes_asistente"] = [{
         "role": "assistant",
         "content": (
@@ -402,16 +408,16 @@ else:
 
   st.title("🎓 Mi App Universitaria")
 
-  tab_pensum, tab_horario, tab_escala, tab_asistente, tab_pomodoro = st.tabs([
+  # Pestañas principales actualizadas (se eliminó la pestaña independiente de Escala Evaluativa)
+  tab_pensum, tab_horario, tab_asistente, tab_pomodoro = st.tabs([
       "📚 Pensum y Calificaciones",
       "📅 Horario de Clases",
-      "📊 Escala Evaluativa",
       "🤖 Asistente Virtual IA",
       "⏱️ Pomodoro de Estudio Integrado",
   ])
 
   # ==========================================
-  # PESTAÑA 1: PENSUM Y CALIFICACIONES
+  # PESTAÑA 1: PENSUM Y CALIFICACIONES (CON ESCALA EVALUATIVA INTEGRADA)
   # ==========================================
   with tab_pensum:
     st.subheader("📋 Pensum Estructurado por Niveles")
@@ -732,7 +738,7 @@ else:
                   st.rerun()
 
               st.markdown("---")
-              st.markdown("#### 📊 Resumen de Rendimiento")
+              st.markdown("#### 📊 Resumen de Rendimiento y Escala Evaluativa")
 
               es_acumulativa = "Acumulativa" in escala_sel
               max_nota = 20.0
@@ -749,17 +755,46 @@ else:
                 else:
                   puntos_acum = 0.0
 
-              col_ac1, col_ac2, col_ac3 = st.columns(3)
-
+              col_ac1, col_ac2 = st.columns(2)
               col_ac1.metric(
                   label="Modo de Cálculo",
                   value=escala_sel,
               )
-
               col_ac2.metric(
                   label="Resultado Obtenido",
                   value=f"{puntos_acum:.2f} / {max_nota:.1f} pts",
               )
+
+              # --- SECCIÓN INTEGRADA: ESCALA EVALUATIVA INSTITUCIONAL ---
+              st.markdown("##### 📌 Tabla de Escala Evaluativa de Referencia")
+              df_escala_actual = st.session_state["escala_df"]
+              columnas_req_escala = [
+                  "Nivel de logro de la asignatura",
+                  "Calificación Cuantitativa",
+                  "Calificación Cualitativa"
+              ]
+              for col in columnas_req_escala:
+                if col not in df_escala_actual.columns:
+                  df_escala_actual[col] = ""
+
+              with st.form(f"form_editor_escala_{codigo_mat}"):
+                df_escala_editado = st.data_editor(
+                    df_escala_actual[columnas_req_escala],
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    key=f"editor_escala_{codigo_mat}",
+                    column_config={
+                        "Nivel de logro de la asignatura": st.column_config.TextColumn("Nivel de logro de la asignatura"),
+                        "Calificación Cuantitativa": st.column_config.TextColumn("Calificación Cuantitativa"),
+                        "Calificación Cualitativa": st.column_config.TextColumn("Calificación Cualitativa"),
+                    }
+                )
+                submit_escala = st.form_submit_button("💾 Guardar Cambios en la Escala")
+                if submit_escala:
+                  st.session_state["escala_df"] = df_escala_editado
+                  guardar_datos_usuario()
+                  st.success("¡Escala evaluativa actualizada correctamente!")
+                  st.rerun()
 
               st.markdown("---")
               st.markdown("#### ✅ Resultado Final")
@@ -769,7 +804,7 @@ else:
                     f"¡Felicidades! Con {puntos_acum:.2f} pts, estás"
                     " **APROBADO** en esta materia."
                 )
-                if st.button("Marcar como Aprobada automáticamente"):
+                if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
                   st.session_state["evaluaciones"][codigo_mat][
                       "estado"
                   ] = "Aprobada"
@@ -932,123 +967,7 @@ else:
       st.session_state["horario_df"] = df_editado
 
   # ==========================================
-  # PESTAÑA 3: ESCALA EVALUATIVA
-  # ==========================================
-  with tab_escala:
-    st.subheader("📊 Escala Evaluativa")
-    st.write(
-        "Sube un PDF con la escala de notas institucional para extraerla automáticamente, "
-        "o administra los datos directamente en la tabla."
-    )
-
-    if st.session_state["escala_df"] is None:
-      uploaded_escala = st.file_uploader(
-          "Sube el PDF de la escala evaluativa", type=["pdf"], key="file_uploader_escala"
-      )
-
-      if uploaded_escala and st.button("📊 Procesar Escala con IA", key="btn_procesar_escala"):
-        with st.spinner("Procesando escala evaluativa con Gemini..."):
-          try:
-            api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-            client = genai.Client(api_key=api_key)
-
-            pdf_bytes = uploaded_escala.read()
-            pdf_part = types.Part.from_bytes(
-                data=pdf_bytes, mime_type="application/pdf"
-            )
-
-            prompt = """
-                        Extrae la tabla de escala evaluativa del documento proporcionado.
-                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas tres claves:
-                        [
-                          {
-                            "Nivel de logro de la asignatura": "Excelente",
-                            "Calificación Cuantitativa": "18.0 - 20.0",
-                            "Calificación Cualitativa": "Aprobado"
-                          }
-                        ]
-                        """
-
-            response = client.models.generate_content(
-                model=modelo_seleccionado, contents=[prompt, pdf_part]
-            )
-
-            if response and response.text:
-              clean_text = response.text.strip()
-              if clean_text.startswith("```json"):
-                clean_text = clean_text[7:]
-              if clean_text.startswith("```"):
-                clean_text = clean_text[3:]
-              if clean_text.endswith("```"):
-                clean_text = clean_text[:-3]
-
-              data_escala = json.loads(clean_text.strip())
-              df_e = pd.DataFrame(data_escala)
-
-              st.session_state["escala_df"] = df_e
-              guardar_datos_usuario()
-              st.success("¡Escala evaluativa procesada y guardada con éxito!")
-              st.rerun()
-
-          except Exception as err:
-            st.error(f"Error procesando el documento de escala: {err}")
-      
-      if st.button("➕ Crear Escala Vacía / Manual", key="btn_escala_vacia"):
-        datos_base = [
-            {"Nivel de logro de la asignatura": "Insuficiente", "Calificación Cuantitativa": "0.0 - 11.9", "Calificación Cualitativa": "Reprobado"},
-            {"Nivel de logro de la asignatura": "Suficiente", "Calificación Cuantitativa": "12.0 - 14.0", "Calificación Cualitativa": "Aprobado"},
-            {"Nivel de logro de la asignatura": "Notable", "Calificación Cuantitativa": "14.1 - 16.0", "Calificación Cualitativa": "Aprobado"},
-            {"Nivel de logro de la asignatura": "Sobresaliente", "Calificación Cuantitativa": "16.1 - 18.0", "Calificación Cualitativa": "Aprobado"},
-            {"Nivel de logro de la asignatura": "Excelente", "Calificación Cuantitativa": "18.1 - 20.0", "Calificación Cualitativa": "Aprobado"}
-        ]
-        st.session_state["escala_df"] = pd.DataFrame(datos_base)
-        guardar_datos_usuario()
-        st.rerun()
-
-    else:
-      col_esc1, col_esc2 = st.columns([3, 1])
-      with col_esc2:
-        if st.button("🗑️ Eliminar Escala", key="btn_eliminar_escala"):
-          st.session_state["escala_df"] = None
-          guardar_datos_usuario()
-          st.rerun()
-
-      df_escala_actual = st.session_state["escala_df"]
-
-      columnas_req_escala = [
-          "Nivel de logro de la asignatura",
-          "Calificación Cuantitativa",
-          "Calificación Cualitativa"
-      ]
-      for col in columnas_req_escala:
-        if col not in df_escala_actual.columns:
-          df_escala_actual[col] = ""
-
-      st.markdown("### 📋 Tabla de Escala Evaluativa")
-      
-      with st.form("form_editor_escala"):
-        df_escala_editado = st.data_editor(
-            df_escala_actual[columnas_req_escala],
-            num_rows="dynamic",
-            use_container_width=True,
-            key="editor_escala_evaluativa",
-            column_config={
-                "Nivel de logro de la asignatura": st.column_config.TextColumn("Nivel de logro de la asignatura"),
-                "Calificación Cuantitativa": st.column_config.TextColumn("Calificación Cuantitativa"),
-                "Calificación Cualitativa": st.column_config.TextColumn("Calificación Cualitativa"),
-            }
-        )
-
-        submit_escala = st.form_submit_button("💾 Guardar Cambios en la Escala")
-
-        if submit_escala:
-          st.session_state["escala_df"] = df_escala_editado
-          guardar_datos_usuario()
-          st.success("¡Escala evaluativa actualizada correctamente!")
-          st.rerun()
-
-  # ==========================================
-  # PESTAÑA 4: ASISTENTE VIRTUAL UNIVERSITARIO
+  # PESTAÑA 3: ASISTENTE VIRTUAL UNIVERSITARIO
   # ==========================================
   with tab_asistente:
     st.subheader("🤖 Asistente Virtual Universitario")
@@ -1451,7 +1370,7 @@ else:
                     st.rerun()
 
   # ==========================================
-  # PESTAÑA 5: TÉCNICA POMODORO
+  # PESTAÑA 4: TÉCNICA POMODORO
   # ==========================================
   with tab_pomodoro:
     st.subheader("⏱️ Pomodoro de Estudio Integrado")
