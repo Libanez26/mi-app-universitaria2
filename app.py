@@ -661,9 +661,17 @@ else:
                 if pdf_escala and st.button("Analizar Escala con IA", key=f"btn_analizar_escala_{codigo_mat}"):
                   with st.spinner("La IA está leyendo la escala..."):
                     try:
-                      api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-                      # CORRECCIÓN: Forzamos el uso de la API Key explícitamente mediante api_key
-                      client = genai.Client(api_key=api_key)
+                      import os
+                      from google.genai import types
+                      
+                      api_key_str = str(st.secrets["GEMINI_API_KEY"]).strip()
+                      
+                      # Limpiamos variables de entorno de Google Cloud para evitar que intercepten el token AQ.
+                      os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+                      os.environ["GEMINI_API_KEY"] = api_key_str
+                      
+                      # Inicializamos el cliente forzando el uso de la API Key
+                      client = genai.Client(api_key=api_key_str)
                       
                       pdf_bytes = pdf_escala.read()
                       pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
@@ -678,7 +686,6 @@ else:
                         st.success(f"Escala leída exitosamente:\n\n{resp_escala.text}")
                     except Exception as e_pdf:
                       st.error(f"Error procesando el PDF de escala: {e_pdf}")
-
               for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
                 if "Entregada" not in item:
                   item["Entregada"] = False
