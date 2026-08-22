@@ -220,23 +220,27 @@ def verificar_disponibilidad(row, df_completo):
   return True, "Disponible"
 
 
-# --- 8. CÁLCULO DE PROMEDIO GLOBAL ---
+# --- 8. CÁLCULO DE PROMEDIO GLOBAL (ROBUSTO) ---
 def calcular_indice_academico(df_pensum, evaluaciones):
   total_creditos = 0
   puntos_acumulados = 0.0
 
   for _, row in df_pensum.iterrows():
     cod = row["codigo"]
-    cred = row.get("creditos", 0)
+    cred = pd.to_numeric(row.get("creditos", 0), errors="coerce")
+    cred = 0 if pd.isna(cred) else cred
 
     if cod in evaluaciones:
       plan = evaluaciones[cod].get("plan", [])
       if plan:
         df_plan = pd.DataFrame(plan)
         if "Nota (0-20 pts)" in df_plan.columns and "Valor (%)" in df_plan.columns:
+          notas = pd.to_numeric(df_plan["Nota (0-20 pts)"], errors="coerce").fillna(0)
+          valores = pd.to_numeric(df_plan["Valor (%)"], errors="coerce").fillna(0)
+          
           nota_mat = (
-              (df_plan["Nota (0-20 pts)"] / 20.0)
-              * (df_plan["Valor (%)"] / 100.0)
+              (notas / 20.0)
+              * (valores / 100.0)
               * 20.0
           ).sum()
           if row["estado"] in ["Aprobada", "Reprobada", "En Curso"]:
@@ -335,10 +339,8 @@ else:
     modelo_seleccionado = st.selectbox(
         "Selecciona el Modelo",
         [
-            "gemini-3.5-flash",
-            "gemini-2.0-flash",
-            "gemini-3.5-flash",
             "gemini-2.5-flash",
+            "gemini-2.0-flash",
         ],
         index=0,
         help=(
@@ -647,7 +649,6 @@ else:
                   st.rerun()
 
               with col_e2:
-                # Lógica de escala seleccionada (Acumulativa vs Promediada)
                 escala_sel = st.radio(
                     "Escala para ingresar notas:",
                     ["Escala acumulativa", "Escala promediada"],
@@ -655,7 +656,6 @@ else:
                     key=f"radio_esc_{codigo_mat}",
                 )
 
-              # Subida opcional de PDF de escala analizada por IA
               with st.expander("📄 Subir PDF de Escala de Notas"):
                 pdf_escala = st.file_uploader("Sube el PDF con la equivalencia de notas (Ej. 16 = 100)", type=["pdf"], key=f"pdf_escala_{codigo_mat}")
                 if pdf_escala and st.button("Analizar Escala con IA", key=f"btn_analizar_escala_{codigo_mat}"):
@@ -678,15 +678,12 @@ else:
                 if "Nota (0-20 pts)" not in item and "Nota" in item:
                   item["Nota (0-20 pts)"] = item["Nota"]
                 
-                # Cálculo inicial de la nota porcentual según el tipo de escala
                 val_porcentaje_eval = float(item.get("Valor (%)", 25.0))
                 nota_20 = float(item.get("Nota (0-20 pts)", 0.0))
                 
                 if escala_sel == "Escala acumulativa":
-                  # La nota (0-100) refleja el porcentaje obtenido de ese % asignado (Ej: 80% de 25% = 20%)
                   item["Nota (0-100)"] = round((nota_20 / 20.0) * val_porcentaje_eval, 2)
                 else:
-                  # Escala promediada clásica sobre 100
                   item["Nota (0-100)"] = round((nota_20 / 20.0) * 100.0, 2)
 
               df_eval_actual = pd.DataFrame(
@@ -737,7 +734,6 @@ else:
                     rec["Nota (0-20 pts)"] = puntos
                     
                     if escala_sel == "Escala acumulativa":
-                      # Sincronización automática respetando el peso acumulativo
                       rec["Nota (0-100)"] = round((puntos / 20.0) * val_porc, 2)
                     else:
                       rec["Nota (0-100)"] = round((puntos / 20.0) * 100.0, 2)
@@ -758,9 +754,11 @@ else:
 
               puntos_acum = 0.0
               if "Nota (0-20 pts)" in edited_df.columns and "Valor (%)" in edited_df.columns:
+                notas_ed = pd.to_numeric(edited_df["Nota (0-20 pts)"], errors="coerce").fillna(0)
+                vals_ed = pd.to_numeric(edited_df["Valor (%)"], errors="coerce").fillna(0)
                 puntos_acum = (
-                    (edited_df["Nota (0-20 pts)"] / 20.0)
-                    * (edited_df["Valor (%)"] / 100.0)
+                    (notas_ed / 20.0)
+                    * (vals_ed / 100.0)
                     * 20.0
                 ).sum()
 
@@ -1241,8 +1239,8 @@ else:
         elif st.session_state["modo_asistente"] == "horario_por_materia":
             st.markdown("### 🕒 Consultar horario de clases por materia")
             materias_horario = []
-            if "horario_df" in st.session_state and st.session_state["horario_df"] is not None and not st.session_state["horario_df"].empty:
-                df_h = st.session_state["horario_df"]
+            df_h = st.session_state.get("horario_df")
+            if df_h is not None and not df_h.empty:
                 col_m_h = next((c for c in df_h.columns if "materia" in c.lower() or "asignatura" in c.lower() or "curso" in c.lower()), None)
                 if col_m_h:
                     materias_horario = df_h[col_m_h].dropna().unique().tolist()
@@ -1317,7 +1315,7 @@ else:
                     {horario_resumen}
                     """
 
-                    modelos_a_probar = ["gemini-3.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"]
+                    modelos_a_probar = ["gemini-2.5-flash", "gemini-2.0-flash"]
                     response = None
                     ultimo_error = None
 
