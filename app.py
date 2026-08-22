@@ -718,8 +718,8 @@ else:
                 if "Nota (0-20 pts)" not in item and "Nota" in item:
                   item["Nota (0-20 pts)"] = item["Nota"]
                 
-                val_porcentaje_eval = float(item.get("Valor (%)", 25.0))
-                nota_20 = float(item.get("Nota (0-20 pts)", 0.0))
+                val_porcentaje_eval = float(item.get("Valor (%)", 25.0) or 25.0)
+                nota_20 = float(pd.to_numeric(item.get("Nota (0-20 pts)", 0.0), errors="coerce") or 0.0)
                 
                 if escala_cargada:
                   nota_key = str(int(round(nota_20)))
@@ -782,9 +782,9 @@ else:
                 if submit_notas:
                   updated_records = edited_df.to_dict("records")
                   for rec in updated_records:
-                    puntos = float(rec.get("Nota (0-20 pts)", 0.0) or 0.0)
-                    val_porc = float(rec.get("Valor (%)", 25.0) or 25.0)
-                    nota_100_ingresada = float(rec.get("Nota (0-100)", 0.0) or 0.0)
+                    puntos = float(pd.to_numeric(rec.get("Nota (0-20 pts)", 0.0), errors="coerce") or 0.0)
+                    val_porc = float(pd.to_numeric(rec.get("Valor (%)", 25.0), errors="coerce") or 25.0)
+                    nota_100_ingresada = float(pd.to_numeric(rec.get("Nota (0-100)", 0.0), errors="coerce") or 0.0)
                     
                     rec["Nota (0-20 pts)"] = puntos
                     rec["Valor (%)"] = val_porc
