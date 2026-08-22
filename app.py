@@ -650,7 +650,7 @@ else:
               with col_e2:
                 key_escala_anterior = f"escala_anterior_{codigo_mat}"
                 if key_escala_anterior not in st.session_state:
-                    st.session_state[key_escala_anterior] = "Acumulativa (Ponderada)"
+                    st.session_state[key_escala_anterior] = "Promediada (Simple)"
 
                 escala_sel = st.radio(
                     "Tipo de Cálculo de Notas:",
