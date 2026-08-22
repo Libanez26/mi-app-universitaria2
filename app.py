@@ -234,7 +234,6 @@ def calcular_indice_academico(df_pensum, evaluaciones):
       if plan:
         df_plan = pd.DataFrame(plan)
         if "Nota" in df_plan.columns:
-          # Para la vista global calculamos la nota obtenida proporcionalmente
           if "Valor (%)" in df_plan.columns and df_plan["Valor (%)"].sum() > 0:
             nota_mat = (
                 (df_plan["Nota"] / 20.0)
@@ -243,7 +242,7 @@ def calcular_indice_academico(df_pensum, evaluaciones):
             ).sum()
           else:
             notas_val = df_plan["Nota"].dropna()
-            nota_mat = notas_val.mean() if len(notas_val) > 0 else 0.0
+            nota_mat = notas_val.sum() if len(notas_val) > 0 else 0.0
 
           if row["estado"] in ["Aprobada", "Reprobada", "En Curso"]:
             puntos_acumulados += nota_mat * cred
@@ -740,9 +739,10 @@ else:
                         * 20.0
                     ).sum()
                 else:
+                  # Cambio solicitado: Suma directa (acumulativa simple) de las notas ingresadas
                   notas_validas = edited_df["Nota"].dropna()
                   if len(notas_validas) > 0:
-                    puntos_acum = notas_validas.mean()
+                    puntos_acum = notas_validas.sum()
                   else:
                     puntos_acum = 0.0
 
@@ -755,11 +755,11 @@ else:
 
               col_ac1.metric(
                   label="Modo de Cálculo",
-                  value="Acumulativo (Ponderado)" if es_acumulativa else "Promediado (Simple)",
+                  value="Acumulativo (Ponderado)" if es_acumulativa else "Acumulativa (Suma Directa)",
               )
 
               col_ac2.metric(
-                  label="Nota Acumulada / Promedio",
+                  label="Nota Acumulada Total",
                   value=f"{puntos_acum:.2f} / {max_nota:.1f} pts",
               )
 
@@ -950,7 +950,6 @@ else:
         "Elige si prefieres interactuar mediante el menú de botones guiados o conversar libremente con el chat de IA."
     )
 
-    # Selector superior para alternar los modos
     tipo_asistente = st.radio(
         "Selecciona el modo de interacción:",
         ["🧭 Asistente Guiado (Solo Botones)", "💬 Chat Libre (Conversacional)"],
@@ -958,13 +957,11 @@ else:
         key="selector_modo_asistente",
     )
 
-    # Inicialización de variables de sesión
     if "modo_asistente" not in st.session_state:
         st.session_state["modo_asistente"] = "menu_principal"
     if "sub_modo" not in st.session_state:
         st.session_state["sub_modo"] = None
     
-    # Mensaje inicial unificado para ambos chats
     mensaje_inicial_comun = "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo ayudar hoy?"
 
     if "mensajes_guiado" not in st.session_state:
@@ -978,7 +975,6 @@ else:
             "content": mensaje_inicial_comun,
         }]
 
-    # Estilos CSS inyectados para simular una interfaz limpia de mensajería instantánea
     st.markdown("""
         <style>
         .chat-container {
@@ -1021,7 +1017,7 @@ else:
     """, unsafe_allow_html=True)
 
     # ==========================================
-    # MODO 1: ASISTENTE GUIADO (SOLO BOTONES, SIN CAJA DE TEXTO)
+    # MODO 1: ASISTENTE GUIADO (SOLO BOTONES)
     # ==========================================
     if "Asistente Guiado" in tipo_asistente:
         col_bt1, col_bt2 = st.columns([4, 1])
@@ -1035,7 +1031,6 @@ else:
                 st.session_state["sub_modo"] = None
                 st.rerun()
 
-        # Renderizar historial estilo chat para el modo guiado
         chat_html_g = '<div class="chat-container">'
         for mensaje in st.session_state["mensajes_guiado"]:
             if mensaje["role"] == "user":
@@ -1047,7 +1042,6 @@ else:
 
         st.markdown("---")
 
-        # RAMIFICACIÓN 1: MENÚ PRINCIPAL
         if st.session_state["modo_asistente"] == "menu_principal":
             st.markdown("### 📌 Menú de Opciones Disponibles")
             c1, c2 = st.columns(2)
@@ -1141,7 +1135,6 @@ else:
                     st.session_state["mensajes_guiado"].append({"role": "assistant", "content": alertas_txt})
                     st.rerun()
 
-        # RAMIFICACIÓN 2: FILTRO DE ESTADO DE NOTAS
         elif st.session_state["modo_asistente"] == "notas_filtro_estado":
             st.markdown("### 🔍 Selecciona el estado de las materias:")
             col_f1, col_f2, col_f3 = st.columns(3)
@@ -1165,7 +1158,6 @@ else:
                 st.session_state["modo_asistente"] = "menu_principal"
                 st.rerun()
 
-        # RAMIFICACIÓN 3: SELECCIONAR MATERIA ESPECÍFICA PARA NOTAS
         elif st.session_state["modo_asistente"] == "seleccionar_materia_notas":
             filtro_estado = st.session_state.get("sub_modo", "en curso")
             st.markdown(f"### 📚 Materias con estado: **{filtro_estado.upper()}**")
@@ -1190,7 +1182,7 @@ else:
                 materia_elegida = st.selectbox("Selecciona una unidad curricular:", nombres_materias, key="select_materia_g")
                 codigo_elegido = next((m[1] for m in materias_filtradas if m[0] == materia_elegida), None)
 
-                if st.button("Ver notas exactas y promedio", use_container_width=True, key="btn_g_ver_notas"):
+                if st.button("Ver notas exactas y acumulado", use_container_width=True, key="btn_g_ver_notas"):
                     detalle_notas = f"📊 **Notas exactas para: {materia_elegida}**\n\n- Condición: **{filtro_estado.capitalize()}**\n\n"
                     df_tabla_notas = None
                     if codigo_elegido and codigo_elegido in st.session_state.get("evaluaciones", {}):
@@ -1199,8 +1191,7 @@ else:
                             df_tabla_notas = pd.DataFrame(plan_datos)
 
                     if df_tabla_notas is not None and not df_tabla_notas.empty:
-                        suma_ponderada = 0
-                        total_porcentaje = 0
+                        suma_acumulada = 0
                         c_nom = next((c for c in df_tabla_notas.columns if "evaluación" in c.lower() or "tema" in c.lower() or "nombre" in c.lower()), df_tabla_notas.columns[0])
                         c_nota = next((c for c in df_tabla_notas.columns if "nota" in c.lower() or "puntos" in c.lower()), None)
                         c_val = next((c for c in df_tabla_notas.columns if "valor" in c.lower() or "%" in c.lower()), None)
@@ -1211,14 +1202,9 @@ else:
                             val_porc = float(row.get(c_val, 0.0)) if c_val and pd.notna(row.get(c_val)) else 25.0
                             
                             detalle_notas += f"- **{nombre_ev}**: {val_nota} pts (Valor: {val_porc}%)\n"
-                            suma_ponderada += val_nota * (val_porc / 100.0)
-                            total_porcentaje += val_porc
+                            suma_acumulada += val_nota
 
-                        if total_porcentaje > 0:
-                            promedio_calculado = (suma_ponderada / total_porcentaje) * 20 if total_porcentaje <= 1 else suma_ponderada
-                            detalle_notas += f"\n⭐ **Promedio Definitivo:** **{promedio_calculado:.2f} / 20.0**"
-                        else:
-                            detalle_notas += f"\n⭐ **Promedio Definitivo:** Sin ponderación válida."
+                        detalle_notas += f"\n⭐ **Total Acumulado:** **{suma_acumulada:.2f} pts**"
                     else:
                         detalle_notas += "⚠️ No hay notas registradas para esta materia en el sistema todavía."
 
@@ -1233,7 +1219,6 @@ else:
                 st.session_state["modo_asistente"] = "notas_filtro_estado"
                 st.rerun()
 
-        # RAMIFICACIÓN 4: CONSULTAR HORARIO POR MATERIA
         elif st.session_state["modo_asistente"] == "horario_por_materia":
             st.markdown("### 🕒 Consultar horario de clases por materia")
             materias_horario = []
@@ -1263,7 +1248,7 @@ else:
                 st.rerun()
 
     # ==========================================
-    # MODO 2: CHAT LIBRE CONVERSACIONAL (CON CAJA DE TEXTO ACTIVA Y BOTÓN REINICIAR)
+    # MODO 2: CHAT LIBRE CONVERSACIONAL
     # ==========================================
     else:
         col_c1, col_c2 = st.columns([4, 1])
@@ -1275,7 +1260,6 @@ else:
                 }]
                 st.rerun()
 
-        # Renderizar historial estilo chat para el modo conversacional
         chat_html_c = '<div class="chat-container">'
         for mensaje in st.session_state["mensajes_conversacional"]:
             if mensaje["role"] == "user":
@@ -1285,7 +1269,6 @@ else:
         chat_html_c += '</div>'
         st.markdown(chat_html_c, unsafe_allow_html=True)
 
-        # Entrada de texto exclusiva para el chat libre
         if prompt_usuario := st.chat_input("Escribe una consulta libre para la IA..."):
             st.session_state["mensajes_conversacional"].append({
                 "role": "user",
