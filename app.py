@@ -57,6 +57,30 @@ try:
 except Exception as e:
   st.error(f"Error al conectar con Supabase: {e}")
 
+# --- ESCALA INSTITUCIONAL POR DEFECTO (BASADA EN DOCUMENTO OFICIAL) ---
+ESCALA_INSTITUCIONAL_DEFAULT = [
+    {"Rango (%)": "97% - 100%", "Calificación Cuantitativa (Pts)": 20, "Calificación Cualitativa": "EXCELENTE"},
+    {"Rango (%)": "93% - 96%", "Calificación Cuantitativa (Pts)": 19, "Calificación Cualitativa": "EXCELENTE"},
+    {"Rango (%)": "89% - 92%", "Calificación Cuantitativa (Pts)": 18, "Calificación Cualitativa": "SOBRESALIENTE"},
+    {"Rango (%)": "85% - 88%", "Calificación Cuantitativa (Pts)": 17, "Calificación Cualitativa": "SOBRESALIENTE"},
+    {"Rango (%)": "80% - 84%", "Calificación Cuantitativa (Pts)": 16, "Calificación Cualitativa": "DISTINGUIDO"},
+    {"Rango (%)": "75% - 79%", "Calificación Cuantitativa (Pts)": 15, "Calificación Cualitativa": "DISTINGUIDO"},
+    {"Rango (%)": "70% - 74%", "Calificación Cuantitativa (Pts)": 14, "Calificación Cualitativa": "BUENO"},
+    {"Rango (%)": "65% - 69%", "Calificación Cuantitativa (Pts)": 13, "Calificación Cualitativa": "BUENO"},
+    {"Rango (%)": "60% - 64%", "Calificación Cuantitativa (Pts)": 12, "Calificación Cualitativa": "BUENO"},
+    {"Rango (%)": "55% - 59%", "Calificación Cuantitativa (Pts)": 11, "Calificación Cualitativa": "SATISFACTORIO"},
+    {"Rango (%)": "50% - 54%", "Calificación Cuantitativa (Pts)": 10, "Calificación Cualitativa": "SATISFACTORIO"},
+    {"Rango (%)": "45% - 49%", "Calificación Cuantitativa (Pts)": 9, "Calificación Cualitativa": "DEFICIENTE"},
+    {"Rango (%)": "40% - 44%", "Calificación Cuantitativa (Pts)": 8, "Calificación Cualitativa": "DEFICIENTE"},
+    {"Rango (%)": "35% - 39%", "Calificación Cuantitativa (Pts)": 7, "Calificación Cualitativa": "DEFICIENTE"},
+    {"Rango (%)": "30% - 34%", "Calificación Cuantitativa (Pts)": 6, "Calificación Cualitativa": "DEFICIENTE"},
+    {"Rango (%)": "24% - 29%", "Calificación Cuantitativa (Pts)": 5, "Calificación Cualitativa": "MUY DEFICIENTE"},
+    {"Rango (%)": "18% - 23%", "Calificación Cuantitativa (Pts)": 4, "Calificación Cualitativa": "MUY DEFICIENTE"},
+    {"Rango (%)": "12% - 17%", "Calificación Cuantitativa (Pts)": 3, "Calificación Cualitativa": "MUY DEFICIENTE"},
+    {"Rango (%)": "06% - 11%", "Calificación Cuantitativa (Pts)": 2, "Calificación Cualitativa": "MUY DEFICIENTE"},
+    {"Rango (%)": "00% - 05%", "Calificación Cuantitativa (Pts)": 1, "Calificación Cualitativa": "MUY DEFICIENTE"}
+]
+
 # --- 4. ESTADO DE SESIÓN ---
 if "usuario" not in st.session_state:
   st.session_state["usuario"] = None
@@ -66,12 +90,12 @@ if "evaluaciones" not in st.session_state:
   st.session_state["evaluaciones"] = {}
 if "horario_df" not in st.session_state:
   st.session_state["horario_df"] = None
+if "escala_global" not in st.session_state:
+  st.session_state["escala_global"] = ESCALA_INSTITUCIONAL_DEFAULT
 if "mensajes_asistente" not in st.session_state:
   st.session_state["mensajes_asistente"] = [{
       "role": "assistant",
-      "content": (
-          "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?"
-      ),
+      "content": "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?",
   }]
 
 
@@ -100,6 +124,9 @@ def cargar_datos_usuario(user_id):
 
       if datos.get("horario_data"):
         st.session_state["horario_df"] = pd.DataFrame(datos["horario_data"])
+
+      if datos.get("escala_global_data"):
+        st.session_state["escala_global"] = datos["escala_global_data"]
   except Exception as e:
     st.error(f"Error cargando datos de la base de datos: {e}")
 
@@ -121,8 +148,7 @@ def guardar_datos_usuario():
   for cod, info in st.session_state["evaluaciones"].items():
     evals_json[cod] = {
         "estado": info.get("estado", "No Inscrita"),
-        "plan": [],
-        "escala_dict": info.get("escala_dict", {})
+        "plan": []
     }
     for item in info.get("plan", []):
       item_copia = item.copy()
@@ -137,12 +163,15 @@ def guardar_datos_usuario():
       else None
   )
 
+  escala_global_json = st.session_state["escala_global"]
+
   data = {
       "id": user_id,
       "correo": correo,
       "pensum_data": pensum_json,
       "evaluaciones_data": evals_json,
       "horario_data": horario_json,
+      "escala_global_data": escala_global_json,
   }
 
   try:
@@ -386,11 +415,12 @@ else:
 
   st.title("🎓 Mi App Universitaria")
 
-  tab_pensum, tab_horario, tab_asistente, tab_pomodoro = st.tabs([
+  tab_pensum, tab_horario, tab_escala_global, tab_asistente, tab_pomodoro = st.tabs([
       "📚 Pensum y Calificaciones",
       "📅 Horario de Clases",
+      "📊 Escala de Notas Global",
       "🤖 Asistente Virtual IA",
-      "⏱️ Pomodoro de Estudio Integrado",
+      "⏱️ Pomodoro de Estudio",
   ])
 
   # ==========================================
@@ -572,7 +602,6 @@ else:
                 hoy = datetime.date.today()
                 st.session_state["evaluaciones"][codigo_mat] = {
                     "estado": materia_sel.get("estado", "No Inscrita"),
-                    "escala_dict": {},
                     "plan": [
                         {
                             "Evaluación": "Parcial 1",
@@ -658,98 +687,22 @@ else:
                     key=f"radio_esc_{codigo_mat}",
                 )
 
-              with st.expander("📄 Subir PDF de Escala de Notas (Conversión Automática)"):
-                pdf_escala = st.file_uploader("Sube el PDF con la equivalencia de notas", type=["pdf"], key=f"pdf_escala_{codigo_mat}")
-                if pdf_escala and st.button("Procesar Escala con IA", key=f"btn_analizar_escala_{codigo_mat}"):
-                  with st.spinner("Configurando la escala de conversión..."):
-                    try:
-                      import os
-                      from google.genai import types
-                      
-                      api_key_str = str(st.secrets["GEMINI_API_KEY"]).strip()
-                      os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-                      os.environ["GEMINI_API_KEY"] = api_key_str
-                      
-                      client = genai.Client(api_key=api_key_str)
-                      
-                      pdf_bytes = pdf_escala.read()
-                      pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
-                      
-                      prompt_escala = """
-                      Analiza este documento de escala de notas. Extrae estrictamente los rangos y asigna a cada nota cuantitativa entera (de 0 a 20) el porcentaje mínimo o equivalente representativo según la tabla de rangos del documento.
-                      Devuelve la respuesta ÚNICAMENTE como un objeto JSON válido que sea un diccionario donde la clave sea el puntaje en formato de texto ("0" al "20") y el valor sea el porcentaje numérico correspondiente (float o int).
-                      Ejemplo estricto basado en la tabla:
-                      {
-                        "20": 97.0, "19": 93.0, "18": 89.0, "17": 85.0, "16": 80.0,
-                        "15": 75.0, "14": 70.0, "13": 65.0, "12": 60.0, "11": 55.0,
-                        "10": 50.0, "9": 45.0, "8": 40.0, "7": 35.0, "6": 30.0,
-                        "5": 24.0, "4": 18.0, "3": 12.0, "2": 6.0, "1": 0.0, "0": 0.0
-                      }
-                      """
-                      
-                      resp_escala = client.models.generate_content(
-                          model=modelo_seleccionado, 
-                          contents=[prompt_escala, pdf_part]
-                      )
-                      
-                      if resp_escala and resp_escala.text:
-                        clean_json = resp_escala.text.strip()
-                        if clean_json.startswith("```json"):
-                          clean_json = clean_json[7:]
-                        if clean_json.startswith("```"):
-                          clean_json = clean_json[3:]
-                        if clean_json.endswith("```"):
-                          clean_json = clean_json[:-3]
-                        
-                        diccionario_escala = json.loads(clean_json.strip())
-                        st.session_state["evaluaciones"][codigo_mat]["escala_dict"] = diccionario_escala
-                        guardar_datos_usuario()
-                        st.toast("¡Escala de conversión configurada correctamente!", icon="🎯")
-                        st.rerun()
-                    except Exception as e_pdf:
-                      st.error(f"Error procesando el PDF de escala: {e_pdf}")
-
-              # ==========================================
-              # 🎛️ WIDGET INTERACTIVO DE CONVERSIÓN RÁPIDA (NUEVO)
-              # ==========================================
-              st.markdown("##### 🧮 Conversor Rápido de Escala Evaluativa")
-              with st.container():
-                col_conv1, col_conv2 = st.columns(2)
-                with col_conv1:
-                  input_porcentaje_prueba = st.number_input(
-                      "Coloca un % (ej. 25%):",
-                      min_value=0.0, max_value=100.0, value=25.0, step=1.0,
-                      key=f"conv_porc_{codigo_mat}"
-                  )
-                  equiv_puntos = round((input_porcentaje_prueba / 100.0) * 20.0, 2)
-                  st.info(f"Equivalente aproximado: **{equiv_puntos} pts (de 20)**")
-
-                with col_conv2:
-                  input_puntos_prueba = st.number_input(
-                      "Coloca puntos (ej. 4 pts):",
-                      min_value=0.0, max_value=20.0, value=4.0, step=0.5,
-                      key=f"conv_pts_{codigo_mat}"
-                  )
-                  equiv_porcentaje = round((input_puntos_prueba / 20.0) * 100.0, 2)
-                  st.info(f"Equivalente aproximado: **{equiv_porcentaje}%**")
               st.markdown("---")
 
-              # Recuperar escala inteligente si existe
-              escala_cargada = st.session_state["evaluaciones"][codigo_mat].get("escala_dict", {})
+              # Recuperar la escala global establecida por el usuario
+              tabla_escala_cargada = st.session_state["escala_global"]
 
-              # Función auxiliar inversa para encontrar la nota en base al porcentaje ingresado por el usuario
-              def porcentaje_a_nota_pts(porc_buscado, escala_dict):
-                if not escala_dict:
-                  return round((porc_buscado / 100.0) * 20.0, 1)
-                
-                mejor_nota = 0.0
-                menor_diferencia = 999.0
-                for k_str, v_val in escala_dict.items():
-                  dif = abs(float(v_val) - float(porc_buscado))
-                  if dif < menor_diferencia:
-                    menor_diferencia = dif
-                    mejor_nota = float(k_str)
-                return mejor_nota
+              # Función auxiliar para traducir puntos basados en la escala global
+              def obtener_porcentaje_desde_tabla(puntos_pts, tabla_esq):
+                for fila in tabla_esq:
+                  try:
+                    if int(fila.get("Calificación Cuantitativa (Pts)", 0)) == int(round(puntos_pts)):
+                      rango_str = str(fila.get("Rango (%)", "0% - 0%"))
+                      limite_inferior = float(rango_str.split("-")[0].replace("%", "").strip())
+                      return limite_inferior
+                  except Exception:
+                    continue
+                return (puntos_pts / 20.0) * 100.0
 
               for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
                 if "Entregada" not in item:
@@ -758,22 +711,12 @@ else:
                 val_porcentaje_eval = float(item.get("Valor (%)", 25.0))
                 nota_20 = float(item.get("Nota (0-20 pts)", 0.0))
                 
-                if escala_cargada:
-                  nota_key = str(int(round(nota_20)))
-                  if nota_key in escala_cargada:
-                    porcentaje_base_100 = float(escala_cargada[nota_key])
-                  else:
-                    porcentaje_base_100 = (nota_20 / 20.0) * 100.0
-                  
-                  if escala_sel == "Escala acumulativa":
-                    item["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porcentaje_eval, 2)
-                  else:
-                    item["Nota (0-100)"] = round(porcentaje_base_100, 2)
+                porcentaje_base_100 = obtener_porcentaje_desde_tabla(nota_20, tabla_escala_cargada)
+                
+                if escala_sel == "Escala acumulativa":
+                  item["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porcentaje_eval, 2)
                 else:
-                  if escala_sel == "Escala acumulativa":
-                    item["Nota (0-100)"] = round((nota_20 / 20.0) * val_porcentaje_eval, 2)
-                  else:
-                    item["Nota (0-100)"] = round((nota_20 / 20.0) * 100.0, 2)
+                  item["Nota (0-100)"] = round(porcentaje_base_100, 2)
 
               df_eval_actual = pd.DataFrame(
                   st.session_state["evaluaciones"][codigo_mat]["plan"]
@@ -818,38 +761,15 @@ else:
                   updated_records = edited_df.to_dict("records")
                   for rec in updated_records:
                     puntos_ingresados = float(rec.get("Nota (0-20 pts)", 0.0) or 0.0)
-                    porcentaje_ingresado = float(rec.get("Nota (0-100)", 0.0) or 0.0)
-                    val_porc = float(rec.get("Valor (%)", 25.0) or 25.0)
-                    
-                    original_puntos = float(st.session_state["evaluaciones"][codigo_mat]["plan"][updated_records.index(rec)].get("Nota (0-20 pts)", 0.0))
-                    original_porc = float(st.session_state["evaluaciones"][codigo_mat]["plan"][updated_records.index(rec)].get("Nota (0-100)", 0.0))
-
-                    if porcentaje_ingresado != original_porc and puntos_ingresados == original_puntos:
-                      if escala_sel == "Escala acumulativa":
-                        porc_base = (porcentaje_ingresado / val_porc) * 100.0 if val_porc > 0 else 0
-                      else:
-                        porc_base = porcentaje_ingresado
-                      
-                      puntos_ingresados = porcentaje_a_nota_pts(porc_base, escala_cargada)
-
                     rec["Nota (0-20 pts)"] = puntos_ingresados
                     
-                    if escala_cargada:
-                      nota_key = str(int(round(puntos_ingresados)))
-                      if nota_key in escala_cargada:
-                        porcentaje_base_100 = float(escala_cargada[nota_key])
-                      else:
-                        porcentaje_base_100 = (puntos_ingresados / 20.0) * 100.0
-                      
-                      if escala_sel == "Escala acumulativa":
-                        rec["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porc, 2)
-                      else:
-                        rec["Nota (0-100)"] = round(porcentaje_base_100, 2)
+                    porcentaje_base_100 = obtener_porcentaje_desde_tabla(puntos_ingresados, tabla_escala_cargada)
+                    val_porc = float(rec.get("Valor (%)", 25.0) or 25.0)
+                    
+                    if escala_sel == "Escala acumulativa":
+                      rec["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porc, 2)
                     else:
-                      if escala_sel == "Escala acumulativa":
-                        rec["Nota (0-100)"] = round((puntos_ingresados / 20.0) * val_porc, 2)
-                      else:
-                        rec["Nota (0-100)"] = round((puntos_ingresados / 20.0) * 100.0, 2)
+                      rec["Nota (0-100)"] = round(porcentaje_base_100, 2)
 
                   st.session_state["evaluaciones"][codigo_mat]["plan"] = updated_records
                   guardar_datos_usuario()
@@ -1069,7 +989,49 @@ else:
       st.session_state["horario_df"] = df_editado
 
   # ==========================================
-  # PESTAÑA 3: ASISTENTE VIRTUAL UNIVERSITARIO
+  # PESTAÑA 3: ESCALA DE NOTAS GLOBAL (NUEVA)
+  # ==========================================
+  with tab_escala_global:
+    st.subheader("📊 Configuración de la Escala de Calificaciones Institucional")
+    st.write(
+        "Modifica esta tabla **una sola vez**. Los cambios se aplicarán automáticamente a todas las materias de tu pensum y planes de evaluación."
+    )
+
+    df_escala_global_actual = pd.DataFrame(st.session_state["escala_global"])
+
+    with st.form(key="form_escala_global_sistema"):
+      edited_escala_global = st.data_editor(
+          df_escala_global_actual,
+          num_rows="dynamic",
+          use_container_width=True,
+          key="editor_escala_global_main",
+          column_config={
+              "Rango (%)": st.column_config.TextColumn("Nivel de logro de la asignatura (Rango %)"),
+              "Calificación Cuantitativa (Pts)": st.column_config.NumberColumn("Calificación Cuantitativa", min_value=0, max_value=20, step=1),
+              "Calificación Cualitativa": st.column_config.TextColumn("Calificación Cualitativa")
+          }
+      )
+
+      col_g1, col_g2 = st.columns(2)
+      with col_g1:
+        submit_escala_global = st.form_submit_button("💾 Guardar Escala Global")
+      with col_g2:
+        reset_escala_global = st.form_submit_button("🔄 Restaurar Valores por Defecto")
+
+      if submit_escala_global:
+        st.session_state["escala_global"] = edited_escala_global.to_dict("records")
+        guardar_datos_usuario()
+        st.success("¡Escala de calificaciones global actualizada para todo el sistema con éxito!")
+        st.rerun()
+
+      if reset_escala_global:
+        st.session_state["escala_global"] = ESCALA_INSTITUCIONAL_DEFAULT
+        guardar_datos_usuario()
+        st.success("¡Se ha restaurado la escala institucional por defecto!")
+        st.rerun()
+
+  # ==========================================
+  # PESTAÑA 4: ASISTENTE VIRTUAL UNIVERSITARIO
   # ==========================================
   with tab_asistente:
     st.subheader("🤖 Asistente Virtual Universitario")
@@ -1477,7 +1439,7 @@ else:
                     st.rerun()
 
   # ==========================================
-  # PESTAÑA 4: TÉCNICA POMODORO
+  # PESTAÑA 5: TÉCNICA POMODORO
   # ==========================================
   with tab_pomodoro:
     st.subheader("⏱️ Técnica Pomodoro")
