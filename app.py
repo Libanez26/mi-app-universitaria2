@@ -575,7 +575,7 @@ else:
                             "Tema": "Unidad 1",
                             "Valor (%)": 25,
                             "Nota (0-20 pts)": 0.0,
-                            "Nota (0-100)": 0.0,
+                            "Nota (0-100 %)": 0.0,
                             "Fecha": hoy,
                             "Entregada": False,
                         },
