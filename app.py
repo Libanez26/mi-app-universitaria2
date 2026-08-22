@@ -655,7 +655,7 @@ else:
                 )
 
               # Subida opcional de PDF de escala analizada por IA
-              with st.expander("📄 Subir PDF de Escala de Notas (Opcional)"):
+              with st.expander("📄 Subir PDF de Escala de Notas"):
                 pdf_escala = st.file_uploader("Sube el PDF con la equivalencia de notas (Ej. 16 = 100)", type=["pdf"], key=f"pdf_escala_{codigo_mat}")
                 if pdf_escala and st.button("Analizar Escala con IA", key=f"btn_analizar_escala_{codigo_mat}"):
                   with st.spinner("La IA está leyendo la escala..."):
