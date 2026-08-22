@@ -757,7 +757,8 @@ else:
                         "Evaluación": st.column_config.TextColumn("Evaluación"),
                         "Tema": st.column_config.TextColumn("Tema"),
                         "Valor (%)": st.column_config.NumberColumn(
-                            "Valor (%)", min_value=0, max_value=100, step=1
+                            "Valor (%)", min_value=0.0, max_value=100.0, step=1.0,
+                            help="Peso o porcentaje de la evaluación."
                         ),
                         "Nota (0-20 pts)": st.column_config.NumberColumn(
                             "Nota (0-20 pts)", min_value=0.0, max_value=20.0, step=0.5
@@ -766,7 +767,8 @@ else:
                             "Nota Acumulada (%)" if escala_sel == "Escala acumulativa" else "Nota (0-100)", 
                             min_value=0.0, 
                             max_value=100.0, 
-                            step=1.0
+                            step=1.0,
+                            help="Puedes editar este porcentaje y el sistema ajustará o calculará su equivalente."
                         ),
                         "Fecha": st.column_config.DateColumn(
                             "Fecha de Entrega", format="YYYY-MM-DD"
@@ -782,25 +784,30 @@ else:
                   for rec in updated_records:
                     puntos = float(rec.get("Nota (0-20 pts)", 0.0) or 0.0)
                     val_porc = float(rec.get("Valor (%)", 25.0) or 25.0)
+                    nota_100_ingresada = float(rec.get("Nota (0-100)", 0.0) or 0.0)
                     
                     rec["Nota (0-20 pts)"] = puntos
+                    rec["Valor (%)"] = val_porc
                     
-                    if escala_cargada:
-                      nota_key = str(int(round(puntos)))
-                      if nota_key in escala_cargada:
-                        porcentaje_base_100 = float(escala_cargada[nota_key])
-                      else:
-                        porcentaje_base_100 = (puntos / 20.0) * 100.0
-                      
-                      if escala_sel == "Escala acumulativa":
-                        rec["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porc, 2)
-                      else:
-                        rec["Nota (0-100)"] = round(porcentaje_base_100, 2)
+                    if escala_sel == "Escala acumulativa" and val_porc > 0:
+                      rec["Nota (0-100)"] = round(nota_100_ingresada, 2)
                     else:
-                      if escala_sel == "Escala acumulativa":
-                        rec["Nota (0-100)"] = round((puntos / 20.0) * val_porc, 2)
+                      if escala_cargada:
+                        nota_key = str(int(round(puntos)))
+                        if nota_key in escala_cargada:
+                          porcentaje_base_100 = float(escala_cargada[nota_key])
+                        else:
+                          porcentaje_base_100 = (puntos / 20.0) * 100.0
+                        
+                        if escala_sel == "Escala acumulativa":
+                          rec["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porc, 2)
+                        else:
+                          rec["Nota (0-100)"] = round(porcentaje_base_100, 2)
                       else:
-                        rec["Nota (0-100)"] = round((puntos / 20.0) * 100.0, 2)
+                        if escala_sel == "Escala acumulativa":
+                          rec["Nota (0-100)"] = round((puntos / 20.0) * val_porc, 2)
+                        else:
+                          rec["Nota (0-100)"] = round((puntos / 20.0) * 100.0, 2)
 
                   st.session_state["evaluaciones"][codigo_mat]["plan"] = updated_records
                   guardar_datos_usuario()
