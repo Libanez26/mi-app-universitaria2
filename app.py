@@ -709,21 +709,36 @@ else:
                     except Exception as e_pdf:
                       st.error(f"Error procesando el PDF de escala: {e_pdf}")
 
-              # --- INICIO DE LA LÓGICA CORREGIDA DE CONVERSIÓN ---
+              # ==========================================
+              # 🎛️ WIDGET INTERACTIVO DE CONVERSIÓN RÁPIDA (NUEVO)
+              # ==========================================
+              st.markdown("##### 🧮 Conversor Rápido de Escala Evaluativa")
+              with st.container():
+                col_conv1, col_conv2 = st.columns(2)
+                with col_conv1:
+                  input_porcentaje_prueba = st.number_input(
+                      "Coloca un % (ej. 25%):",
+                      min_value=0.0, max_value=100.0, value=25.0, step=1.0,
+                      key=f"conv_porc_{codigo_mat}"
+                  )
+                  equiv_puntos = round((input_porcentaje_prueba / 100.0) * 20.0, 2)
+                  st.info(f"Equivalente aproximado: **{equiv_puntos} pts (de 20)**")
+
+                with col_conv2:
+                  input_puntos_prueba = st.number_input(
+                      "Coloca puntos (ej. 4 pts):",
+                      min_value=0.0, max_value=20.0, value=4.0, step=0.5,
+                      key=f"conv_pts_{codigo_mat}"
+                  )
+                  equiv_porcentaje = round((input_puntos_prueba / 20.0) * 100.0, 2)
+                  st.info(f"Equivalente aproximado: **{equiv_porcentaje}%**")
+              st.markdown("---")
+
+              # Recuperar escala inteligente si existe
               escala_cargada = st.session_state["evaluaciones"][codigo_mat].get("escala_dict", {})
 
-              def nota_pts_a_porcentaje(nota_20, escala_dict):
-                """Convierte una nota de 0-20 al porcentaje exacto según la escala de la universidad."""
-                if not escala_dict:
-                  return round((nota_20 / 20.0) * 100.0, 2)
-                
-                nota_key = str(int(round(nota_20)))
-                if nota_key in escala_dict:
-                  return float(escala_dict[nota_key])
-                return round((nota_20 / 20.0) * 100.0, 2)
-
+              # Función auxiliar inversa para encontrar la nota en base al porcentaje ingresado por el usuario
               def porcentaje_a_nota_pts(porc_buscado, escala_dict):
-                """Busca en el diccionario de la universidad qué nota de 0-20 corresponde a un porcentaje dado."""
                 if not escala_dict:
                   return round((porc_buscado / 100.0) * 20.0, 1)
                 
@@ -743,12 +758,22 @@ else:
                 val_porcentaje_eval = float(item.get("Valor (%)", 25.0))
                 nota_20 = float(item.get("Nota (0-20 pts)", 0.0))
                 
-                porcentaje_base_100 = nota_pts_a_porcentaje(nota_20, escala_cargada)
-                
-                if escala_sel == "Escala acumulativa":
-                  item["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porcentaje_eval, 2)
+                if escala_cargada:
+                  nota_key = str(int(round(nota_20)))
+                  if nota_key in escala_cargada:
+                    porcentaje_base_100 = float(escala_cargada[nota_key])
+                  else:
+                    porcentaje_base_100 = (nota_20 / 20.0) * 100.0
+                  
+                  if escala_sel == "Escala acumulativa":
+                    item["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porcentaje_eval, 2)
+                  else:
+                    item["Nota (0-100)"] = round(porcentaje_base_100, 2)
                 else:
-                  item["Nota (0-100)"] = round(porcentaje_base_100, 2)
+                  if escala_sel == "Escala acumulativa":
+                    item["Nota (0-100)"] = round((nota_20 / 20.0) * val_porcentaje_eval, 2)
+                  else:
+                    item["Nota (0-100)"] = round((nota_20 / 20.0) * 100.0, 2)
 
               df_eval_actual = pd.DataFrame(
                   st.session_state["evaluaciones"][codigo_mat]["plan"]
@@ -775,7 +800,7 @@ else:
                             "Nota (0-20 pts)", min_value=0.0, max_value=20.0, step=0.5
                         ),
                         "Nota (0-100)": st.column_config.NumberColumn(
-                            "Nota Acumulada (%)" if escala_sel == "Escala acumulativa" else "Porcentaje Tabla (0-100)", 
+                            "Nota Acumulada (%)" if escala_sel == "Escala acumulativa" else "Nota (0-100)", 
                             min_value=0.0, 
                             max_value=100.0, 
                             step=1.0
@@ -791,36 +816,45 @@ else:
 
                 if submit_notas:
                   updated_records = edited_df.to_dict("records")
-                  for idx_rec, rec in enumerate(updated_records):
+                  for rec in updated_records:
                     puntos_ingresados = float(rec.get("Nota (0-20 pts)", 0.0) or 0.0)
                     porcentaje_ingresado = float(rec.get("Nota (0-100)", 0.0) or 0.0)
                     val_porc = float(rec.get("Valor (%)", 25.0) or 25.0)
                     
-                    original_puntos = float(st.session_state["evaluaciones"][codigo_mat]["plan"][idx_rec].get("Nota (0-20 pts)", 0.0))
-                    original_porc = float(st.session_state["evaluaciones"][codigo_mat]["plan"][idx_rec].get("Nota (0-100)", 0.0))
+                    original_puntos = float(st.session_state["evaluaciones"][codigo_mat]["plan"][updated_records.index(rec)].get("Nota (0-20 pts)", 0.0))
+                    original_porc = float(st.session_state["evaluaciones"][codigo_mat]["plan"][updated_records.index(rec)].get("Nota (0-100)", 0.0))
 
-                    # Si se modificó directamente el porcentaje en lugar de los puntos, hacemos el ajuste inverso
                     if porcentaje_ingresado != original_porc and puntos_ingresados == original_puntos:
                       if escala_sel == "Escala acumulativa":
-                        porc_base_estimado = (porcentaje_ingresado / val_porc) * 100.0 if val_porc > 0 else 0
+                        porc_base = (porcentaje_ingresado / val_porc) * 100.0 if val_porc > 0 else 0
                       else:
-                        porc_base_estimado = porcentaje_ingresado
+                        porc_base = porcentaje_ingresado
                       
-                      puntos_ingresados = porcentaje_a_nota_pts(porc_base_estimado, escala_cargada)
+                      puntos_ingresados = porcentaje_a_nota_pts(porc_base, escala_cargada)
 
                     rec["Nota (0-20 pts)"] = puntos_ingresados
                     
-                    porcentaje_base_100 = nota_pts_a_porcentaje(puntos_ingresados, escala_cargada)
-                    if escala_sel == "Escala acumulativa":
-                      rec["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porc, 2)
+                    if escala_cargada:
+                      nota_key = str(int(round(puntos_ingresados)))
+                      if nota_key in escala_cargada:
+                        porcentaje_base_100 = float(escala_cargada[nota_key])
+                      else:
+                        porcentaje_base_100 = (puntos_ingresados / 20.0) * 100.0
+                      
+                      if escala_sel == "Escala acumulativa":
+                        rec["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porc, 2)
+                      else:
+                        rec["Nota (0-100)"] = round(porcentaje_base_100, 2)
                     else:
-                      rec["Nota (0-100)"] = round(porcentaje_base_100, 2)
+                      if escala_sel == "Escala acumulativa":
+                        rec["Nota (0-100)"] = round((puntos_ingresados / 20.0) * val_porc, 2)
+                      else:
+                        rec["Nota (0-100)"] = round((puntos_ingresados / 20.0) * 100.0, 2)
 
                   st.session_state["evaluaciones"][codigo_mat]["plan"] = updated_records
                   guardar_datos_usuario()
                   st.success("¡Notas guardadas correctamente!")
                   st.rerun()
-              # --- FIN DE LA LÓGICA CORREGIDA ---
                  
               st.markdown("---")
               st.markdown("#### 📊 Resumen de Rendimiento")
