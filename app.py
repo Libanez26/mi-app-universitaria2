@@ -233,12 +233,18 @@ def calcular_indice_academico(df_pensum, evaluaciones):
       plan = evaluaciones[cod].get("plan", [])
       if plan:
         df_plan = pd.DataFrame(plan)
-        if "Nota" in df_plan.columns and "Valor (%)" in df_plan.columns:
-          nota_mat = (
-              (df_plan["Nota"] / 20.0)
-              * (df_plan["Valor (%)"] / 100.0)
-              * 20.0
-          ).sum()
+        if "Nota" in df_plan.columns:
+          # Para la vista global calculamos la nota obtenida proporcionalmente
+          if "Valor (%)" in df_plan.columns and df_plan["Valor (%)"].sum() > 0:
+            nota_mat = (
+                (df_plan["Nota"] / 20.0)
+                * (df_plan["Valor (%)"] / 100.0)
+                * 20.0
+            ).sum()
+          else:
+            notas_val = df_plan["Nota"].dropna()
+            nota_mat = notas_val.mean() if len(notas_val) > 0 else 0.0
+
           if row["estado"] in ["Aprobada", "Reprobada", "En Curso"]:
             puntos_acumulados += nota_mat * cred
             total_creditos += cred
@@ -643,46 +649,38 @@ else:
                   st.rerun()
 
               with col_e2:
-                # Detectar cambio previo de escala para conversión automática
                 key_escala_anterior = f"escala_anterior_{codigo_mat}"
                 if key_escala_anterior not in st.session_state:
-                    st.session_state[key_escala_anterior] = "0 - 20 pts"
+                    st.session_state[key_escala_anterior] = "Acumulativa (Ponderada)"
 
                 escala_sel = st.radio(
-                    "Escala para ingresar notas:",
-                    ["0 - 20 pts", "0 - 100%"],
+                    "Tipo de Cálculo de Notas:",
+                    ["Acumulativa (Ponderada)", "Promediada (Simple)"],
                     horizontal=True,
                     key=f"radio_esc_{codigo_mat}",
                 )
 
-                # Si el usuario cambió de escala, convertimos automáticamente los valores de las notas
                 if escala_sel != st.session_state[key_escala_anterior]:
-                    for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
-                        nota_actual = item.get("Nota", 0.0)
-                        if nota_actual is not None:
-                            if escala_sel == "0 - 100%":
-                                # Convertir de 20 pts a porcentaje (0-100)
-                                item["Nota"] = round((nota_actual / 20.0) * 100.0, 2)
-                            else:
-                                # Convertir de porcentaje a 20 pts
-                                item["Nota"] = round((nota_actual / 100.0) * 20.0, 2)
                     st.session_state[key_escala_anterior] = escala_sel
                     guardar_datos_usuario()
-
-              for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
-                if "Entregada" not in item:
-                  item["Entregada"] = False
 
               df_eval_actual = pd.DataFrame(
                   st.session_state["evaluaciones"][codigo_mat]["plan"]
               )
 
-              if "Tema" not in df_eval_actual.columns:
-                df_eval_actual["Tema"] = ""
-              if "Fecha" not in df_eval_actual.columns:
-                df_eval_actual["Fecha"] = datetime.date.today()
-
-              max_nota = 20.0 if "20" in escala_sel else 100.0
+              # --- ASEGURAR TODAS LAS COLUMNAS REQUERIDAS ANTES DEL EDITOR ---
+              for col_req in ["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]:
+                if col_req not in df_eval_actual.columns:
+                  if col_req == "Valor (%)":
+                    df_eval_actual[col_req] = 25.0
+                  elif col_req == "Nota":
+                    df_eval_actual[col_req] = 0.0
+                  elif col_req == "Entregada":
+                    df_eval_actual[col_req] = False
+                  elif col_req == "Fecha":
+                    df_eval_actual[col_req] = datetime.date.today()
+                  else:
+                    df_eval_actual[col_req] = ""
 
               with st.form(key=f"form_editor_notas_{codigo_mat}"):
                 edited_df = st.data_editor(
@@ -697,9 +695,9 @@ else:
                             "Valor (%)", min_value=0, max_value=100, step=1
                         ),
                         "Nota": st.column_config.NumberColumn(
-                            f"Nota ({'0-20 pts' if '20' in escala_sel else '0-100%'})",
+                            "Nota (0-20 pts)",
                             min_value=0.0,
-                            max_value=max_nota,
+                            max_value=20.0,
                             step=0.5,
                         ),
                         "Fecha": st.column_config.DateColumn(
@@ -722,54 +720,55 @@ else:
               st.markdown("---")
               st.markdown("#### 📊 Resumen de Rendimiento")
 
+              es_acumulativa = "Acumulativa" in escala_sel
+              max_nota = 20.0
+              min_aprobar = 12
+
               peso_planificado = (
                   edited_df["Valor (%)"].sum()
-                  if "Valor (%)" in edited_df.columns
-                  else 0.0
+                  if "Valor (%)" in edited_df.columns and es_acumulativa
+                  else 100.0
               )
-
-              if "20" in escala_sel:
-                max_nota = 20.0
-                min_aprobar = 12
-                unidad = "puntos"
-              else:
-                max_nota = 100.0
-                min_aprobar = 60
-                unidad = "%"
 
               puntos_acum = 0.0
-              if "Nota" in edited_df.columns and "Valor (%)" in edited_df.columns:
-                puntos_acum = (
-                    (edited_df["Nota"] / max_nota)
-                    * (edited_df["Valor (%)"] / 100.0)
-                    * max_nota
-                ).sum()
+              if "Nota" in edited_df.columns and not edited_df.empty:
+                if es_acumulativa:
+                  if "Valor (%)" in edited_df.columns:
+                    puntos_acum = (
+                        (edited_df["Nota"] / 20.0)
+                        * (edited_df["Valor (%)"] / 100.0)
+                        * 20.0
+                    ).sum()
+                else:
+                  notas_validas = edited_df["Nota"].dropna()
+                  if len(notas_validas) > 0:
+                    puntos_acum = notas_validas.mean()
+                  else:
+                    puntos_acum = 0.0
 
               porcentaje_efectivo = (
-                  (puntos_acum / max_nota) * 100.0 if max_nota > 0 else 0.0
+                  (puntos_acum / 20.0) * 100.0 if 20.0 > 0 else 0.0
               )
-              falta_peso = 100.0 - peso_planificado
+              falta_peso = 100.0 - peso_planificado if es_acumulativa else 0.0
 
               col_ac1, col_ac2, col_ac3 = st.columns(3)
 
               col_ac1.metric(
-                  label="Porcentaje Obtenido / Evaluado",
-                  value=f"{porcentaje_efectivo:.1f}% / {peso_planificado:.1f}%",
+                  label="Modo de Cálculo",
+                  value="Acumulativo (Ponderado)" if es_acumulativa else "Promediado (Simple)",
               )
 
               col_ac2.metric(
-                  label="Nota Acumulada",
-                  value=f"{puntos_acum:.2f} / {max_nota:.1f} {unidad}",
+                  label="Nota Acumulada / Promedio",
+                  value=f"{puntos_acum:.2f} / {max_nota:.1f} pts",
               )
 
               st.markdown("---")
               st.markdown("#### ✅ Resultado Final")
 
-              nota_final_objetivo = 12 if "20" in escala_sel else 60
-
-              if puntos_acum >= nota_final_objetivo:
+              if puntos_acum >= min_aprobar:
                 st.success(
-                    f"¡Felicidades! Con {puntos_acum:.2f} {unidad}, estás"
+                    f"¡Felicidades! Con {puntos_acum:.2f} pts, estás"
                     " **APROBADO** en esta materia."
                 )
                 if st.button("Marcar como Aprobada automáticamente"):
@@ -783,13 +782,13 @@ else:
                   guardar_datos_usuario()
                   st.rerun()
               else:
-                faltan = nota_final_objetivo - puntos_acum
+                faltan = min_aprobar - puntos_acum
                 st.warning(
                     f"Aún no alcanzas la nota mínima. Te faltan"
-                    f" **{faltan:.2f} {unidad}** para aprobar."
+                    f" **{faltan:.2f} pts** para aprobar."
                 )
 
-                if falta_peso > 0:
+                if es_acumulativa and falta_peso > 0:
                   nota_necesaria = (faltan / falta_peso) * 100
                   st.info(
                       "💡 Necesitas un promedio de"
@@ -1319,14 +1318,12 @@ else:
                     {horario_resumen}
                     """
 
-                    # Lista de modelos seguros a probar
                     modelos_a_probar = ["gemini-3.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"]
                     response = None
                     ultimo_error = None
 
                     for mod in modelos_a_probar:
                         try:
-                            # Forma correcta utilizando system_instruction en la configuración
                             response = client.models.generate_content(
                                 model=mod,
                                 contents=prompt_usuario,
