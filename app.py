@@ -121,8 +121,8 @@ def guardar_datos_usuario():
   for cod, info in st.session_state["evaluaciones"].items():
     evals_json[cod] = {
         "estado": info.get("estado", "No Inscrita"),
-        "escala_ia_texto": info.get("escala_ia_texto", ""),
-        "plan": []
+        "plan": [],
+        "escala_dict": info.get("escala_dict", {})
     }
     for item in info.get("plan", []):
       item_copia = item.copy()
@@ -341,7 +341,7 @@ else:
         "Selecciona el Modelo",
         [
             "gemini-3.5-flash",
-            "gemini-3.6-flash",
+            "gemini-2.0-flash",
         ],
         index=0,
         help=(
@@ -572,7 +572,7 @@ else:
                 hoy = datetime.date.today()
                 st.session_state["evaluaciones"][codigo_mat] = {
                     "estado": materia_sel.get("estado", "No Inscrita"),
-                    "escala_ia_texto": "",
+                    "escala_dict": {},
                     "plan": [
                         {
                             "Evaluación": "Parcial 1",
@@ -658,10 +658,10 @@ else:
                     key=f"radio_esc_{codigo_mat}",
                 )
 
-              with st.expander("📄 Subir PDF de Escala de Notas"):
-                pdf_escala = st.file_uploader("Sube el PDF con la equivalencia de notas (Ej. 16 = 100)", type=["pdf"], key=f"pdf_escala_{codigo_mat}")
-                if pdf_escala and st.button("Analizar Escala con IA", key=f"btn_analizar_escala_{codigo_mat}"):
-                  with st.spinner("La IA está leyendo la escala..."):
+              with st.expander("📄 Subir PDF de Escala de Notas (Conversión Automática)"):
+                pdf_escala = st.file_uploader("Sube el PDF con la equivalencia de notas", type=["pdf"], key=f"pdf_escala_{codigo_mat}")
+                if pdf_escala and st.button("Procesar Escala con IA", key=f"btn_analizar_escala_{codigo_mat}"):
+                  with st.spinner("Configurando la escala de conversión..."):
                     try:
                       import os
                       from google.genai import types
@@ -674,7 +674,18 @@ else:
                       
                       pdf_bytes = pdf_escala.read()
                       pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
-                      prompt_escala = "Analiza este documento de escala de notas y resume brevemente las equivalencias principales encontradas (ej. 16 puntos equivale a 100%)."
+                      
+                      prompt_escala = """
+                      Analiza este documento de escala de notas. Extrae las equivalencias entre la nota cuantitativa (escala de 0 a 20) y su porcentaje correspondiente (0 a 100).
+                      Devuelve la respuesta ÚNICAMENTE como un objeto JSON válido que sea un diccionario donde la clave sea el puntaje (como texto del 0 al 20) y el valor sea el porcentaje equivalente numérico (float o int).
+                      Ejemplo estricto:
+                      {
+                        "20": 100.0, "19": 95.0, "18": 90.0, "17": 85.0, "16": 80.0,
+                        "15": 75.0, "14": 70.0, "13": 65.0, "12": 60.0, "11": 55.0,
+                        "10": 50.0, "9": 40.0, "8": 30.0, "7": 20.0, "6": 10.0,
+                        "5": 0.0, "4": 0.0, "3": 0.0, "2": 0.0, "1": 0.0, "0": 0.0
+                      }
+                      """
                       
                       resp_escala = client.models.generate_content(
                           model=modelo_seleccionado, 
@@ -682,16 +693,24 @@ else:
                       )
                       
                       if resp_escala and resp_escala.text:
-                        st.session_state["evaluaciones"][codigo_mat]["escala_ia_texto"] = resp_escala.text
+                        clean_json = resp_escala.text.strip()
+                        if clean_json.startswith("```json"):
+                          clean_json = clean_json[7:]
+                        if clean_json.startswith("```"):
+                          clean_json = clean_json[3:]
+                        if clean_json.endswith("```"):
+                          clean_json = clean_json[:-3]
+                        
+                        diccionario_escala = json.loads(clean_json.strip())
+                        st.session_state["evaluaciones"][codigo_mat]["escala_dict"] = diccionario_escala
                         guardar_datos_usuario()
-                        st.success(f"Escala leída exitosamente:\n\n{resp_escala.text}")
+                        st.toast("¡Escala de conversión configurada correctamente!", icon="🎯")
+                        st.rerun()
                     except Exception as e_pdf:
                       st.error(f"Error procesando el PDF de escala: {e_pdf}")
 
-              # Mostrar texto analizado previamente si existe
-              texto_escala_guardado = st.session_state["evaluaciones"][codigo_mat].get("escala_ia_texto", "")
-              if texto_escala_guardado:
-                st.info(f"📌 **Base de escala activa para conversiones:**\n\n{texto_escala_guardado}")
+              # Recuperar escala inteligente si existe
+              escala_cargada = st.session_state["evaluaciones"][codigo_mat].get("escala_dict", {})
 
               for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
                 if "Entregada" not in item:
@@ -702,10 +721,22 @@ else:
                 val_porcentaje_eval = float(item.get("Valor (%)", 25.0))
                 nota_20 = float(item.get("Nota (0-20 pts)", 0.0))
                 
-                if escala_sel == "Escala acumulativa":
-                  item["Nota (0-100)"] = round((nota_20 / 20.0) * val_porcentaje_eval, 2)
+                if escala_cargada:
+                  nota_key = str(int(round(nota_20)))
+                  if nota_key in escala_cargada:
+                    porcentaje_base_100 = float(escala_cargada[nota_key])
+                  else:
+                    porcentaje_base_100 = (nota_20 / 20.0) * 100.0
+                  
+                  if escala_sel == "Escala acumulativa":
+                    item["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porcentaje_eval, 2)
+                  else:
+                    item["Nota (0-100)"] = round(porcentaje_base_100, 2)
                 else:
-                  item["Nota (0-100)"] = round((nota_20 / 20.0) * 100.0, 2)
+                  if escala_sel == "Escala acumulativa":
+                    item["Nota (0-100)"] = round((nota_20 / 20.0) * val_porcentaje_eval, 2)
+                  else:
+                    item["Nota (0-100)"] = round((nota_20 / 20.0) * 100.0, 2)
 
               df_eval_actual = pd.DataFrame(
                   st.session_state["evaluaciones"][codigo_mat]["plan"]
@@ -754,10 +785,22 @@ else:
                     
                     rec["Nota (0-20 pts)"] = puntos
                     
-                    if escala_sel == "Escala acumulativa":
-                      rec["Nota (0-100)"] = round((puntos / 20.0) * val_porc, 2)
+                    if escala_cargada:
+                      nota_key = str(int(round(puntos)))
+                      if nota_key in escala_cargada:
+                        porcentaje_base_100 = float(escala_cargada[nota_key])
+                      else:
+                        porcentaje_base_100 = (puntos / 20.0) * 100.0
+                      
+                      if escala_sel == "Escala acumulativa":
+                        rec["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porc, 2)
+                      else:
+                        rec["Nota (0-100)"] = round(porcentaje_base_100, 2)
                     else:
-                      rec["Nota (0-100)"] = round((puntos / 20.0) * 100.0, 2)
+                      if escala_sel == "Escala acumulativa":
+                        rec["Nota (0-100)"] = round((puntos / 20.0) * val_porc, 2)
+                      else:
+                        rec["Nota (0-100)"] = round((puntos / 20.0) * 100.0, 2)
 
                   st.session_state["evaluaciones"][codigo_mat]["plan"] = updated_records
                   guardar_datos_usuario()
@@ -1336,7 +1379,7 @@ else:
                     {horario_resumen}
                     """
 
-                    modelos_a_probar = ["gemini-3.5-flash", "gemini-3.6-flash"]
+                    modelos_a_probar = ["gemini-3.5-flash", "gemini-2.0-flash"]
                     response = None
                     ultimo_error = None
 
