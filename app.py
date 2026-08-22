@@ -709,6 +709,7 @@ else:
                     except Exception as e_pdf:
                       st.error(f"Error procesando el PDF de escala: {e_pdf}")
 
+              # --- INICIO DEL CÓDIGO A INTEGRAR ---
               # Recuperar escala inteligente si existe
               escala_cargada = st.session_state["evaluaciones"][codigo_mat].get("escala_dict", {})
 
@@ -798,14 +799,13 @@ else:
                     porcentaje_ingresado = float(rec.get("Nota (0-100)", 0.0) or 0.0)
                     val_porc = float(rec.get("Valor (%)", 25.0) or 25.0)
                     
-                    # Verificamos si el usuario editó el porcentaje directamente para mapearlo a puntos con la escala del PDF
+                    # Verificamos si el usuario editó el porcentaje directamente para mapearlo a puntos con la escala
                     original_puntos = float(st.session_state["evaluaciones"][codigo_mat]["plan"][updated_records.index(rec)].get("Nota (0-20 pts)", 0.0))
                     original_porc = float(st.session_state["evaluaciones"][codigo_mat]["plan"][updated_records.index(rec)].get("Nota (0-100)", 0.0))
 
                     if porcentaje_ingresado != original_porc and puntos_ingresados == original_puntos:
                       # El usuario modificó la columna de porcentaje/nota acumulada
                       if escala_sel == "Escala acumulativa":
-                        # Despejar el porcentaje base 100
                         porc_base = (porcentaje_ingresado / val_porc) * 100.0 if val_porc > 0 else 0
                       else:
                         porc_base = porcentaje_ingresado
@@ -835,7 +835,8 @@ else:
                   guardar_datos_usuario()
                   st.success("¡Notas guardadas correctamente!")
                   st.rerun()
-
+              # --- FIN DEL CÓDIGO A INTEGRAR ---
+                 
               st.markdown("---")
               st.markdown("#### 📊 Resumen de Rendimiento")
 
