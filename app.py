@@ -676,14 +676,14 @@ else:
                       pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
                       
                       prompt_escala = """
-                      Analiza este documento de escala de notas. Extrae las equivalencias entre la nota cuantitativa (escala de 0 a 20) y su porcentaje correspondiente (0 a 100).
-                      Devuelve la respuesta ÚNICAMENTE como un objeto JSON válido que sea un diccionario donde la clave sea el puntaje (como texto del 0 al 20) y el valor sea el porcentaje equivalente numérico (float o int).
-                      Ejemplo estricto:
+                      Analiza este documento de escala de notas. Extrae estrictamente los rangos y asigna a cada nota cuantitativa entera (de 0 a 20) el porcentaje mínimo o equivalente representativo según la tabla de rangos del documento.
+                      Devuelve la respuesta ÚNICAMENTE como un objeto JSON válido que sea un diccionario donde la clave sea el puntaje en formato de texto ("0" al "20") y el valor sea el porcentaje numérico correspondiente (float o int).
+                      Ejemplo estricto basado en la tabla:
                       {
-                        "20": 100.0, "19": 95.0, "18": 90.0, "17": 85.0, "16": 80.0,
+                        "20": 97.0, "19": 93.0, "18": 89.0, "17": 85.0, "16": 80.0,
                         "15": 75.0, "14": 70.0, "13": 65.0, "12": 60.0, "11": 55.0,
-                        "10": 50.0, "9": 40.0, "8": 30.0, "7": 20.0, "6": 10.0,
-                        "5": 0.0, "4": 0.0, "3": 0.0, "2": 0.0, "1": 0.0, "0": 0.0
+                        "10": 50.0, "9": 45.0, "8": 40.0, "7": 35.0, "6": 30.0,
+                        "5": 24.0, "4": 18.0, "3": 12.0, "2": 6.0, "1": 0.0, "0": 0.0
                       }
                       """
                       
@@ -712,14 +712,28 @@ else:
               # Recuperar escala inteligente si existe
               escala_cargada = st.session_state["evaluaciones"][codigo_mat].get("escala_dict", {})
 
+              # Función auxiliar inversa para encontrar la nota en base al porcentaje ingresado por el usuario
+              def porcentaje_a_nota_pts(porc_buscado, escala_dict):
+                if not escala_dict:
+                  # Si no hay escala cargada, usar regla simple proporcional sobre 20
+                  return round((porc_buscado / 100.0) * 20.0, 1)
+                
+                # Buscar la nota cuyo porcentaje en el diccionario sea el más cercano o menor/igual
+                mejor_nota = 0.0
+                menor_diferencia = 999.0
+                for k_str, v_val in escala_dict.items():
+                  dif = abs(float(v_val) - float(porc_buscado))
+                  if dif < menor_diferencia:
+                    menor_diferencia = dif
+                    mejor_nota = float(k_str)
+                return mejor_nota
+
               for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
                 if "Entregada" not in item:
                   item["Entregada"] = False
-                if "Nota (0-20 pts)" not in item and "Nota" in item:
-                  item["Nota (0-20 pts)"] = item["Nota"]
                 
-                val_porcentaje_eval = float(item.get("Valor (%)", 25.0) or 25.0)
-                nota_20 = float(pd.to_numeric(item.get("Nota (0-20 pts)", 0.0), errors="coerce") or 0.0)
+                val_porcentaje_eval = float(item.get("Valor (%)", 25.0))
+                nota_20 = float(item.get("Nota (0-20 pts)", 0.0))
                 
                 if escala_cargada:
                   nota_key = str(int(round(nota_20)))
@@ -757,8 +771,7 @@ else:
                         "Evaluación": st.column_config.TextColumn("Evaluación"),
                         "Tema": st.column_config.TextColumn("Tema"),
                         "Valor (%)": st.column_config.NumberColumn(
-                            "Valor (%)", min_value=0.0, max_value=100.0, step=1.0,
-                            help="Peso o porcentaje de la evaluación."
+                            "Valor (%)", min_value=0, max_value=100, step=1
                         ),
                         "Nota (0-20 pts)": st.column_config.NumberColumn(
                             "Nota (0-20 pts)", min_value=0.0, max_value=20.0, step=0.5
@@ -767,8 +780,7 @@ else:
                             "Nota Acumulada (%)" if escala_sel == "Escala acumulativa" else "Nota (0-100)", 
                             min_value=0.0, 
                             max_value=100.0, 
-                            step=1.0,
-                            help="Puedes editar este porcentaje y el sistema ajustará o calculará su equivalente."
+                            step=1.0
                         ),
                         "Fecha": st.column_config.DateColumn(
                             "Fecha de Entrega", format="YYYY-MM-DD"
@@ -782,32 +794,42 @@ else:
                 if submit_notas:
                   updated_records = edited_df.to_dict("records")
                   for rec in updated_records:
-                    puntos = float(pd.to_numeric(rec.get("Nota (0-20 pts)", 0.0), errors="coerce") or 0.0)
-                    val_porc = float(pd.to_numeric(rec.get("Valor (%)", 25.0), errors="coerce") or 25.0)
-                    nota_100_ingresada = float(pd.to_numeric(rec.get("Nota (0-100)", 0.0), errors="coerce") or 0.0)
+                    puntos_ingresados = float(rec.get("Nota (0-20 pts)", 0.0) or 0.0)
+                    porcentaje_ingresado = float(rec.get("Nota (0-100)", 0.0) or 0.0)
+                    val_porc = float(rec.get("Valor (%)", 25.0) or 25.0)
                     
-                    rec["Nota (0-20 pts)"] = puntos
-                    rec["Valor (%)"] = val_porc
-                    
-                    if escala_sel == "Escala acumulativa" and val_porc > 0:
-                      rec["Nota (0-100)"] = round(nota_100_ingresada, 2)
-                    else:
-                      if escala_cargada:
-                        nota_key = str(int(round(puntos)))
-                        if nota_key in escala_cargada:
-                          porcentaje_base_100 = float(escala_cargada[nota_key])
-                        else:
-                          porcentaje_base_100 = (puntos / 20.0) * 100.0
-                        
-                        if escala_sel == "Escala acumulativa":
-                          rec["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porc, 2)
-                        else:
-                          rec["Nota (0-100)"] = round(porcentaje_base_100, 2)
+                    # Verificamos si el usuario editó el porcentaje directamente para mapearlo a puntos con la escala del PDF
+                    original_puntos = float(st.session_state["evaluaciones"][codigo_mat]["plan"][updated_records.index(rec)].get("Nota (0-20 pts)", 0.0))
+                    original_porc = float(st.session_state["evaluaciones"][codigo_mat]["plan"][updated_records.index(rec)].get("Nota (0-100)", 0.0))
+
+                    if porcentaje_ingresado != original_porc and puntos_ingresados == original_puntos:
+                      # El usuario modificó la columna de porcentaje/nota acumulada
+                      if escala_sel == "Escala acumulativa":
+                        # Despejar el porcentaje base 100
+                        porc_base = (porcentaje_ingresado / val_porc) * 100.0 if val_porc > 0 else 0
                       else:
-                        if escala_sel == "Escala acumulativa":
-                          rec["Nota (0-100)"] = round((puntos / 20.0) * val_porc, 2)
-                        else:
-                          rec["Nota (0-100)"] = round((puntos / 20.0) * 100.0, 2)
+                        porc_base = porcentaje_ingresado
+                      
+                      puntos_ingresados = porcentaje_a_nota_pts(porc_base, escala_cargada)
+
+                    rec["Nota (0-20 pts)"] = puntos_ingresados
+                    
+                    if escala_cargada:
+                      nota_key = str(int(round(puntos_ingresados)))
+                      if nota_key in escala_cargada:
+                        porcentaje_base_100 = float(escala_cargada[nota_key])
+                      else:
+                        porcentaje_base_100 = (puntos_ingresados / 20.0) * 100.0
+                      
+                      if escala_sel == "Escala acumulativa":
+                        rec["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porc, 2)
+                      else:
+                        rec["Nota (0-100)"] = round(porcentaje_base_100, 2)
+                    else:
+                      if escala_sel == "Escala acumulativa":
+                        rec["Nota (0-100)"] = round((puntos_ingresados / 20.0) * val_porc, 2)
+                      else:
+                        rec["Nota (0-100)"] = round((puntos_ingresados / 20.0) * 100.0, 2)
 
                   st.session_state["evaluaciones"][codigo_mat]["plan"] = updated_records
                   guardar_datos_usuario()
