@@ -654,7 +654,7 @@ else:
 
                 escala_sel = st.radio(
                     "Tipo de Cálculo de Notas:",
-                    ["Acumulativa (Ponderada)", "Promediada (Simple)"],
+                    ["Promediada (Simple)", "Acumulativa (Ponderada)"],
                     horizontal=True,
                     key=f"radio_esc_{codigo_mat}",
                 )
