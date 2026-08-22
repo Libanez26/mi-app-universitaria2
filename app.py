@@ -935,15 +935,15 @@ else:
   # PESTAÑA 3: ESCALA EVALUATIVA
   # ==========================================
   with tab_escala:
-    st.subheader("📊 Cargar y Ordenar la Escala Evaluativa")
+    st.subheader("📊 Escala Evaluativa")
     st.write(
-        "Sube un PDF con los criterios, baremos o escalas de evaluación de tus materias, "
-        "o administra los datos directamente en la tabla interactiva."
+        "Sube un PDF con la escala de notas institucional para extraerla automáticamente, "
+        "o administra los datos directamente en la tabla."
     )
 
     if st.session_state["escala_df"] is None:
       uploaded_escala = st.file_uploader(
-          "Sube el PDF de la escala evaluativa o baremo institucional", type=["pdf"], key="file_uploader_escala"
+          "Sube el PDF de la escala evaluativa", type=["pdf"], key="file_uploader_escala"
       )
 
       if uploaded_escala and st.button("📊 Procesar Escala con IA", key="btn_procesar_escala"):
@@ -958,15 +958,13 @@ else:
             )
 
             prompt = """
-                        Extrae la escala evaluativa, baremo o tabla de calificaciones del documento proporcionado.
-                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves:
+                        Extrae la tabla de escala evaluativa del documento proporcionado.
+                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas tres claves:
                         [
                           {
-                            "rango_desde": 0.0,
-                            "rango_hasta": 11.9,
-                            "calificacion_cualitativa": "Reprobado",
-                            "equivalencia_pts": 0.0,
-                            "descripcion": "No alcanza el objetivo mínimo"
+                            "Nivel de logro de la asignatura": "Excelente",
+                            "Calificación Cuantitativa": "18.0 - 20.0",
+                            "Calificación Cualitativa": "Aprobado"
                           }
                         ]
                         """
@@ -997,11 +995,11 @@ else:
       
       if st.button("➕ Crear Escala Vacía / Manual", key="btn_escala_vacia"):
         datos_base = [
-            {"rango_desde": 0.0, "rango_hasta": 11.9, "calificacion_cualitativa": "Reprobado", "equivalencia_pts": 0.0, "descripcion": "Insuficiente"},
-            {"rango_desde": 12.0, "rango_hasta": 14.0, "calificacion_cualitativa": "Aprobado", "equivalencia_pts": 12.0, "descripcion": "Suficiente"},
-            {"rango_desde": 14.1, "rango_hasta": 16.0, "calificacion_cualitativa": "Bueno", "equivalencia_pts": 14.0, "descripcion": "Notable"},
-            {"rango_desde": 16.1, "rango_hasta": 18.0, "calificacion_cualitativa": "Muy Bueno", "equivalencia_pts": 16.0, "descripcion": "Sobresaliente"},
-            {"rango_desde": 18.1, "rango_hasta": 20.0, "calificacion_cualitativa": "Excelente", "equivalencia_pts": 18.0, "descripcion": "Honorífico"}
+            {"Nivel de logro de la asignatura": "Insuficiente", "Calificación Cuantitativa": "0.0 - 11.9", "Calificación Cualitativa": "Reprobado"},
+            {"Nivel de logro de la asignatura": "Suficiente", "Calificación Cuantitativa": "12.0 - 14.0", "Calificación Cualitativa": "Aprobado"},
+            {"Nivel de logro de la asignatura": "Notable", "Calificación Cuantitativa": "14.1 - 16.0", "Calificación Cualitativa": "Aprobado"},
+            {"Nivel de logro de la asignatura": "Sobresaliente", "Calificación Cuantitativa": "16.1 - 18.0", "Calificación Cualitativa": "Aprobado"},
+            {"Nivel de logro de la asignatura": "Excelente", "Calificación Cuantitativa": "18.1 - 20.0", "Calificación Cualitativa": "Aprobado"}
         ]
         st.session_state["escala_df"] = pd.DataFrame(datos_base)
         guardar_datos_usuario()
@@ -1017,12 +1015,16 @@ else:
 
       df_escala_actual = st.session_state["escala_df"]
 
-      columnas_req_escala = ["rango_desde", "rango_hasta", "calificacion_cualitativa", "equivalencia_pts", "descripcion"]
+      columnas_req_escala = [
+          "Nivel de logro de la asignatura",
+          "Calificación Cuantitativa",
+          "Calificación Cualitativa"
+      ]
       for col in columnas_req_escala:
         if col not in df_escala_actual.columns:
           df_escala_actual[col] = ""
 
-      st.markdown("### 📋 Tabla de Escala y Criterios Evaluativos")
+      st.markdown("### 📋 Tabla de Escala Evaluativa")
       
       with st.form("form_editor_escala"):
         df_escala_editado = st.data_editor(
@@ -1031,11 +1033,9 @@ else:
             use_container_width=True,
             key="editor_escala_evaluativa",
             column_config={
-                "rango_desde": st.column_config.NumberColumn("Desde (Pts)", min_value=0.0, max_value=20.0, step=0.1),
-                "rango_hasta": st.column_config.NumberColumn("Hasta (Pts)", min_value=0.0, max_value=20.0, step=0.1),
-                "calificacion_cualitativa": st.column_config.TextColumn("Calificación / Concepto"),
-                "equivalencia_pts": st.column_config.NumberColumn("Puntaje Base", min_value=0.0, max_value=20.0, step=0.5),
-                "descripcion": st.column_config.TextColumn("Descripción del Criterio"),
+                "Nivel de logro de la asignatura": st.column_config.TextColumn("Nivel de logro de la asignatura"),
+                "Calificación Cuantitativa": st.column_config.TextColumn("Calificación Cuantitativa"),
+                "Calificación Cualitativa": st.column_config.TextColumn("Calificación Cualitativa"),
             }
         )
 
