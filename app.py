@@ -339,7 +339,7 @@ else:
     modelo_seleccionado = st.selectbox(
         "Selecciona el Modelo",
         [
-            "gemini-2.5-flash",
+            "gemini-3.5-flash",
             "gemini-2.0-flash",
         ],
         index=0,
@@ -1329,7 +1329,7 @@ else:
                     {horario_resumen}
                     """
 
-                    modelos_a_probar = ["gemini-2.5-flash", "gemini-2.0-flash"]
+                    modelos_a_probar = ["gemini-3.5-flash", "gemini-2.0-flash"]
                     response = None
                     ultimo_error = None
 
