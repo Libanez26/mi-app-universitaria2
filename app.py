@@ -575,7 +575,7 @@ else:
                             "Tema": "Unidad 1",
                             "Valor (%)": 25,
                             "Nota (0-20 pts)": 0.0,
-                            "Nota (0-100 %)": 0.0,
+                            "Nota (0-100)": 0.0,
                             "Fecha": hoy,
                             "Entregada": False,
                         },
@@ -647,6 +647,7 @@ else:
                   st.rerun()
 
               with col_e2:
+                # Lógica de escala seleccionada (Acumulativa vs Promediada)
                 escala_sel = st.radio(
                     "Escala para ingresar notas:",
                     ["Escala acumulativa", "Escala promediada"],
@@ -676,8 +677,17 @@ else:
                   item["Entregada"] = False
                 if "Nota (0-20 pts)" not in item and "Nota" in item:
                   item["Nota (0-20 pts)"] = item["Nota"]
-                if "Nota (0-100)" not in item:
-                  item["Nota (0-100)"] = round((item.get("Nota (0-20 pts)", 0.0) / 20.0) * 100.0, 2)
+                
+                # Cálculo inicial de la nota porcentual según el tipo de escala
+                val_porcentaje_eval = float(item.get("Valor (%)", 25.0))
+                nota_20 = float(item.get("Nota (0-20 pts)", 0.0))
+                
+                if escala_sel == "Escala acumulativa":
+                  # La nota (0-100) refleja el porcentaje obtenido de ese % asignado (Ej: 80% de 25% = 20%)
+                  item["Nota (0-100)"] = round((nota_20 / 20.0) * val_porcentaje_eval, 2)
+                else:
+                  # Escala promediada clásica sobre 100
+                  item["Nota (0-100)"] = round((nota_20 / 20.0) * 100.0, 2)
 
               df_eval_actual = pd.DataFrame(
                   st.session_state["evaluaciones"][codigo_mat]["plan"]
@@ -704,7 +714,10 @@ else:
                             "Nota (0-20 pts)", min_value=0.0, max_value=20.0, step=0.5
                         ),
                         "Nota (0-100)": st.column_config.NumberColumn(
-                            "Nota (0-100)", min_value=0.0, max_value=100.0, step=1.0
+                            "Nota Acumulada (%)" if escala_sel == "Escala acumulativa" else "Nota (0-100)", 
+                            min_value=0.0, 
+                            max_value=100.0, 
+                            step=1.0
                         ),
                         "Fecha": st.column_config.DateColumn(
                             "Fecha de Entrega", format="YYYY-MM-DD"
@@ -716,15 +729,18 @@ else:
                 submit_notas = st.form_submit_button("💾 Guardar Notas")
 
                 if submit_notas:
-                  # Sincronización bidireccional automática de celdas modificadas
                   updated_records = edited_df.to_dict("records")
                   for rec in updated_records:
-                    puntos = rec.get("Nota (0-20 pts)", 0.0) or 0.0
-                    porc = rec.get("Nota (0-100)", 0.0) or 0.0
+                    puntos = float(rec.get("Nota (0-20 pts)", 0.0) or 0.0)
+                    val_porc = float(rec.get("Valor (%)", 25.0) or 25.0)
                     
-                    # Comprobamos cuál cambió o actualizamos en base a puntos por defecto
-                    rec["Nota (0-20 pts)"] = float(puntos)
-                    rec["Nota (0-100)"] = round((float(puntos) / 20.0) * 100.0, 2)
+                    rec["Nota (0-20 pts)"] = puntos
+                    
+                    if escala_sel == "Escala acumulativa":
+                      # Sincronización automática respetando el peso acumulativo
+                      rec["Nota (0-100)"] = round((puntos / 20.0) * val_porc, 2)
+                    else:
+                      rec["Nota (0-100)"] = round((puntos / 20.0) * 100.0, 2)
 
                   st.session_state["evaluaciones"][codigo_mat]["plan"] = updated_records
                   guardar_datos_usuario()
@@ -1353,7 +1369,7 @@ else:
   # PESTAÑA 4: TÉCNICA POMODORO
   # ==========================================
   with tab_pomodoro:
-    st.subheader("🍅 Técnica Pomodoro")
+    st.subheader("⏱️ Técnica Pomodoro")
 
     with st.expander("¿Qué es esto?"):
         st.write("""
