@@ -57,30 +57,6 @@ try:
 except Exception as e:
   st.error(f"Error al conectar con Supabase: {e}")
 
-# --- ESCALA INSTITUCIONAL POR DEFECTO (BASADA EN DOCUMENTO OFICIAL) ---
-ESCALA_INSTITUCIONAL_DEFAULT = [
-    {"Rango (%)": "97% - 100%", "Calificación Cuantitativa (Pts)": 20, "Calificación Cualitativa": "EXCELENTE"},
-    {"Rango (%)": "93% - 96%", "Calificación Cuantitativa (Pts)": 19, "Calificación Cualitativa": "EXCELENTE"},
-    {"Rango (%)": "89% - 92%", "Calificación Cuantitativa (Pts)": 18, "Calificación Cualitativa": "SOBRESALIENTE"},
-    {"Rango (%)": "85% - 88%", "Calificación Cuantitativa (Pts)": 17, "Calificación Cualitativa": "SOBRESALIENTE"},
-    {"Rango (%)": "80% - 84%", "Calificación Cuantitativa (Pts)": 16, "Calificación Cualitativa": "DISTINGUIDO"},
-    {"Rango (%)": "75% - 79%", "Calificación Cuantitativa (Pts)": 15, "Calificación Cualitativa": "DISTINGUIDO"},
-    {"Rango (%)": "70% - 74%", "Calificación Cuantitativa (Pts)": 14, "Calificación Cualitativa": "BUENO"},
-    {"Rango (%)": "65% - 69%", "Calificación Cuantitativa (Pts)": 13, "Calificación Cualitativa": "BUENO"},
-    {"Rango (%)": "60% - 64%", "Calificación Cuantitativa (Pts)": 12, "Calificación Cualitativa": "BUENO"},
-    {"Rango (%)": "55% - 59%", "Calificación Cuantitativa (Pts)": 11, "Calificación Cualitativa": "SATISFACTORIO"},
-    {"Rango (%)": "50% - 54%", "Calificación Cuantitativa (Pts)": 10, "Calificación Cualitativa": "SATISFACTORIO"},
-    {"Rango (%)": "45% - 49%", "Calificación Cuantitativa (Pts)": 9, "Calificación Cualitativa": "DEFICIENTE"},
-    {"Rango (%)": "40% - 44%", "Calificación Cuantitativa (Pts)": 8, "Calificación Cualitativa": "DEFICIENTE"},
-    {"Rango (%)": "35% - 39%", "Calificación Cuantitativa (Pts)": 7, "Calificación Cualitativa": "DEFICIENTE"},
-    {"Rango (%)": "30% - 34%", "Calificación Cuantitativa (Pts)": 6, "Calificación Cualitativa": "DEFICIENTE"},
-    {"Rango (%)": "24% - 29%", "Calificación Cuantitativa (Pts)": 5, "Calificación Cualitativa": "MUY DEFICIENTE"},
-    {"Rango (%)": "18% - 23%", "Calificación Cuantitativa (Pts)": 4, "Calificación Cualitativa": "MUY DEFICIENTE"},
-    {"Rango (%)": "12% - 17%", "Calificación Cuantitativa (Pts)": 3, "Calificación Cualitativa": "MUY DEFICIENTE"},
-    {"Rango (%)": "06% - 11%", "Calificación Cuantitativa (Pts)": 2, "Calificación Cualitativa": "MUY DEFICIENTE"},
-    {"Rango (%)": "00% - 05%", "Calificación Cuantitativa (Pts)": 1, "Calificación Cualitativa": "MUY DEFICIENTE"}
-]
-
 # --- 4. ESTADO DE SESIÓN ---
 if "usuario" not in st.session_state:
   st.session_state["usuario"] = None
@@ -90,12 +66,12 @@ if "evaluaciones" not in st.session_state:
   st.session_state["evaluaciones"] = {}
 if "horario_df" not in st.session_state:
   st.session_state["horario_df"] = None
-if "escala_global" not in st.session_state:
-  st.session_state["escala_global"] = ESCALA_INSTITUCIONAL_DEFAULT
 if "mensajes_asistente" not in st.session_state:
   st.session_state["mensajes_asistente"] = [{
       "role": "assistant",
-      "content": "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?",
+      "content": (
+          "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?"
+      ),
   }]
 
 
@@ -124,9 +100,6 @@ def cargar_datos_usuario(user_id):
 
       if datos.get("horario_data"):
         st.session_state["horario_df"] = pd.DataFrame(datos["horario_data"])
-
-      if datos.get("escala_global_data"):
-        st.session_state["escala_global"] = datos["escala_global_data"]
   except Exception as e:
     st.error(f"Error cargando datos de la base de datos: {e}")
 
@@ -163,15 +136,12 @@ def guardar_datos_usuario():
       else None
   )
 
-  escala_global_json = st.session_state["escala_global"]
-
   data = {
       "id": user_id,
       "correo": correo,
       "pensum_data": pensum_json,
       "evaluaciones_data": evals_json,
       "horario_data": horario_json,
-      "escala_global_data": escala_global_json,
   }
 
   try:
@@ -250,27 +220,23 @@ def verificar_disponibilidad(row, df_completo):
   return True, "Disponible"
 
 
-# --- 8. CÁLCULO DE PROMEDIO GLOBAL (ROBUSTO) ---
+# --- 8. CÁLCULO DE PROMEDIO GLOBAL ---
 def calcular_indice_academico(df_pensum, evaluaciones):
   total_creditos = 0
   puntos_acumulados = 0.0
 
   for _, row in df_pensum.iterrows():
     cod = row["codigo"]
-    cred = pd.to_numeric(row.get("creditos", 0), errors="coerce")
-    cred = 0 if pd.isna(cred) else cred
+    cred = row.get("creditos", 0)
 
     if cod in evaluaciones:
       plan = evaluaciones[cod].get("plan", [])
       if plan:
         df_plan = pd.DataFrame(plan)
-        if "Nota (0-20 pts)" in df_plan.columns and "Valor (%)" in df_plan.columns:
-          notas = pd.to_numeric(df_plan["Nota (0-20 pts)"], errors="coerce").fillna(0)
-          valores = pd.to_numeric(df_plan["Valor (%)"], errors="coerce").fillna(0)
-          
+        if "Nota" in df_plan.columns and "Valor (%)" in df_plan.columns:
           nota_mat = (
-              (notas / 20.0)
-              * (valores / 100.0)
+              (df_plan["Nota"] / 20.0)
+              * (df_plan["Valor (%)"] / 100.0)
               * 20.0
           ).sum()
           if row["estado"] in ["Aprobada", "Reprobada", "En Curso"]:
@@ -371,6 +337,8 @@ else:
         [
             "gemini-3.5-flash",
             "gemini-2.0-flash",
+            "gemini-3.5-flash",
+            "gemini-2.5-flash",
         ],
         index=0,
         help=(
@@ -415,12 +383,11 @@ else:
 
   st.title("🎓 Mi App Universitaria")
 
-  tab_pensum, tab_horario, tab_escala_global, tab_asistente, tab_pomodoro = st.tabs([
+  tab_pensum, tab_horario, tab_asistente, tab_pomodoro = st.tabs([
       "📚 Pensum y Calificaciones",
       "📅 Horario de Clases",
-      "📊 Escala de Notas Global",
       "🤖 Asistente Virtual IA",
-      "⏱️ Pomodoro de Estudio",
+      "⏱️ Pomodoro de Estudio Integrado",
   ])
 
   # ==========================================
@@ -607,8 +574,7 @@ else:
                             "Evaluación": "Parcial 1",
                             "Tema": "Unidad 1",
                             "Valor (%)": 25,
-                            "Nota (0-20 pts)": 0.0,
-                            "Nota (0-100)": 0.0,
+                            "Nota": 0.0,
                             "Fecha": hoy,
                             "Entregada": False,
                         },
@@ -616,8 +582,7 @@ else:
                             "Evaluación": "Parcial 2",
                             "Tema": "Unidad 2",
                             "Valor (%)": 25,
-                            "Nota (0-20 pts)": 0.0,
-                            "Nota (0-100)": 0.0,
+                            "Nota": 0.0,
                             "Fecha": hoy,
                             "Entregada": False,
                         },
@@ -625,8 +590,7 @@ else:
                             "Evaluación": "Trabajo / Proyecto",
                             "Tema": "Unidad 3",
                             "Valor (%)": 25,
-                            "Nota (0-20 pts)": 0.0,
-                            "Nota (0-100)": 0.0,
+                            "Nota": 0.0,
                             "Fecha": hoy,
                             "Entregada": False,
                         },
@@ -634,8 +598,7 @@ else:
                             "Evaluación": "Exposición / Quices",
                             "Tema": "Unidad 4",
                             "Valor (%)": 25,
-                            "Nota (0-20 pts)": 0.0,
-                            "Nota (0-100)": 0.0,
+                            "Nota": 0.0,
                             "Fecha": hoy,
                             "Entregada": False,
                         },
@@ -680,43 +643,35 @@ else:
                   st.rerun()
 
               with col_e2:
+                # Detectar cambio previo de escala para conversión automática
+                key_escala_anterior = f"escala_anterior_{codigo_mat}"
+                if key_escala_anterior not in st.session_state:
+                    st.session_state[key_escala_anterior] = "0 - 20 pts"
+
                 escala_sel = st.radio(
                     "Escala para ingresar notas:",
-                    ["Escala acumulativa", "Escala promediada"],
+                    ["0 - 20 pts", "0 - 100%"],
                     horizontal=True,
                     key=f"radio_esc_{codigo_mat}",
                 )
 
-              st.markdown("---")
-
-              # Recuperar la escala global establecida por el usuario
-              tabla_escala_cargada = st.session_state["escala_global"]
-
-              # Función auxiliar para traducir puntos basados en la escala global
-              def obtener_porcentaje_desde_tabla(puntos_pts, tabla_esq):
-                for fila in tabla_esq:
-                  try:
-                    if int(fila.get("Calificación Cuantitativa (Pts)", 0)) == int(round(puntos_pts)):
-                      rango_str = str(fila.get("Rango (%)", "0% - 0%"))
-                      limite_inferior = float(rango_str.split("-")[0].replace("%", "").strip())
-                      return limite_inferior
-                  except Exception:
-                    continue
-                return (puntos_pts / 20.0) * 100.0
+                # Si el usuario cambió de escala, convertimos automáticamente los valores de las notas
+                if escala_sel != st.session_state[key_escala_anterior]:
+                    for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
+                        nota_actual = item.get("Nota", 0.0)
+                        if nota_actual is not None:
+                            if escala_sel == "0 - 100%":
+                                # Convertir de 20 pts a porcentaje (0-100)
+                                item["Nota"] = round((nota_actual / 20.0) * 100.0, 2)
+                            else:
+                                # Convertir de porcentaje a 20 pts
+                                item["Nota"] = round((nota_actual / 100.0) * 20.0, 2)
+                    st.session_state[key_escala_anterior] = escala_sel
+                    guardar_datos_usuario()
 
               for item in st.session_state["evaluaciones"][codigo_mat]["plan"]:
                 if "Entregada" not in item:
                   item["Entregada"] = False
-                
-                val_porcentaje_eval = float(item.get("Valor (%)", 25.0))
-                nota_20 = float(item.get("Nota (0-20 pts)", 0.0))
-                
-                porcentaje_base_100 = obtener_porcentaje_desde_tabla(nota_20, tabla_escala_cargada)
-                
-                if escala_sel == "Escala acumulativa":
-                  item["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porcentaje_eval, 2)
-                else:
-                  item["Nota (0-100)"] = round(porcentaje_base_100, 2)
 
               df_eval_actual = pd.DataFrame(
                   st.session_state["evaluaciones"][codigo_mat]["plan"]
@@ -727,9 +682,11 @@ else:
               if "Fecha" not in df_eval_actual.columns:
                 df_eval_actual["Fecha"] = datetime.date.today()
 
+              max_nota = 20.0 if "20" in escala_sel else 100.0
+
               with st.form(key=f"form_editor_notas_{codigo_mat}"):
                 edited_df = st.data_editor(
-                    df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota (0-20 pts)", "Nota (0-100)", "Fecha", "Entregada"]],
+                    df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
                     num_rows="dynamic",
                     use_container_width=True,
                     key=f"editor_{codigo_mat}",
@@ -739,14 +696,11 @@ else:
                         "Valor (%)": st.column_config.NumberColumn(
                             "Valor (%)", min_value=0, max_value=100, step=1
                         ),
-                        "Nota (0-20 pts)": st.column_config.NumberColumn(
-                            "Nota (0-20 pts)", min_value=0.0, max_value=20.0, step=0.5
-                        ),
-                        "Nota (0-100)": st.column_config.NumberColumn(
-                            "Nota Acumulada (%)" if escala_sel == "Escala acumulativa" else "Nota (0-100)", 
-                            min_value=0.0, 
-                            max_value=100.0, 
-                            step=1.0
+                        "Nota": st.column_config.NumberColumn(
+                            f"Nota ({'0-20 pts' if '20' in escala_sel else '0-100%'})",
+                            min_value=0.0,
+                            max_value=max_nota,
+                            step=0.5,
                         ),
                         "Fecha": st.column_config.DateColumn(
                             "Fecha de Entrega", format="YYYY-MM-DD"
@@ -758,24 +712,13 @@ else:
                 submit_notas = st.form_submit_button("💾 Guardar Notas")
 
                 if submit_notas:
-                  updated_records = edited_df.to_dict("records")
-                  for rec in updated_records:
-                    puntos_ingresados = float(rec.get("Nota (0-20 pts)", 0.0) or 0.0)
-                    rec["Nota (0-20 pts)"] = puntos_ingresados
-                    
-                    porcentaje_base_100 = obtener_porcentaje_desde_tabla(puntos_ingresados, tabla_escala_cargada)
-                    val_porc = float(rec.get("Valor (%)", 25.0) or 25.0)
-                    
-                    if escala_sel == "Escala acumulativa":
-                      rec["Nota (0-100)"] = round((porcentaje_base_100 / 100.0) * val_porc, 2)
-                    else:
-                      rec["Nota (0-100)"] = round(porcentaje_base_100, 2)
-
-                  st.session_state["evaluaciones"][codigo_mat]["plan"] = updated_records
+                  st.session_state["evaluaciones"][codigo_mat]["plan"] = (
+                      edited_df.to_dict("records")
+                  )
                   guardar_datos_usuario()
                   st.success("¡Notas guardadas correctamente!")
                   st.rerun()
-                 
+
               st.markdown("---")
               st.markdown("#### 📊 Resumen de Rendimiento")
 
@@ -785,17 +728,26 @@ else:
                   else 0.0
               )
 
+              if "20" in escala_sel:
+                max_nota = 20.0
+                min_aprobar = 12
+                unidad = "puntos"
+              else:
+                max_nota = 100.0
+                min_aprobar = 60
+                unidad = "%"
+
               puntos_acum = 0.0
-              if "Nota (0-20 pts)" in edited_df.columns and "Valor (%)" in edited_df.columns:
-                notas_ed = pd.to_numeric(edited_df["Nota (0-20 pts)"], errors="coerce").fillna(0)
-                vals_ed = pd.to_numeric(edited_df["Valor (%)"], errors="coerce").fillna(0)
+              if "Nota" in edited_df.columns and "Valor (%)" in edited_df.columns:
                 puntos_acum = (
-                    (notas_ed / 20.0)
-                    * (vals_ed / 100.0)
-                    * 20.0
+                    (edited_df["Nota"] / max_nota)
+                    * (edited_df["Valor (%)"] / 100.0)
+                    * max_nota
                 ).sum()
 
-              porcentaje_efectivo = (puntos_acum / 20.0) * 100.0
+              porcentaje_efectivo = (
+                  (puntos_acum / max_nota) * 100.0 if max_nota > 0 else 0.0
+              )
               falta_peso = 100.0 - peso_planificado
 
               col_ac1, col_ac2, col_ac3 = st.columns(3)
@@ -807,15 +759,17 @@ else:
 
               col_ac2.metric(
                   label="Nota Acumulada",
-                  value=f"{puntos_acum:.2f} / 20.0 pts",
+                  value=f"{puntos_acum:.2f} / {max_nota:.1f} {unidad}",
               )
 
               st.markdown("---")
               st.markdown("#### ✅ Resultado Final")
 
-              if puntos_acum >= 12.0:
+              nota_final_objetivo = 12 if "20" in escala_sel else 60
+
+              if puntos_acum >= nota_final_objetivo:
                 st.success(
-                    f"¡Felicidades! Con {puntos_acum:.2f} puntos, estás"
+                    f"¡Felicidades! Con {puntos_acum:.2f} {unidad}, estás"
                     " **APROBADO** en esta materia."
                 )
                 if st.button("Marcar como Aprobada automáticamente"):
@@ -829,10 +783,10 @@ else:
                   guardar_datos_usuario()
                   st.rerun()
               else:
-                faltan = 12.0 - puntos_acum
+                faltan = nota_final_objetivo - puntos_acum
                 st.warning(
                     f"Aún no alcanzas la nota mínima. Te faltan"
-                    f" **{faltan:.2f} puntos** para aprobar."
+                    f" **{faltan:.2f} {unidad}** para aprobar."
                 )
 
                 if falta_peso > 0:
@@ -989,49 +943,7 @@ else:
       st.session_state["horario_df"] = df_editado
 
   # ==========================================
-  # PESTAÑA 3: ESCALA DE NOTAS GLOBAL (NUEVA)
-  # ==========================================
-  with tab_escala_global:
-    st.subheader("📊 Configuración de la Escala de Calificaciones Institucional")
-    st.write(
-        "Modifica esta tabla **una sola vez**. Los cambios se aplicarán automáticamente a todas las materias de tu pensum y planes de evaluación."
-    )
-
-    df_escala_global_actual = pd.DataFrame(st.session_state["escala_global"])
-
-    with st.form(key="form_escala_global_sistema"):
-      edited_escala_global = st.data_editor(
-          df_escala_global_actual,
-          num_rows="dynamic",
-          use_container_width=True,
-          key="editor_escala_global_main",
-          column_config={
-              "Rango (%)": st.column_config.TextColumn("Nivel de logro de la asignatura (Rango %)"),
-              "Calificación Cuantitativa (Pts)": st.column_config.NumberColumn("Calificación Cuantitativa", min_value=0, max_value=20, step=1),
-              "Calificación Cualitativa": st.column_config.TextColumn("Calificación Cualitativa")
-          }
-      )
-
-      col_g1, col_g2 = st.columns(2)
-      with col_g1:
-        submit_escala_global = st.form_submit_button("💾 Guardar Escala Global")
-      with col_g2:
-        reset_escala_global = st.form_submit_button("🔄 Restaurar Valores por Defecto")
-
-      if submit_escala_global:
-        st.session_state["escala_global"] = edited_escala_global.to_dict("records")
-        guardar_datos_usuario()
-        st.success("¡Escala de calificaciones global actualizada para todo el sistema con éxito!")
-        st.rerun()
-
-      if reset_escala_global:
-        st.session_state["escala_global"] = ESCALA_INSTITUCIONAL_DEFAULT
-        guardar_datos_usuario()
-        st.success("¡Se ha restaurado la escala institucional por defecto!")
-        st.rerun()
-
-  # ==========================================
-  # PESTAÑA 4: ASISTENTE VIRTUAL UNIVERSITARIO
+  # PESTAÑA 3: ASISTENTE VIRTUAL UNIVERSITARIO
   # ==========================================
   with tab_asistente:
     st.subheader("🤖 Asistente Virtual Universitario")
@@ -1039,6 +951,7 @@ else:
         "Elige si prefieres interactuar mediante el menú de botones guiados o conversar libremente con el chat de IA."
     )
 
+    # Selector superior para alternar los modos
     tipo_asistente = st.radio(
         "Selecciona el modo de interacción:",
         ["🧭 Asistente Guiado (Solo Botones)", "💬 Chat Libre (Conversacional)"],
@@ -1046,11 +959,13 @@ else:
         key="selector_modo_asistente",
     )
 
+    # Inicialización de variables de sesión
     if "modo_asistente" not in st.session_state:
         st.session_state["modo_asistente"] = "menu_principal"
     if "sub_modo" not in st.session_state:
         st.session_state["sub_modo"] = None
     
+    # Mensaje inicial unificado para ambos chats
     mensaje_inicial_comun = "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo ayudar hoy?"
 
     if "mensajes_guiado" not in st.session_state:
@@ -1064,6 +979,7 @@ else:
             "content": mensaje_inicial_comun,
         }]
 
+    # Estilos CSS inyectados para simular una interfaz limpia de mensajería instantánea
     st.markdown("""
         <style>
         .chat-container {
@@ -1105,6 +1021,9 @@ else:
         </style>
     """, unsafe_allow_html=True)
 
+    # ==========================================
+    # MODO 1: ASISTENTE GUIADO (SOLO BOTONES, SIN CAJA DE TEXTO)
+    # ==========================================
     if "Asistente Guiado" in tipo_asistente:
         col_bt1, col_bt2 = st.columns([4, 1])
         with col_bt2:
@@ -1117,6 +1036,7 @@ else:
                 st.session_state["sub_modo"] = None
                 st.rerun()
 
+        # Renderizar historial estilo chat para el modo guiado
         chat_html_g = '<div class="chat-container">'
         for mensaje in st.session_state["mensajes_guiado"]:
             if mensaje["role"] == "user":
@@ -1128,6 +1048,7 @@ else:
 
         st.markdown("---")
 
+        # RAMIFICACIÓN 1: MENÚ PRINCIPAL
         if st.session_state["modo_asistente"] == "menu_principal":
             st.markdown("### 📌 Menú de Opciones Disponibles")
             c1, c2 = st.columns(2)
@@ -1204,7 +1125,7 @@ else:
                                     suma_parcial = 0
                                     total_val = 0
                                     for ev in plan:
-                                        nota = ev.get("Nota (0-20 pts)")
+                                        nota = ev.get("Nota")
                                         val = ev.get("Valor (%)", 25)
                                         if nota is not None:
                                             suma_parcial += float(nota) * (float(val) / 100.0)
@@ -1221,6 +1142,7 @@ else:
                     st.session_state["mensajes_guiado"].append({"role": "assistant", "content": alertas_txt})
                     st.rerun()
 
+        # RAMIFICACIÓN 2: FILTRO DE ESTADO DE NOTAS
         elif st.session_state["modo_asistente"] == "notas_filtro_estado":
             st.markdown("### 🔍 Selecciona el estado de las materias:")
             col_f1, col_f2, col_f3 = st.columns(3)
@@ -1244,6 +1166,7 @@ else:
                 st.session_state["modo_asistente"] = "menu_principal"
                 st.rerun()
 
+        # RAMIFICACIÓN 3: SELECCIONAR MATERIA ESPECÍFICA PARA NOTAS
         elif st.session_state["modo_asistente"] == "seleccionar_materia_notas":
             filtro_estado = st.session_state.get("sub_modo", "en curso")
             st.markdown(f"### 📚 Materias con estado: **{filtro_estado.upper()}**")
@@ -1280,7 +1203,7 @@ else:
                         suma_ponderada = 0
                         total_porcentaje = 0
                         c_nom = next((c for c in df_tabla_notas.columns if "evaluación" in c.lower() or "tema" in c.lower() or "nombre" in c.lower()), df_tabla_notas.columns[0])
-                        c_nota = next((c for c in df_tabla_notas.columns if "nota (0-20 pts)" in c.lower()), None)
+                        c_nota = next((c for c in df_tabla_notas.columns if "nota" in c.lower() or "puntos" in c.lower()), None)
                         c_val = next((c for c in df_tabla_notas.columns if "valor" in c.lower() or "%" in c.lower()), None)
 
                         for idx, row in df_tabla_notas.iterrows():
@@ -1311,11 +1234,12 @@ else:
                 st.session_state["modo_asistente"] = "notas_filtro_estado"
                 st.rerun()
 
+        # RAMIFICACIÓN 4: CONSULTAR HORARIO POR MATERIA
         elif st.session_state["modo_asistente"] == "horario_por_materia":
             st.markdown("### 🕒 Consultar horario de clases por materia")
             materias_horario = []
-            df_h = st.session_state.get("horario_df")
-            if df_h is not None and not df_h.empty:
+            if "horario_df" in st.session_state and st.session_state["horario_df"] is not None and not st.session_state["horario_df"].empty:
+                df_h = st.session_state["horario_df"]
                 col_m_h = next((c for c in df_h.columns if "materia" in c.lower() or "asignatura" in c.lower() or "curso" in c.lower()), None)
                 if col_m_h:
                     materias_horario = df_h[col_m_h].dropna().unique().tolist()
@@ -1339,6 +1263,9 @@ else:
                 st.session_state["modo_asistente"] = "menu_principal"
                 st.rerun()
 
+    # ==========================================
+    # MODO 2: CHAT LIBRE CONVERSACIONAL (CON CAJA DE TEXTO ACTIVA Y BOTÓN REINICIAR)
+    # ==========================================
     else:
         col_c1, col_c2 = st.columns([4, 1])
         with col_c2:
@@ -1349,6 +1276,7 @@ else:
                 }]
                 st.rerun()
 
+        # Renderizar historial estilo chat para el modo conversacional
         chat_html_c = '<div class="chat-container">'
         for mensaje in st.session_state["mensajes_conversacional"]:
             if mensaje["role"] == "user":
@@ -1358,6 +1286,7 @@ else:
         chat_html_c += '</div>'
         st.markdown(chat_html_c, unsafe_allow_html=True)
 
+        # Entrada de texto exclusiva para el chat libre
         if prompt_usuario := st.chat_input("Escribe una consulta libre para la IA..."):
             st.session_state["mensajes_conversacional"].append({
                 "role": "user",
@@ -1390,12 +1319,14 @@ else:
                     {horario_resumen}
                     """
 
-                    modelos_a_probar = ["gemini-3.5-flash", "gemini-2.0-flash"]
+                    # Lista de modelos seguros a probar
+                    modelos_a_probar = ["gemini-3.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"]
                     response = None
                     ultimo_error = None
 
                     for mod in modelos_a_probar:
                         try:
+                            # Forma correcta utilizando system_instruction en la configuración
                             response = client.models.generate_content(
                                 model=mod,
                                 contents=prompt_usuario,
@@ -1439,10 +1370,10 @@ else:
                     st.rerun()
 
   # ==========================================
-  # PESTAÑA 5: TÉCNICA POMODORO
+  # PESTAÑA 4: TÉCNICA POMODORO
   # ==========================================
   with tab_pomodoro:
-    st.subheader("⏱️ Técnica Pomodoro")
+    st.subheader("🍅 Técnica Pomodoro")
 
     with st.expander("¿Qué es esto?"):
         st.write("""
