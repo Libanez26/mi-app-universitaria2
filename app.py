@@ -662,11 +662,18 @@ else:
                   with st.spinner("La IA está leyendo la escala..."):
                     try:
                       api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                      # CORRECCIÓN: Forzamos el uso de la API Key explícitamente mediante api_key
                       client = genai.Client(api_key=api_key)
+                      
                       pdf_bytes = pdf_escala.read()
                       pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
                       prompt_escala = "Analiza este documento de escala de notas y resume brevemente las equivalencias principales encontradas (ej. 16 puntos equivale a 100%)."
-                      resp_escala = client.models.generate_content(model=modelo_seleccionado, contents=[prompt_escala, pdf_part])
+                      
+                      resp_escala = client.models.generate_content(
+                          model=modelo_seleccionado, 
+                          contents=[prompt_escala, pdf_part]
+                      )
+                      
                       if resp_escala and resp_escala.text:
                         st.success(f"Escala leída exitosamente:\n\n{resp_escala.text}")
                     except Exception as e_pdf:
