@@ -522,65 +522,6 @@ else:
 
       st.divider()
 
-      # --- ACCESO RÁPIDO DE ACTUALIZACIÓN DE MATERIAS ---
-      with st.expander("⚡ Panel de Acceso Rápido y Estados de Materias"):
-        st.markdown("Modifica el estado de tus materias o apruébalas rápidamente con un solo clic:")
-        for idx_r, row_r in df.iterrows():
-          codigo_mat_r = str(row_r["codigo"])
-          nombre_mat_r = str(row_r["materia"])
-          estado_actual_r = str(row_r.get("estado", "No Inscrita"))
-
-          key_estado_r = f"estado_rapido_{codigo_mat_r}"
-          if key_estado_r not in st.session_state:
-            st.session_state[key_estado_r] = estado_actual_r
-
-          col_qr1, col_qr2, col_qr3 = st.columns([2, 1, 1])
-
-          with col_qr1:
-            st.write(f"**{codigo_mat_r}** - {nombre_mat_r}")
-
-          with col_qr2:
-            estados_disp_r = ["No Inscrita", "Inscrita", "En Curso", "Aprobada", "Reprobada"]
-            idx_est_r = estados_disp_r.index(st.session_state[key_estado_r]) if st.session_state[key_estado_r] in estados_disp_r else 0
-            
-            nuevo_estado_r = st.selectbox(
-                "Estado",
-                estados_disp_r,
-                index=idx_est_r,
-                key=key_estado_r,
-                label_visibility="collapsed"
-            )
-            
-            if nuevo_estado_r != estado_actual_r:
-              st.session_state["pensum_df"].loc[st.session_state["pensum_df"]["codigo"] == codigo_mat_r, "estado"] = nuevo_estado_r
-              if codigo_mat_r in st.session_state["evaluaciones"]:
-                st.session_state["evaluaciones"][codigo_mat_r]["estado"] = nuevo_estado_r
-              # Limpiar caché del selectbox de detalle si existe
-              key_sel_det = f"sel_est_{codigo_mat_r}"
-              if key_sel_det in st.session_state:
-                del st.session_state[key_sel_det]
-              guardar_datos_usuario()
-              st.rerun()
-
-          with col_qr3:
-            if st.button("Aprobar Rápido", key=f"btn_aprob_rap_{codigo_mat_r}"):
-              st.session_state[key_estado_r] = "Aprobada"
-              st.session_state["pensum_df"].loc[st.session_state["pensum_df"]["codigo"] == codigo_mat_r, "estado"] = "Aprobada"
-              if codigo_mat_r in st.session_state["evaluaciones"]:
-                st.session_state["evaluaciones"][codigo_mat_r]["estado"] = "Aprobada"
-              else:
-                st.session_state["evaluaciones"][codigo_mat_r] = {"estado": "Aprobada", "plan": []}
-              
-              key_sel_det = f"sel_est_{codigo_mat_r}"
-              if key_sel_det in st.session_state:
-                del st.session_state[key_sel_det]
-                
-              guardar_datos_usuario()
-              st.success(f"¡{codigo_mat_r} aprobada!")
-              st.rerun()
-
-      st.divider()
-
       semestres = (
           list(df["semestre"].unique())
           if "semestre" in df.columns
@@ -694,8 +635,8 @@ else:
 
               col_e1, col_e2 = st.columns(2)
               with col_e1:
-                # Sincronizamos el estado de la materia desde evaluaciones o pensum_df
-                estado_actual = st.session_state["evaluaciones"][codigo_mat].get("estado", "No Inscrita")
+                # Sincronizamos el estado de la materia priorizando el diccionario de evaluaciones o el DataFrame
+                estado_actual = st.session_state["evaluaciones"][codigo_mat].get("estado", materia_sel.get("estado", "No Inscrita"))
                 
                 estados_disponibles = [
                     "No Inscrita",
@@ -706,11 +647,6 @@ else:
                 ]
                 
                 key_selectbox_estado = f"sel_est_{codigo_mat}"
-                
-                # Forzar que el selectbox refleje el estado real si ya cambió externamente
-                if key_selectbox_estado in st.session_state:
-                    if st.session_state[key_selectbox_estado] != estado_actual:
-                        st.session_state[key_selectbox_estado] = estado_actual
 
                 idx_e = (
                     estados_disponibles.index(estado_actual)
@@ -726,6 +662,7 @@ else:
                 )
 
                 if nuevo_est != estado_actual:
+                  # Actualizamos tanto el diccionario como el DataFrame global del pensum
                   st.session_state["evaluaciones"][codigo_mat]["estado"] = nuevo_est
                   st.session_state["pensum_df"].loc[
                       st.session_state["pensum_df"]["codigo"] == codigo_mat,
@@ -954,20 +891,23 @@ else:
                       " **APROBADO** en esta materia."
                   )
                   if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
-                      # 1. Actualizar en el diccionario de evaluaciones
-                      st.session_state["evaluaciones"][codigo_mat]["estado"] = "Aprobada"
+                      # 1. Actualizar estado en evaluaciones
+                      if codigo_mat not in st.session_state["evaluaciones"]:
+                          st.session_state["evaluaciones"][codigo_mat] = {"estado": "Aprobada", "plan": []}
+                      else:
+                          st.session_state["evaluaciones"][codigo_mat]["estado"] = "Aprobada"
                       
-                      # 2. Actualizar en el DataFrame general del pensum
+                      # 2. Actualizar estado en el DataFrame global del pensum para desbloquear prelaciones
                       st.session_state["pensum_df"].loc[
                           st.session_state["pensum_df"]["codigo"] == codigo_mat,
                           "estado",
                       ] = "Aprobada"
                       
-                      # 3. Borrar la llave del selectbox del session_state para forzar la actualización visual
+                      # 3. Limpiar caché del selectbox de estado para forzar el cambio visual inmediato
                       if key_selectbox_estado in st.session_state:
                           del st.session_state[key_selectbox_estado]
                       
-                      # 4. Guardar cambios y notificar con toast antes del rerun
+                      # 4. Guardar y refrescar la app
                       guardar_datos_usuario()
                       st.toast(f"¡La materia {codigo_mat} ahora está Aprobada!", icon="🎉")
                       st.rerun()
