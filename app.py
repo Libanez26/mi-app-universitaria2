@@ -760,7 +760,6 @@ else:
                     nuevo_pct = max(0.0, min(100.0, nuevo_pct))
                     plan_actual[i]["Nota (%)"] = nuevo_pct
                     
-                    # Conexión automática con la tabla de escala (Ej: 25% = 5 puntos)
                     pts_calculados = obtener_nota_desde_escala(nuevo_pct)
                     plan_actual[i]["Nota"] = pts_calculados
 
@@ -795,10 +794,8 @@ else:
                     if idx_del < len(plan_actual):
                       plan_actual.pop(idx_del)
 
-              # Sincronizamos antes de renderizar el editor
               sincronizar_notas_editor()
 
-              # Data Editor fuera de st.form para evitar errores de callback de Streamlit
               edited_df = st.data_editor(
                   df_eval_actual[[
                       "Evaluación",
@@ -852,23 +849,22 @@ else:
               st.markdown("#### 📊 Resumen de Rendimiento")
 
               es_acumulativa = "Acumulativa" in escala_sel
-              max_nota_pct = 100.0
-              min_aprobar_pct = 60.0  # Equivalente a 12 pts (60%)
+              min_aprobar = 12
 
-              resultado_actual = 0.0
-              unidad_resultado = "%"
-
-              if "Nota (%)" in edited_df.columns and not edited_df.empty:
-                pct_validos = edited_df["Nota (%)"].dropna()
-                if len(pct_validos) > 0:
+              puntos_acum = 0.0
+              if "Nota" in edited_df.columns and not edited_df.empty:
+                notas_validas = edited_df["Nota"].dropna()
+                if len(notas_validas) > 0:
                   if es_acumulativa:
-                    resultado_actual = pct_validos.sum()
+                    puntos_acum = notas_validas.sum()
                   else:
-                    resultado_actual = pct_validos.mean()
+                    puntos_acum = notas_validas.mean()
                 else:
-                  resultado_actual = 0.0
-              else:
-                resultado_actual = 0.0
+                  puntos_acum = 0.0
+
+              # --- CÁLCULO SIMULTÁNEO EN PUNTOS Y PORCENTAJE ---
+              porcentaje_acum = (puntos_acum / 20.0) * 100.0
+              resultado_combinado = f"{puntos_acum:.2f} pts / {porcentaje_acum:.2f} %"
 
               col_ac1, col_ac2 = st.columns(2)
               col_ac1.metric(
@@ -877,15 +873,15 @@ else:
               )
               col_ac2.metric(
                   label="Resultado Obtenido",
-                  value=f"{resultado_actual:.2f} {unidad_resultado} / {max_nota_pct:.1f} {unidad_resultado}",
+                  value=resultado_combinado,
               )
 
               st.markdown("---")
               st.markdown("#### ✅ Resultado Final")
 
-              if resultado_actual >= min_aprobar_pct:
+              if puntos_acum >= min_aprobar:
                 st.success(
-                    f"¡Felicidades! Con {resultado_actual:.2f} {unidad_resultado}, estás"
+                    f"¡Felicidades! Con {puntos_acum:.2f} pts, estás"
                     " **APROBADO** en esta materia."
                 )
                 if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
@@ -899,10 +895,10 @@ else:
                   guardar_datos_usuario()
                   st.rerun()
               else:
-                faltan = min_aprobar_pct - resultado_actual
+                faltan = min_aprobar - puntos_acum
                 st.warning(
                     f"Aún no alcanzas la nota mínima. Te faltan"
-                    f" **{faltan:.2f} {unidad_resultado}** para aprobar."
+                    f" **{faltan:.2f} pts** para aprobar."
                 )
 
               # --- SECCIÓN INTEGRADA: ESCALA EVALUATIVA INSTITUCIONAL ---
