@@ -852,6 +852,8 @@ else:
               min_aprobar = 12
 
               puntos_acum = 0.0
+              porcentaje_acum = 0.0
+
               if "Nota" in edited_df.columns and not edited_df.empty:
                 notas_validas = edited_df["Nota"].dropna()
                 if len(notas_validas) > 0:
@@ -862,8 +864,16 @@ else:
                 else:
                   puntos_acum = 0.0
 
-              # --- CÁLCULO SIMULTÁNEO EN PUNTOS Y PORCENTAJE ---
-              porcentaje_acum = (puntos_acum / 20.0) * 100.0
+              if "Nota (%)" in edited_df.columns and not edited_df.empty:
+                porcentajes_validos = edited_df["Nota (%)"].dropna()
+                if len(porcentajes_validos) > 0:
+                  if es_acumulativa:
+                    porcentaje_acum = porcentajes_validos.sum()
+                  else:
+                    porcentaje_acum = porcentajes_validos.mean()
+                else:
+                  porcentaje_acum = 0.0
+
               resultado_combinado = f"{puntos_acum:.2f} pts / {porcentaje_acum:.2f} %"
 
               col_ac1, col_ac2 = st.columns(2)
