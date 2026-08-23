@@ -773,57 +773,58 @@ else:
                     if idx_del < len(plan_actual):
                       plan_actual.pop(idx_del)
 
-              with st.form(key=f"form_editor_notas_{codigo_mat}"):
-                edited_df = st.data_editor(
-                    df_eval_actual[[
-                        "Evaluación",
-                        "Tema",
-                        "Valor (%)",
-                        "Nota",
-                        "Nota (%)",
-                        "Fecha",
-                        "Entregada",
-                    ]],
-                    num_rows="dynamic",
-                    use_container_width=True,
-                    key=f"editor_{codigo_mat}",
-                    on_change=sincronizar_notas_editor,
-                    column_config={
-                        "Evaluación": st.column_config.TextColumn("Evaluación"),
-                        "Tema": st.column_config.TextColumn("Tema"),
-                        "Valor (%)": st.column_config.NumberColumn(
-                            "Valor (%)", min_value=0, max_value=100, step=1
-                        ),
-                        "Nota": st.column_config.NumberColumn(
-                            "Nota (0-20 pts)",
-                            min_value=0.0,
-                            max_value=20.0,
-                            step=0.5,
-                            format="%.1f",
-                        ),
-                        "Nota (%)": st.column_config.NumberColumn(
-                            "Nota (%)",
-                            min_value=0.0,
-                            max_value=100.0,
-                            step=0.1,
-                            format="%.2f%%",
-                        ),
-                        "Fecha": st.column_config.DateColumn(
-                            "Fecha de Entrega", format="YYYY-MM-DD"
-                        ),
-                        "Entregada": st.column_config.CheckboxColumn(
-                            "¿Entregada?"
-                        ),
-                    },
-                )
+              # Sincronizamos antes de renderizar el editor
+              sincronizar_notas_editor()
 
-                submit_notas = st.form_submit_button("💾 Guardar Notas")
+              # Data Editor fuera de st.form para evitar errores de callback de Streamlit
+              edited_df = st.data_editor(
+                  df_eval_actual[[
+                      "Evaluación",
+                      "Tema",
+                      "Valor (%)",
+                      "Nota",
+                      "Nota (%)",
+                      "Fecha",
+                      "Entregada",
+                  ]],
+                  num_rows="dynamic",
+                  use_container_width=True,
+                  key=f"editor_{codigo_mat}",
+                  on_change=sincronizar_notas_editor,
+                  column_config={
+                      "Evaluación": st.column_config.TextColumn("Evaluación"),
+                      "Tema": st.column_config.TextColumn("Tema"),
+                      "Valor (%)": st.column_config.NumberColumn(
+                          "Valor (%)", min_value=0, max_value=100, step=1
+                      ),
+                      "Nota": st.column_config.NumberColumn(
+                          "Nota (0-20 pts)",
+                          min_value=0.0,
+                          max_value=20.0,
+                          step=0.5,
+                          format="%.1f",
+                      ),
+                      "Nota (%)": st.column_config.NumberColumn(
+                          "Nota (%)",
+                          min_value=0.0,
+                          max_value=100.0,
+                          step=0.1,
+                          format="%.2f%%",
+                      ),
+                      "Fecha": st.column_config.DateColumn(
+                          "Fecha de Entrega", format="YYYY-MM-DD"
+                      ),
+                      "Entregada": st.column_config.CheckboxColumn(
+                          "¿Entregada?"
+                      ),
+                  },
+              )
 
-                if submit_notas:
-                  sincronizar_notas_editor()
-                  guardar_datos_usuario()
-                  st.success("¡Notas guardadas correctamente!")
-                  st.rerun()
+              if st.button("💾 Guardar Notas", key=f"btn_guardar_notas_{codigo_mat}"):
+                sincronizar_notas_editor()
+                guardar_datos_usuario()
+                st.success("¡Notas guardadas correctamente!")
+                st.rerun()
 
               st.markdown("---")
               st.markdown("#### 📊 Resumen de Rendimiento")
