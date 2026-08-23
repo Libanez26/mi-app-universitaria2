@@ -787,16 +787,55 @@ else:
                     f" **{faltan:.2f} pts** para aprobar."
                 )
 
-              # --- SECCIÓN INTEGRADA: ESCALA EVALUATIVA INSTITUCIONAL (AL FINAL Y EN EXPANSOR) ---
+              # --- SECCIÓN INTEGRADA: ESCALA EVALUATIVA INSTITUCIONAL ---
               st.markdown("---")
               with st.expander("📌 Ver / Configurar Tabla de Escala Evaluativa de Referencia"):
                 
-                # --- AQUÍ FUE COLOCADO EL COMPONENTE SOLICITADO ---
                 archivo_pdf = st.file_uploader("Sube el PDF de la Escala Evaluativa", type=["pdf"], key=f"uploader_escala_{codigo_mat}")
 
                 if archivo_pdf is not None:
-                    # Aquí procesas tu PDF (por ejemplo, con PyPDF2, pdfplumber o similar)
-                    st.success("¡PDF cargado correctamente! Extrae los datos y guárdalos en 'escala_data'.") [cite: 6]
+                    with st.spinner("Procesando escala evaluativa con Gemini..."):
+                      try:
+                        api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                        client = genai.Client(api_key=api_key)
+
+                        pdf_bytes = archivo_pdf.read()
+                        pdf_part = types.Part.from_bytes(
+                            data=pdf_bytes, mime_type="application/pdf"
+                        )
+
+                        prompt_escala = """
+                        Extrae la tabla de escala de notas o calificación institucional del documento proporcionado.
+                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves:
+                        [
+                          {
+                            "Nivel de logro de la asignatura": "Insuficiente",
+                            "Calificación Cuantitativa": "0.0 - 11.9",
+                            "Calificación Cualitativa": "Reprobado"
+                          }
+                        ]
+                        """
+
+                        response_escala = client.models.generate_content(
+                            model=modelo_seleccionado, contents=[prompt_escala, pdf_part]
+                        )
+
+                        if response_escala and response_escala.text:
+                          clean_text_esc = response_escala.text.strip()
+                          if clean_text_esc.startswith("```json"):
+                            clean_text_esc = clean_text_esc[7:]
+                          if clean_text_esc.startswith("```"):
+                            clean_text_esc = clean_text_esc[3:]
+                          if clean_text_esc.endswith("```"):
+                            clean_text_esc = clean_text_esc[:-3]
+
+                          data_escala = json.loads(clean_text_esc.strip())
+                          st.session_state["escala_df"] = pd.DataFrame(data_escala)
+                          guardar_datos_usuario()
+                          st.success("¡PDF procesado y escala actualizada correctamente!")
+                          st.rerun()
+                      except Exception as err_esc:
+                        st.error(f"Error procesando el PDF de escala: {err_esc}")
 
                 col_esc_btn1, col_esc_btn2 = st.columns([3, 1])
                 with col_esc_btn2:
