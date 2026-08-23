@@ -949,7 +949,7 @@ else:
                           "estado",
                       ] = "Aprobada"
                       
-                      # 3. Sincronizar el estado del selectbox visual superior
+                      # 3. Actualizar la llave del selectbox antes del rerun para que tome el nuevo valor al recargar
                       key_selectbox_estado = f"sel_est_{codigo_mat}"
                       st.session_state[key_selectbox_estado] = "Aprobada"
                       
