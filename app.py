@@ -522,6 +522,56 @@ else:
 
       st.divider()
 
+      # --- INTEGRACIÓN: ACCESO RÁPIDO DE ACTUALIZACIÓN DE MATERIAS ---
+      with st.expander("⚡ Panel de Acceso Rápido y Estados de Materias"):
+        st.markdown("Modifica el estado de tus materias o apruébalas rápidamente con un solo clic:")
+        for idx_r, row_r in df.iterrows():
+          codigo_mat_r = str(row_r["codigo"])
+          nombre_mat_r = str(row_r["materia"])
+          estado_actual_r = str(row_r.get("estado", "No Inscrita"))
+
+          key_estado_r = f"estado_rapido_{codigo_mat_r}"
+          if key_estado_r not in st.session_state:
+            st.session_state[key_estado_r] = estado_actual_r
+
+          col_qr1, col_qr2, col_qr3 = st.columns([2, 1, 1])
+
+          with col_qr1:
+            st.write(f"**{codigo_mat_r}** - {nombre_mat_r}")
+
+          with col_qr2:
+            estados_disp_r = ["No Inscrita", "Inscrita", "En Curso", "Aprobada", "Reprobada"]
+            idx_est_r = estados_disp_r.index(st.session_state[key_estado_r]) if st.session_state[key_estado_r] in estados_disp_r else 0
+            
+            nuevo_estado_r = st.selectbox(
+                "Estado",
+                estados_disp_r,
+                index=idx_est_r,
+                key=key_estado_r,
+                label_visibility="collapsed"
+            )
+            
+            if nuevo_estado_r != estado_actual_r:
+              st.session_state["pensum_df"].loc[st.session_state["pensum_df"]["codigo"] == codigo_mat_r, "estado"] = nuevo_estado_r
+              if codigo_mat_r in st.session_state["evaluaciones"]:
+                st.session_state["evaluaciones"][codigo_mat_r]["estado"] = nuevo_estado_r
+              guardar_datos_usuario()
+              st.rerun()
+
+          with col_qr3:
+            if st.button("Aprobar Rápido", key=f"btn_aprob_rap_{codigo_mat_r}"):
+              st.session_state[key_estado_r] = "Aprobada"
+              st.session_state["pensum_df"].loc[st.session_state["pensum_df"]["codigo"] == codigo_mat_r, "estado"] = "Aprobada"
+              if codigo_mat_r in st.session_state["evaluaciones"]:
+                st.session_state["evaluaciones"][codigo_mat_r]["estado"] = "Aprobada"
+              else:
+                st.session_state["evaluaciones"][codigo_mat_r] = {"estado": "Aprobada", "plan": []}
+              guardar_datos_usuario()
+              st.success(f"¡{codigo_mat_r} aprobada!")
+              st.rerun()
+
+      st.divider()
+
       semestres = (
           list(df["semestre"].unique())
           if "semestre" in df.columns
@@ -714,7 +764,6 @@ else:
                     df_eval_actual["Nota"] / 20.0
                 ) * df_eval_actual["Valor (%)"]
 
-              # --- FUNCIÓN DE CONEXIÓN CON LA ESCALA INSTITUCIONAL ---
               def obtener_nota_desde_escala(pct_obtenido):
                 df_escala = st.session_state.get("escala_df", pd.DataFrame())
                 if df_escala.empty:
@@ -750,10 +799,6 @@ else:
                   i = int(i_str)
                   if i >= len(plan_actual):
                     continue
-
-                  val_porcentaje_eval = float(
-                      plan_actual[i].get("Valor (%)", 25.0)
-                  )
 
                   if "Nota (%)" in cambios:
                     nuevo_pct = float(cambios["Nota (%)"])
@@ -911,7 +956,6 @@ else:
                     f" **{faltan:.2f} pts** para aprobar."
                 )
 
-              # --- SECCIÓN INTEGRADA: ESCALA EVALUATIVA INSTITUCIONAL ---
               st.markdown("---")
               with st.expander("📌 Ver / Configurar Tabla de Escala Evaluativa de Referencia"):
                 
