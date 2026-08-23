@@ -949,7 +949,12 @@ else:
                           "estado",
                       ] = "Aprobada"
                       
-                      # 3. Guardar cambios y notificar con toast antes del rerun
+                      # 3. Eliminar la llave del selectbox del session_state para forzar que se reinicie con el nuevo valor "Aprobada"
+                      key_selectbox_estado = f"sel_est_{codigo_mat}"
+                      if key_selectbox_estado in st.session_state:
+                          del st.session_state[key_selectbox_estado]
+                      
+                      # 4. Guardar cambios y notificar con toast antes del rerun
                       guardar_datos_usuario()
                       st.toast(f"¡La materia {codigo_mat} ahora está Aprobada!", icon="🎉")
                       st.rerun()
