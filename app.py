@@ -682,11 +682,17 @@ else:
                     st.session_state[key_escala_anterior] = escala_sel
                     guardar_datos_usuario()
 
-              df_eval_actual = pd.DataFrame(
-                  st.session_state["evaluaciones"][codigo_mat]["plan"]
-              )
+              plan_data_inicial = st.session_state["evaluaciones"][codigo_mat]["plan"]
+              df_eval_actual = pd.DataFrame(plan_data_inicial)
 
-              for col_req in ["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]:
+              for col_req in [
+                  "Evaluación",
+                  "Tema",
+                  "Valor (%)",
+                  "Nota",
+                  "Fecha",
+                  "Entregada",
+              ]:
                 if col_req not in df_eval_actual.columns:
                   if col_req == "Valor (%)":
                     df_eval_actual[col_req] = 25.0
@@ -699,12 +705,89 @@ else:
                   else:
                     df_eval_actual[col_req] = ""
 
+              if "Nota (%)" not in df_eval_actual.columns:
+                df_eval_actual["Nota (%)"] = (
+                    df_eval_actual["Nota"] / 20.0
+                ) * df_eval_actual["Valor (%)"]
+
+              def sincronizar_notas_editor():
+                editor_key = f"editor_{codigo_mat}"
+                if editor_key not in st.session_state:
+                  return
+
+                edited_data = st.session_state[editor_key]
+                plan_actual = st.session_state["evaluaciones"][codigo_mat][
+                    "plan"
+                ]
+
+                for i_str, cambios in edited_data.get(
+                    "edited_rows", {}
+                ).items():
+                  i = int(i_str)
+                  if i >= len(plan_actual):
+                    continue
+
+                  val_porcentaje_eval = float(
+                      plan_actual[i].get("Valor (%)", 25.0)
+                  )
+
+                  if "Nota" in cambios:
+                    nuevo_pts = float(cambios["Nota"])
+                    nuevo_pts = max(
+                        0.0, min(20.0, nuevo_pts)
+                    )
+                    plan_actual[i]["Nota"] = nuevo_pts
+                    plan_actual[i]["Nota (%)"] = (
+                        nuevo_pts / 20.0
+                    ) * val_porcentaje_eval
+
+                  elif "Nota (%)" in cambios:
+                    nuevo_pct = float(cambios["Nota (%)"])
+                    nuevo_pct = max(
+                        0.0, min(val_porcentaje_eval, nuevo_pct)
+                    )
+                    plan_actual[i]["Nota (%)"] = nuevo_pct
+                    if val_porcentaje_eval > 0:
+                      puntos_calculados = (
+                          nuevo_pct / val_porcentaje_eval
+                      ) * 20.0
+                    else:
+                      puntos_calculados = 0.0
+                    plan_actual[i]["Nota"] = round(puntos_calculados, 2)
+
+                if "added_rows" in edited_data and edited_data["added_rows"]:
+                  for row_nueva in edited_data["added_rows"]:
+                    p_val = float(row_nueva.get("Nota", 0.0))
+                    v_val = float(row_nueva.get("Valor (%)", 25.0))
+                    pct_val = (p_val / 20.0) * v_val
+                    row_nueva["Nota (%)"] = pct_val
+                    plan_actual.append(row_nueva)
+
+                if "deleted_rows" in edited_data and edited_data[
+                    "deleted_rows"
+                ]:
+                  indices_a_borrar = sorted(
+                      edited_data["deleted_rows"], reverse=True
+                  )
+                  for idx_del in indices_a_borrar:
+                    if idx_del < len(plan_actual):
+                      plan_actual.pop(idx_del)
+
               with st.form(key=f"form_editor_notas_{codigo_mat}"):
                 edited_df = st.data_editor(
-                    df_eval_actual[["Evaluación", "Tema", "Valor (%)", "Nota", "Fecha", "Entregada"]],
+                    df_eval_actual[[
+                        "Evaluación",
+                        "Tema",
+                        "Valor (%)",
+                        "Nota",
+                        "Nota (%)",
+                        "Fecha",
+                        "Entregada",
+                    ]],
                     num_rows="dynamic",
                     use_container_width=True,
                     key=f"editor_{codigo_mat}",
+                    on_change=sincronizar_notas_editor,
                     column_config={
                         "Evaluación": st.column_config.TextColumn("Evaluación"),
                         "Tema": st.column_config.TextColumn("Tema"),
@@ -716,20 +799,28 @@ else:
                             min_value=0.0,
                             max_value=20.0,
                             step=0.5,
+                            format="%.1f",
+                        ),
+                        "Nota (%)": st.column_config.NumberColumn(
+                            "Nota (%)",
+                            min_value=0.0,
+                            max_value=100.0,
+                            step=0.1,
+                            format="%.2f%%",
                         ),
                         "Fecha": st.column_config.DateColumn(
                             "Fecha de Entrega", format="YYYY-MM-DD"
                         ),
-                        "Entregada": st.column_config.CheckboxColumn("¿Entregada?"),
+                        "Entregada": st.column_config.CheckboxColumn(
+                            "¿Entregada?"
+                        ),
                     },
                 )
 
                 submit_notas = st.form_submit_button("💾 Guardar Notas")
 
                 if submit_notas:
-                  st.session_state["evaluaciones"][codigo_mat]["plan"] = (
-                      edited_df.to_dict("records")
-                  )
+                  sincronizar_notas_editor()
                   guardar_datos_usuario()
                   st.success("¡Notas guardadas correctamente!")
                   st.rerun()
