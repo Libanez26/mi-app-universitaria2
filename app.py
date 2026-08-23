@@ -852,19 +852,23 @@ else:
               st.markdown("#### 📊 Resumen de Rendimiento")
 
               es_acumulativa = "Acumulativa" in escala_sel
-              max_nota = 20.0
-              min_aprobar = 12
+              max_nota_pct = 100.0
+              min_aprobar_pct = 60.0  # Equivalente a 12 pts (60%)
 
-              puntos_acum = 0.0
-              if "Nota" in edited_df.columns and not edited_df.empty:
-                notas_validas = edited_df["Nota"].dropna()
-                if len(notas_validas) > 0:
+              resultado_actual = 0.0
+              unidad_resultado = "%"
+
+              if "Nota (%)" in edited_df.columns and not edited_df.empty:
+                pct_validos = edited_df["Nota (%)"].dropna()
+                if len(pct_validos) > 0:
                   if es_acumulativa:
-                    puntos_acum = notas_validas.sum()
+                    resultado_actual = pct_validos.sum()
                   else:
-                    puntos_acum = notas_validas.mean()
+                    resultado_actual = pct_validos.mean()
                 else:
-                  puntos_acum = 0.0
+                  resultado_actual = 0.0
+              else:
+                resultado_actual = 0.0
 
               col_ac1, col_ac2 = st.columns(2)
               col_ac1.metric(
@@ -873,15 +877,15 @@ else:
               )
               col_ac2.metric(
                   label="Resultado Obtenido",
-                  value=f"{puntos_acum:.2f} / {max_nota:.1f} pts",
+                  value=f"{resultado_actual:.2f} {unidad_resultado} / {max_nota_pct:.1f} {unidad_resultado}",
               )
 
               st.markdown("---")
               st.markdown("#### ✅ Resultado Final")
 
-              if puntos_acum >= min_aprobar:
+              if resultado_actual >= min_aprobar_pct:
                 st.success(
-                    f"¡Felicidades! Con {puntos_acum:.2f} pts, estás"
+                    f"¡Felicidades! Con {resultado_actual:.2f} {unidad_resultado}, estás"
                     " **APROBADO** en esta materia."
                 )
                 if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
@@ -895,10 +899,10 @@ else:
                   guardar_datos_usuario()
                   st.rerun()
               else:
-                faltan = min_aprobar - puntos_acum
+                faltan = min_aprobar_pct - resultado_actual
                 st.warning(
                     f"Aún no alcanzas la nota mínima. Te faltan"
-                    f" **{faltan:.2f} pts** para aprobar."
+                    f" **{faltan:.2f} {unidad_resultado}** para aprobar."
                 )
 
               # --- SECCIÓN INTEGRADA: ESCALA EVALUATIVA INSTITUCIONAL ---
