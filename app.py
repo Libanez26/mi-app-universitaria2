@@ -790,6 +790,14 @@ else:
               # --- SECCIÓN INTEGRADA: ESCALA EVALUATIVA INSTITUCIONAL (AL FINAL Y EN EXPANSOR) ---
               st.markdown("---")
               with st.expander("📌 Ver / Configurar Tabla de Escala Evaluativa de Referencia"):
+                
+                # --- AQUÍ FUE COLOCADO EL COMPONENTE SOLICITADO ---
+                archivo_pdf = st.file_uploader("Sube el PDF de la Escala Evaluativa", type=["pdf"], key=f"uploader_escala_{codigo_mat}")
+
+                if archivo_pdf is not None:
+                    # Aquí procesas tu PDF (por ejemplo, con PyPDF2, pdfplumber o similar)
+                    st.success("¡PDF cargado correctamente! Extrae los datos y guárdalos en 'escala_data'.") [cite: 6]
+
                 col_esc_btn1, col_esc_btn2 = st.columns([3, 1])
                 with col_esc_btn2:
                   if st.button("🗑️ Vaciar Tabla", key=f"btn_vaciar_escala_{codigo_mat}"):
