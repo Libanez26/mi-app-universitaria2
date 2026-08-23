@@ -445,20 +445,20 @@ else:
             )
 
             prompt = """
-                        Extrae exhaustivamente todas las materias del documento del pensum proporcionado.
-                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida.
+                    Extrae exhaustivamente todas las materias del documento del pensum proporcionado.
+                    Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida.
 
-                        La estructura debe ser una lista de objetos JSON con exactamente estas claves:
-                        [
-                          {
-                            "semestre": "Semestre I",
-                            "codigo": "MAT-101",
-                            "materia": "Matemática I",
-                            "creditos": 4,
-                            "prelaciones": "Ninguna"
-                          }
-                        ]
-                        """
+                    La estructura debe ser una lista de objetos JSON con exactamente estas claves:
+                    [
+                      {
+                        "semestre": "Semestre I",
+                        "codigo": "MAT-101",
+                        "materia": "Matemática I",
+                        "creditos": 4,
+                        "prelaciones": "Ninguna"
+                      }
+                    ]
+                    """
 
             response = client.models.generate_content(
                 model=modelo_seleccionado, contents=[prompt, pdf_part]
@@ -870,7 +870,7 @@ else:
                 else:
                   porcentaje_acum = 0.0
 
-              resultado_combinado = f"{puntos_acum:.2f} pts / {porcentaje_acum:.2f} %"
+              resultado_combinado = f"{puntos_acum:.2f} pts / {porcentaje_acum:.1f}%"
 
               col_ac1, col_ac2 = st.columns(2)
               col_ac1.metric(
@@ -887,7 +887,7 @@ else:
 
               if puntos_acum >= min_aprobar:
                   st.success(
-                      f"¡Felicidades! Con {puntos_acum:.2f} pts, estás"
+                      f"¡Felicidades! Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, estás"
                       " **APROBADO** en esta materia."
                   )
                   if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
@@ -914,13 +914,13 @@ else:
               else:
                   faltan = min_aprobar - puntos_acum
                   st.warning(
-                      f"Aún no alcanzas la nota mínima. Te faltan"
+                      f"Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, aún no alcanzas la nota mínima. Te faltan"
                       f" **{faltan:.2f} pts** para aprobar."
                   )
 
               st.markdown("---")
               with st.expander("📌 Ver / Configurar Tabla de Escala Evaluativa de Referencia"):
-                
+              
                 archivo_pdf = st.file_uploader("Sube el PDF de la Escala Evaluativa", type=["pdf"], key=f"uploader_escala_{codigo_mat}")
 
                 if archivo_pdf is not None:
@@ -1006,7 +1006,6 @@ else:
                     guardar_datos_usuario()
                     st.success("¡Escala evaluativa actualizada correctamente!")
                     st.rerun()
-
   # ==========================================
   # PESTAÑA 2: HORARIO DE CLASES
   # ==========================================
