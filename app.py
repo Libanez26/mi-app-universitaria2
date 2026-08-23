@@ -68,11 +68,15 @@ if "horario_df" not in st.session_state:
   st.session_state["horario_df"] = None
 if "escala_df" not in st.session_state:
   st.session_state["escala_df"] = pd.DataFrame([
-      {"Nivel de logro de la asignatura": "Insuficiente", "Calificación Cuantitativa": "0.0 - 11.9", "Calificación Cualitativa": "Reprobado"},
-      {"Nivel de logro de la asignatura": "Suficiente", "Calificación Cuantitativa": "12.0 - 14.0", "Calificación Cualitativa": "Aprobado"},
-      {"Nivel de logro de la asignatura": "Notable", "Calificación Cuantitativa": "14.1 - 16.0", "Calificación Cualitativa": "Aprobado"},
-      {"Nivel de logro de la asignatura": "Sobresaliente", "Calificación Cuantitativa": "16.1 - 18.0", "Calificación Cualitativa": "Aprobado"},
-      {"Nivel de logro de la asignatura": "Excelente", "Calificación Cuantitativa": "18.1 - 20.0", "Calificación Cualitativa": "Aprobado"}
+      {"Nivel de logro de la asignatura": "00% - 05%", "Calificación Cuantitativa": "01", "Calificación Cualitativa": "MUY DEFICIENTE"},
+      {"Nivel de logro de la asignatura": "06% - 11%", "Calificación Cuantitativa": "02", "Calificación Cualitativa": "MUY DEFICIENTE"},
+      {"Nivel de logro de la asignatura": "12% - 17%", "Calificación Cuantitativa": "03", "Calificación Cualitativa": "MUY DEFICIENTE"},
+      {"Nivel de logro de la asignatura": "18% - 23%", "Calificación Cuantitativa": "04", "Calificación Cualitativa": "MUY DEFICIENTE"},
+      {"Nivel de logro de la asignatura": "24% - 29%", "Calificación Cuantitativa": "05", "Calificación Cualitativa": "MUY DEFICIENTE"},
+      {"Nivel de logro de la asignatura": "30% - 34%", "Calificación Cuantitativa": "06", "Calificación Cualitativa": "DEFICIENTE"},
+      {"Nivel de logro de la asignatura": "35% - 39%", "Calificación Cuantitativa": "07", "Calificación Cualitativa": "DEFICIENTE"},
+      {"Nivel de logro de la asignatura": "40% - 44%", "Calificación Cuantitativa": "08", "Calificación Cualitativa": "DEFICIENTE"},
+      {"Nivel de logro de la asignatura": "45% - 49%", "Calificación Cuantitativa": "09", "Calificación Cualitativa": "DEFICIENTE"}
   ])
 if "mensajes_asistente" not in st.session_state:
   st.session_state["mensajes_asistente"] = [{
@@ -710,6 +714,26 @@ else:
                     df_eval_actual["Nota"] / 20.0
                 ) * df_eval_actual["Valor (%)"]
 
+              # --- FUNCIÓN DE CONEXIÓN CON LA ESCALA INSTITUCIONAL ---
+              def obtener_nota_desde_escala(pct_obtenido):
+                df_escala = st.session_state.get("escala_df", pd.DataFrame())
+                if df_escala.empty:
+                  return round((pct_obtenido / 100.0) * 20.0, 2)
+                
+                for _, row in df_escala.iterrows():
+                  rango_str = str(row.get("Nivel de logro de la asignatura", ""))
+                  if "-" in rango_str:
+                    try:
+                      partes = rango_str.replace("%", "").split("-")
+                      min_r = float(partes[0].strip())
+                      max_r = float(partes[1].strip())
+                      if min_r <= pct_obtenido <= max_r:
+                        val_cuant = float(row.get("Calificación Cuantitativa", 0))
+                        return val_cuant
+                    except ValueError:
+                      continue
+                return round((pct_obtenido / 100.0) * 20.0, 2)
+
               def sincronizar_notas_editor():
                 editor_key = f"editor_{codigo_mat}"
                 if editor_key not in st.session_state:
@@ -731,36 +755,34 @@ else:
                       plan_actual[i].get("Valor (%)", 25.0)
                   )
 
-                  if "Nota" in cambios:
+                  if "Nota (%)" in cambios:
+                    nuevo_pct = float(cambios["Nota (%)"])
+                    nuevo_pct = max(0.0, min(100.0, nuevo_pct))
+                    plan_actual[i]["Nota (%)"] = nuevo_pct
+                    
+                    # Conexión automática con la tabla de escala (Ej: 25% = 5 puntos)
+                    pts_calculados = obtener_nota_desde_escala(nuevo_pct)
+                    plan_actual[i]["Nota"] = pts_calculados
+
+                  elif "Nota" in cambios:
                     nuevo_pts = float(cambios["Nota"])
                     nuevo_pts = max(
                         0.0, min(20.0, nuevo_pts)
                     )
                     plan_actual[i]["Nota"] = nuevo_pts
-                    plan_actual[i]["Nota (%)"] = (
-                        nuevo_pts / 20.0
-                    ) * val_porcentaje_eval
-
-                  elif "Nota (%)" in cambios:
-                    nuevo_pct = float(cambios["Nota (%)"])
-                    nuevo_pct = max(
-                        0.0, min(val_porcentaje_eval, nuevo_pct)
+                    plan_actual[i]["Nota (%)"] = round(
+                        (nuevo_pts / 20.0) * 100.0, 2
                     )
-                    plan_actual[i]["Nota (%)"] = nuevo_pct
-                    if val_porcentaje_eval > 0:
-                      puntos_calculados = (
-                          nuevo_pct / val_porcentaje_eval
-                      ) * 20.0
-                    else:
-                      puntos_calculados = 0.0
-                    plan_actual[i]["Nota"] = round(puntos_calculados, 2)
 
                 if "added_rows" in edited_data and edited_data["added_rows"]:
                   for row_nueva in edited_data["added_rows"]:
                     p_val = float(row_nueva.get("Nota", 0.0))
                     v_val = float(row_nueva.get("Valor (%)", 25.0))
-                    pct_val = (p_val / 20.0) * v_val
+                    pct_val = float(row_nueva.get("Nota (%)", (p_val / 20.0) * 100.0))
+                    
+                    pts_calculados = obtener_nota_desde_escala(pct_val)
                     row_nueva["Nota (%)"] = pct_val
+                    row_nueva["Nota"] = pts_calculados
                     plan_actual.append(row_nueva)
 
                 if "deleted_rows" in edited_data and edited_data[
@@ -901,9 +923,9 @@ else:
                         Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves:
                         [
                           {
-                            "Nivel de logro de la asignatura": "Insuficiente",
-                            "Calificación Cuantitativa": "0.0 - 11.9",
-                            "Calificación Cualitativa": "Reprobado"
+                            "Nivel de logro de la asignatura": "00% - 05%",
+                            "Calificación Cuantitativa": "01",
+                            "Calificación Cualitativa": "MUY DEFICIENTE"
                           }
                         ]
                         """
