@@ -522,7 +522,7 @@ else:
 
       st.divider()
 
-      # --- INTEGRACIÓN: ACCESO RÁPIDO DE ACTUALIZACIÓN DE MATERIAS ---
+      # --- ACCESO RÁPIDO DE ACTUALIZACIÓN DE MATERIAS ---
       with st.expander("⚡ Panel de Acceso Rápido y Estados de Materias"):
         st.markdown("Modifica el estado de tus materias o apruébalas rápidamente con un solo clic:")
         for idx_r, row_r in df.iterrows():
@@ -555,6 +555,10 @@ else:
               st.session_state["pensum_df"].loc[st.session_state["pensum_df"]["codigo"] == codigo_mat_r, "estado"] = nuevo_estado_r
               if codigo_mat_r in st.session_state["evaluaciones"]:
                 st.session_state["evaluaciones"][codigo_mat_r]["estado"] = nuevo_estado_r
+              # Limpiar caché del selectbox de detalle si existe
+              key_sel_det = f"sel_est_{codigo_mat_r}"
+              if key_sel_det in st.session_state:
+                del st.session_state[key_sel_det]
               guardar_datos_usuario()
               st.rerun()
 
@@ -566,6 +570,11 @@ else:
                 st.session_state["evaluaciones"][codigo_mat_r]["estado"] = "Aprobada"
               else:
                 st.session_state["evaluaciones"][codigo_mat_r] = {"estado": "Aprobada", "plan": []}
+              
+              key_sel_det = f"sel_est_{codigo_mat_r}"
+              if key_sel_det in st.session_state:
+                del st.session_state[key_sel_det]
+                
               guardar_datos_usuario()
               st.success(f"¡{codigo_mat_r} aprobada!")
               st.rerun()
@@ -685,10 +694,9 @@ else:
 
               col_e1, col_e2 = st.columns(2)
               with col_e1:
-                estado_actual = (
-                    st.session_state["evaluaciones"][codigo_mat]
-                    .get("estado", "No Inscrita")
-                )
+                # Sincronizamos el estado de la materia desde evaluaciones o pensum_df
+                estado_actual = st.session_state["evaluaciones"][codigo_mat].get("estado", "No Inscrita")
+                
                 estados_disponibles = [
                     "No Inscrita",
                     "Inscrita",
@@ -696,6 +704,14 @@ else:
                     "Aprobada",
                     "Reprobada",
                 ]
+                
+                key_selectbox_estado = f"sel_est_{codigo_mat}"
+                
+                # Forzar que el selectbox refleje el estado real si ya cambió externamente
+                if key_selectbox_estado in st.session_state:
+                    if st.session_state[key_selectbox_estado] != estado_actual:
+                        st.session_state[key_selectbox_estado] = estado_actual
+
                 idx_e = (
                     estados_disponibles.index(estado_actual)
                     if estado_actual in estados_disponibles
@@ -706,13 +722,11 @@ else:
                     "Estado de la Materia:",
                     estados_disponibles,
                     index=idx_e,
-                    key=f"sel_est_{codigo_mat}",
+                    key=key_selectbox_estado,
                 )
 
                 if nuevo_est != estado_actual:
-                  st.session_state["evaluaciones"][codigo_mat][
-                      "estado"
-                  ] = nuevo_est
+                  st.session_state["evaluaciones"][codigo_mat]["estado"] = nuevo_est
                   st.session_state["pensum_df"].loc[
                       st.session_state["pensum_df"]["codigo"] == codigo_mat,
                       "estado",
@@ -949,8 +963,7 @@ else:
                           "estado",
                       ] = "Aprobada"
                       
-                      # 3. Eliminar la llave del selectbox del session_state para forzar que se reinicie con el nuevo valor "Aprobada"
-                      key_selectbox_estado = f"sel_est_{codigo_mat}"
+                      # 3. Borrar la llave del selectbox del session_state para forzar la actualización visual
                       if key_selectbox_estado in st.session_state:
                           del st.session_state[key_selectbox_estado]
                       
