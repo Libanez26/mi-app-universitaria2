@@ -935,26 +935,34 @@ else:
               st.markdown("#### ✅ Resultado Final")
 
               if puntos_acum >= min_aprobar:
-                st.success(
-                    f"¡Felicidades! Con {puntos_acum:.2f} pts, estás"
-                    " **APROBADO** en esta materia."
-                )
-                if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
-                  st.session_state["evaluaciones"][codigo_mat][
-                      "estado"
-                  ] = "Aprobada"
-                  st.session_state["pensum_df"].loc[
-                      st.session_state["pensum_df"]["codigo"] == codigo_mat,
-                      "estado",
-                  ] = "Aprobada"
-                  guardar_datos_usuario()
-                  st.rerun()
+                  st.success(
+                      f"¡Felicidades! Con {puntos_acum:.2f} pts, estás"
+                      " **APROBADO** en esta materia."
+                  )
+                  if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
+                      # 1. Actualizar en el diccionario de evaluaciones
+                      st.session_state["evaluaciones"][codigo_mat]["estado"] = "Aprobada"
+                      
+                      # 2. Actualizar en el DataFrame general del pensum
+                      st.session_state["pensum_df"].loc[
+                          st.session_state["pensum_df"]["codigo"] == codigo_mat,
+                          "estado",
+                      ] = "Aprobada"
+                      
+                      # 3. Sincronizar el estado del selectbox visual superior
+                      key_selectbox_estado = f"sel_est_{codigo_mat}"
+                      st.session_state[key_selectbox_estado] = "Aprobada"
+                      
+                      # 4. Guardar cambios y notificar con toast antes del rerun
+                      guardar_datos_usuario()
+                      st.toast(f"¡La materia {codigo_mat} ahora está Aprobada!", icon="🎉")
+                      st.rerun()
               else:
-                faltan = min_aprobar - puntos_acum
-                st.warning(
-                    f"Aún no alcanzas la nota mínima. Te faltan"
-                    f" **{faltan:.2f} pts** para aprobar."
-                )
+                  faltan = min_aprobar - puntos_acum
+                  st.warning(
+                      f"Aún no alcanzas la nota mínima. Te faltan"
+                      f" **{faltan:.2f} pts** para aprobar."
+                  )
 
               st.markdown("---")
               with st.expander("📌 Ver / Configurar Tabla de Escala Evaluativa de Referencia"):
