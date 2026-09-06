@@ -242,72 +242,37 @@ def verificar_disponibilidad(row, df_completo):
   return True, "Disponible"
 
 
-# --- 8. FUNCIONES DE CÁLCULO DE NOTAS, PROMEDIOS Y EFICIENCIA ---
-def calcular_nota_materia(codigo_mat, evaluaciones):
-  """Calcula la nota cuantitativa final de una materia basada en su plan de evaluaciones."""
-  if codigo_mat not in evaluaciones:
-    return 0.0
-  plan = evaluaciones[codigo_mat].get("plan", [])
-  if not plan:
-    return 0.0
-  df_plan = pd.DataFrame(plan)
-  if "Nota" not in df_plan.columns:
-    return 0.0
-  
-  if "Valor (%)" in df_plan.columns and df_plan["Valor (%)"].sum() > 0:
-    nota_mat = (
-        (df_plan["Nota"] / 20.0)
-        * (df_plan["Valor (%)"] / 100.0)
-        * 20.0
-    ).sum()
-  else:
-    notas_val = df_plan["Nota"].dropna()
-    nota_mat = notas_val.sum() if len(notas_val) > 0 else 0.0
-  return float(nota_mat)
+# --- 8. CÁLCULO DE PROMEDIO GLOBAL ---
+def calcular_indice_academico(df_pensum, evaluaciones):
+  total_creditos = 0
+  puntos_acumulados = 0.0
 
-def calcular_promedios_y_eficiencia(df_pensum, evaluaciones):
-  """
-  Calcula:
-  1. Nota final por materia y promedio por semestre.
-  2. Índice académico (promedio general de los semestres).
-  3. Eficiencia (Eficiencia 1 si no hay reprobadas, Eficiencia 2 si hay al menos una reprobada).
-  """
-  if df_pensum is None or df_pensum.empty:
-    return {}, 0.0, "Eficiencia 1"
+  for _, row in df_pensum.iterrows():
+    cod = row["codigo"]
+    cred = row.get("creditos", 0)
 
-  semestres = df_pensum["semestre"].unique()
-  promedios_semestres = {}
-  tiene_reprobadas = False
+    if cod in evaluaciones:
+      plan = evaluaciones[cod].get("plan", [])
+      if plan:
+        df_plan = pd.DataFrame(plan)
+        if "Nota" in df_plan.columns:
+          if "Valor (%)" in df_plan.columns and df_plan["Valor (%)"].sum() > 0:
+            nota_mat = (
+                (df_plan["Nota"] / 20.0)
+                * (df_plan["Valor (%)"] / 100.0)
+                * 20.0
+            ).sum()
+          else:
+            notas_val = df_plan["Nota"].dropna()
+            nota_mat = notas_val.sum() if len(notas_val) > 0 else 0.0
 
-  for sem in semestres:
-    df_sem = df_pensum[df_pensum["semestre"] == sem]
-    notas_sem = []
+          if row["estado"] in ["Aprobada", "Reprobada", "En Curso"]:
+            puntos_acumulados += nota_mat * cred
+            total_creditos += cred
 
-    for _, row in df_sem.iterrows():
-      cod = row["codigo"]
-      estado = row.get("estado", "No Inscrita")
-      
-      if estado == "Reprobada":
-        tiene_reprobadas = True
-
-      # Si está aprobada o tiene evaluaciones registradas, calculamos su nota final
-      if estado in ["Aprobada", "Reprobada", "En Curso"]:
-        n_final = calcular_nota_materia(cod, evaluaciones)
-        notas_sem.append(n_final)
-
-    if notas_sem:
-      promedios_semestres[sem] = sum(notas_sem) / len(notas_sem)
-    else:
-      promedios_semestres[sem] = 0.0
-
-  # Índice académico: promedio de los promedios finales de cada semestre
-  vals_proms = [p for p in promedios_semestres.values() if p > 0]
-  indice_academico = sum(vals_proms) / len(vals_proms) if vals_proms else 0.0
-
-  # Definición de Eficiencia
-  eficiencia = "Eficiencia 2" if tiene_reprobadas else "Eficiencia 1"
-
-  return promedios_semestres, indice_academico, eficiencia
+  if total_creditos > 0:
+    return puntos_acumulados / total_creditos
+  return 0.0
 
 
 # --- 9. PANTALLA DE AUTENTICACIÓN ---
@@ -533,16 +498,9 @@ else:
 
       df = st.session_state["pensum_df"]
 
-      promedios_sem, indice_aca, eficiencia_automatica = calcular_promedios_y_eficiencia(
+      indice_aca = calcular_indice_academico(
           df, st.session_state["evaluaciones"]
       )
-
-      # --- LÓGICA DE EFICIENCIA Y ALERTA DE SEGURIDAD ---
-      if "eficiencia_usuario" not in st.session_state:
-        st.session_state["eficiencia_usuario"] = eficiencia_automatica
-
-      if "permiso_editar_eficiencia" not in st.session_state:
-        st.session_state["permiso_editar_eficiencia"] = False
 
       col_m1, col_m2, col_m3, col_m4, col_m5, col_m6 = st.columns(6)
       with col_m1:
@@ -552,31 +510,15 @@ else:
       with col_m3:
         st.metric("En Curso", len(df[df["estado"] == "En Curso"]))
       with col_m4:
-        st.metric("📈 Índice Académico", f"{indice_aca:.2f} / 20.0")
+        st.metric(
+            "Inscritas", len(df[df["estado"] == "Inscrita"])
+        )
       with col_m5:
-        st.metric("⚡ Eficiencia", st.session_state["eficiencia_usuario"])
+        st.metric(
+            "No Inscritas", len(df[df["estado"] == "No Inscrita"])
+        )
       with col_m6:
-        # Botón para cambiar eficiencia manualmente con validación
-        if st.button("Cambiar Eficiencia"):
-          if eficiencia_automatica == "Eficiencia 2" and st.session_state["eficiencia_usuario"] == "Eficiencia 1":
-            st.warning("¿Te equivocaste al colocar la materia en reprobado?")
-            col_al1, col_al2 = st.columns(2)
-            if col_al1:
-              if st.button("Sí, corregir", key="btn_ef_si"):
-                st.session_state["permiso_editar_eficiencia"] = True
-                st.session_state["eficiencia_usuario"] = "Eficiencia 1"
-                st.success("Permiso de edición concedido.")
-                st.rerun()
-            if col_al2:
-              if st.button("No", key="btn_ef_no"):
-                st.session_state["permiso_editar_eficiencia"] = False
-                st.info("Permiso denegado. Se mantiene Eficiencia 2.")
-                st.rerun()
-          else:
-            # Cambio libre si no hay conflicto estricto
-            nuevo_val = "Eficiencia 2" if st.session_state["eficiencia_usuario"] == "Eficiencia 1" else "Eficiencia 1"
-            st.session_state["eficiencia_usuario"] = nuevo_val
-            st.rerun()
+        st.metric("📈 Índice Académico", f"{indice_aca:.2f} / 20.0")
 
       st.divider()
 
@@ -593,23 +535,12 @@ else:
 
           disponibilidades = []
           mensajes_est = []
-          notas_finales_nivel = []
-          
           for _, row in df_nivel.iterrows():
             disp, msg = verificar_disponibilidad(row, df)
             disponibilidades.append(disp)
             mensajes_est.append(msg)
-            
-            # Calcular nota final individual para mostrar en la tabla
-            cod_mat = row["codigo"]
-            n_fin = calcular_nota_materia(cod_mat, st.session_state["evaluaciones"])
-            notas_finales_nivel.append(round(n_fin, 2))
 
           df_nivel["Disponibilidad"] = mensajes_est
-          df_nivel["Nota Final"] = notas_finales_nivel
-
-          prom_este_sem = promedios_sem.get(semestre_nombre, 0.0)
-          st.info(f"📊 **Promedio del Semestre ({semestre_nombre}):** {prom_este_sem:.2f} / 20.0")
 
           bloqueadas_count = disponibilidades.count(False)
           if bloqueadas_count > 0:
@@ -634,7 +565,6 @@ else:
                   ),
                   "prelaciones": "Requisitos / Prelaciones",
                   "estado": "Estado Actual",
-                  "Nota Final": st.column_config.NumberColumn("Nota Final", format="%.2f"),
                   "Disponibilidad": st.column_config.TextColumn(
                       "Estatus de Acceso"
                   ),
@@ -819,6 +749,7 @@ else:
                   if i >= len(plan_actual):
                     continue
 
+                  # Capturar modificaciones de texto, fechas y checkboxes
                   if "Evaluación" in cambios:
                     plan_actual[i]["Evaluación"] = cambios["Evaluación"]
                   if "Tema" in cambios:
@@ -836,6 +767,7 @@ else:
                   if "Entregada" in cambios:
                     plan_actual[i]["Entregada"] = cambios["Entregada"]
 
+                  # Capturar cambios en notas y porcentajes
                   if "Nota (%)" in cambios:
                     nuevo_pct = float(cambios["Nota (%)"])
                     nuevo_pct = max(0.0, min(100.0, nuevo_pct))
