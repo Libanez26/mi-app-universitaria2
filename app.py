@@ -1,6 +1,7 @@
 import streamlit as st
 import extra_streamlit_components as st_cookie
 from database import inicializar_supabase, cargar_datos_usuario
+from views.auth import gestionar_autenticacion
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
