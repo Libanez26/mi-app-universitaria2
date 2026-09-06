@@ -3,7 +3,7 @@ if "pensum_df" not in st.session_state:
 if "evaluaciones" not in st.session_state:
     st.session_state["evaluaciones"] = {}
 if "escala_df" not in st.session_state:
-    st.session_state["escala_df"] = pd.DataFrame()Z
+    st.session_state["escala_df"] = pd.DataFrame()
 
   # ==========================================
   # PESTAÑA 1: PENSUM Y CALIFICACIONES
