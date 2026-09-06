@@ -242,37 +242,58 @@ def verificar_disponibilidad(row, df_completo):
   return True, "Disponible"
 
 
-# --- 8. CÁLCULO DE PROMEDIO GLOBAL ---
-def calcular_indice_academico(df_pensum, evaluaciones):
-  total_creditos = 0
-  puntos_acumulados = 0.0
-
-  for _, row in df_pensum.iterrows():
-    cod = row["codigo"]
-    cred = row.get("creditos", 0)
-
-    if cod in evaluaciones:
-      plan = evaluaciones[cod].get("plan", [])
-      if plan:
-        df_plan = pd.DataFrame(plan)
-        if "Nota" in df_plan.columns:
-          if "Valor (%)" in df_plan.columns and df_plan["Valor (%)"].sum() > 0:
-            nota_mat = (
-                (df_plan["Nota"] / 20.0)
-                * (df_plan["Valor (%)"] / 100.0)
-                * 20.0
-            ).sum()
-          else:
-            notas_val = df_plan["Nota"].dropna()
-            nota_mat = notas_val.sum() if len(notas_val) > 0 else 0.0
-
-          if row["estado"] in ["Aprobada", "Reprobada", "En Curso"]:
-            puntos_acumulados += nota_mat * cred
-            total_creditos += cred
-
-  if total_creditos > 0:
-    return puntos_acumulados / total_creditos
+# --- 8. CÁLCULO DE PROMEDIOS Y EFICIENCIA ACADÉMICA ---
+def calcular_nota_materia(cod, evaluaciones):
+  if cod in evaluaciones:
+    plan = evaluaciones[cod].get("plan", [])
+    if plan:
+      df_plan = pd.DataFrame(plan)
+      if "Nota" in df_plan.columns:
+        if "Valor (%)" in df_plan.columns and df_plan["Valor (%)"].sum() > 0:
+          return (
+              (df_plan["Nota"] / 20.0)
+              * (df_plan["Valor (%)"] / 100.0)
+              * 20.0
+          ).sum()
+        else:
+          notas_val = df_plan["Nota"].dropna()
+          return notas_val.sum() if len(notas_val) > 0 else 0.0
   return 0.0
+
+def calcular_promedios_semestres(df_pensum, evaluaciones):
+  promedios_por_semestre = {}
+  semestres = df_pensum["semestre"].unique()
+  
+  for sem in semestres:
+    df_sem = df_pensum[df_pensum["semestre"] == sem]
+    notas_sem = []
+    for _, row in df_sem.iterrows():
+      cod = row["codigo"]
+      estado = row["estado"]
+      if estado in ["Aprobada", "Reprobada", "En Curso"]:
+        nota = calcular_nota_materia(cod, evaluaciones)
+        notas_sem.append(nota)
+    
+    if len(notas_sem) > 0:
+      promedios_por_semestre[sem] = sum(notas_sem) / len(notas_sem)
+    else:
+      promedios_por_semestre[sem] = 0.0
+      
+  return promedios_por_semestre
+
+def calcular_indice_academico(df_pensum, evaluaciones):
+  promedios_sem = calcular_promedios_semestres(df_pensum, evaluaciones)
+  valores_prom = [p for p in promedios_sem.values() if p > 0.0]
+  if len(valores_prom) > 0:
+    return sum(valores_prom) / len(valores_prom)
+  return 0.0
+
+def calcular_eficiencia_academica(df_pensum):
+  if "estado" in df_pensum.columns:
+    reprobadas = df_pensum[df_pensum["estado"] == "Reprobada"]
+    if len(reprobadas) > 0:
+      return "Eficiencia 2"
+  return "Eficiencia 1"
 
 
 # --- 9. PANTALLA DE AUTENTICACIÓN ---
@@ -501,24 +522,19 @@ else:
       indice_aca = calcular_indice_academico(
           df, st.session_state["evaluaciones"]
       )
+      eficiencia_actual = calcular_eficiencia_academica(df)
 
-      col_m1, col_m2, col_m3, col_m4, col_m5, col_m6 = st.columns(6)
+      col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
       with col_m1:
         st.metric("Total Materias", len(df))
       with col_m2:
         st.metric("Aprobadas", len(df[df["estado"] == "Aprobada"]))
       with col_m3:
-        st.metric("En Curso", len(df[df["estado"] == "En Curso"]))
+        st.metric("Reprobadas", len(df[df["estado"] == "Reprobada"]))
       with col_m4:
-        st.metric(
-            "Inscritas", len(df[df["estado"] == "Inscrita"])
-        )
-      with col_m5:
-        st.metric(
-            "No Inscritas", len(df[df["estado"] == "No Inscrita"])
-        )
-      with col_m6:
         st.metric("📈 Índice Académico", f"{indice_aca:.2f} / 20.0")
+      with col_m5:
+        st.metric("⚙️ Eficiencia", eficiencia_actual)
 
       st.divider()
 
@@ -527,11 +543,23 @@ else:
           if "semestre" in df.columns
           else ["Nivel Único"]
       )
+      
+      promedios_semestrales = calcular_promedios_semestres(df, st.session_state["evaluaciones"])
       tabs_niveles = st.tabs(semestres)
 
       for idx_tab, semestre_nombre in enumerate(semestres):
         with tabs_niveles[idx_tab]:
           df_nivel = df[df["semestre"] == semestre_nombre].copy()
+
+          # Añadir columna de nota final al lado del estado para reflejar el promedio del semestre
+          notas_finales_nivel = []
+          for _, row_mat in df_nivel.iterrows():
+            n_val = calcular_nota_materia(row_mat["codigo"], st.session_state["evaluaciones"])
+            notas_finales_nivel.append(f"{n_val:.2f} pts")
+          df_nivel["Nota Final"] = notas_finales_nivel
+
+          prom_sem_actual = promedios_semestrales.get(semestre_nombre, 0.0)
+          st.info(f"📊 **Promedio del Semestre ({semestre_nombre}):** {prom_sem_actual:.2f} / 20.0")
 
           disponibilidades = []
           mensajes_est = []
@@ -565,6 +593,7 @@ else:
                   ),
                   "prelaciones": "Requisitos / Prelaciones",
                   "estado": "Estado Actual",
+                  "Nota Final": "Nota Final",
                   "Disponibilidad": st.column_config.TextColumn(
                       "Estatus de Acceso"
                   ),
@@ -661,13 +690,36 @@ else:
                 )
 
                 if nuevo_est != estado_actual:
-                  st.session_state["evaluaciones"][codigo_mat]["estado"] = nuevo_est
-                  st.session_state["pensum_df"].loc[
-                      st.session_state["pensum_df"]["codigo"] == codigo_mat,
-                      "estado",
-                  ] = nuevo_est
-                  guardar_datos_usuario()
-                  st.rerun()
+                  # Verificación de alerta de seguridad para eficiencia
+                  if nuevo_est == "Reprobada" and calcular_eficiencia_academica(df) == "Eficiencia 1":
+                    st.session_state[f"alerta_reprobada_{codigo_mat}"] = True
+                  else:
+                    st.session_state["evaluaciones"][codigo_mat]["estado"] = nuevo_est
+                    st.session_state["pensum_df"].loc[
+                        st.session_state["pensum_df"]["codigo"] == codigo_mat,
+                        "estado",
+                    ] = nuevo_est
+                    guardar_datos_usuario()
+                    st.rerun()
+
+                # Control de Alerta de Seguridad de Eficiencia
+                if st.session_state.get(f"alerta_reprobada_{codigo_mat}", False):
+                  st.warning("¿Te equivocaste al colocar la materia en reprobado?")
+                  col_al1, col_al2 = st.columns(2)
+                  with col_al1:
+                    if st.button("Sí", key=f"btn_alerta_si_{codigo_mat}"):
+                      st.session_state[f"alerta_reprobada_{codigo_mat}"] = False
+                      st.rerun()
+                  with col_al2:
+                    if st.button("No", key=f"btn_alerta_no_{codigo_mat}"):
+                      st.session_state["evaluaciones"][codigo_mat]["estado"] = "Reprobada"
+                      st.session_state["pensum_df"].loc[
+                          st.session_state["pensum_df"]["codigo"] == codigo_mat,
+                          "estado",
+                      ] = "Reprobada"
+                      st.session_state[f"alerta_reprobada_{codigo_mat}"] = False
+                      guardar_datos_usuario()
+                      st.rerun()
 
               with col_e2:
                 key_escala_anterior = f"escala_anterior_{codigo_mat}"
@@ -749,7 +801,6 @@ else:
                   if i >= len(plan_actual):
                     continue
 
-                  # Capturar modificaciones de texto, fechas y checkboxes
                   if "Evaluación" in cambios:
                     plan_actual[i]["Evaluación"] = cambios["Evaluación"]
                   if "Tema" in cambios:
@@ -767,7 +818,6 @@ else:
                   if "Entregada" in cambios:
                     plan_actual[i]["Entregada"] = cambios["Entregada"]
 
-                  # Capturar cambios en notas y porcentajes
                   if "Nota (%)" in cambios:
                     nuevo_pct = float(cambios["Nota (%)"])
                     nuevo_pct = max(0.0, min(100.0, nuevo_pct))
