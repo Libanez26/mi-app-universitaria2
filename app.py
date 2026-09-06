@@ -2,7 +2,30 @@ import streamlit as st
 import extra_streamlit_components as st_cookie
 from database import inicializar_supabase
 from views.auth import gestionar_autenticacion
-from views import pensum, horario, escala, asistente, pomodoro
+try:
+    from views import pensum
+except Exception as e:
+    st.error(f"Error en pensum: {e}")
+
+try:
+    from views import horario
+except Exception as e:
+    st.error(f"Error en horario: {e}")
+
+try:
+    from views import escala
+except Exception as e:
+    st.error(f"Error en escala: {e}")
+
+try:
+    from views import asistente
+except Exception as e:
+    st.error(f"Error en asistente: {e}")
+
+try:
+    from views import pomodoro
+except Exception as e:
+    st.error(f"Error en pomodoro: {e}")
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
