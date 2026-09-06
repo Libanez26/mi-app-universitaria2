@@ -241,61 +241,6 @@ def verificar_disponibilidad(row, df_completo):
 
   return True, "Disponible"
 
-
-# --- 8. CÁLCULO DE PROMEDIOS Y EFICIENCIA ACADÉMICA ---
-def calcular_nota_materia(cod, evaluaciones):
-  if cod in evaluaciones:
-    plan = evaluaciones[cod].get("plan", [])
-    if plan:
-      df_plan = pd.DataFrame(plan)
-      if "Nota" in df_plan.columns:
-        if "Valor (%)" in df_plan.columns and df_plan["Valor (%)"].sum() > 0:
-          return (
-              (df_plan["Nota"] / 20.0)
-              * (df_plan["Valor (%)"] / 100.0)
-              * 20.0
-          ).sum()
-        else:
-          notas_val = df_plan["Nota"].dropna()
-          return notas_val.sum() if len(notas_val) > 0 else 0.0
-  return 0.0
-
-def calcular_promedios_semestres(df_pensum, evaluaciones):
-  promedios_por_semestre = {}
-  semestres = df_pensum["semestre"].unique()
-  
-  for sem in semestres:
-    df_sem = df_pensum[df_pensum["semestre"] == sem]
-    notas_sem = []
-    for _, row in df_sem.iterrows():
-      cod = row["codigo"]
-      estado = row["estado"]
-      if estado in ["Aprobada", "Reprobada", "En Curso"]:
-        nota = calcular_nota_materia(cod, evaluaciones)
-        notas_sem.append(nota)
-    
-    if len(notas_sem) > 0:
-      promedios_por_semestre[sem] = sum(notas_sem) / len(notas_sem)
-    else:
-      promedios_por_semestre[sem] = 0.0
-      
-  return promedios_por_semestre
-
-def calcular_indice_academico(df_pensum, evaluaciones):
-  promedios_sem = calcular_promedios_semestres(df_pensum, evaluaciones)
-  valores_prom = [p for p in promedios_sem.values() if p > 0.0]
-  if len(valores_prom) > 0:
-    return sum(valores_prom) / len(valores_prom)
-  return 0.0
-
-def calcular_eficiencia_academica(df_pensum):
-  if "estado" in df_pensum.columns:
-    reprobadas = df_pensum[df_pensum["estado"] == "Reprobada"]
-    if len(reprobadas) > 0:
-      return "Eficiencia 2"
-  return "Eficiencia 1"
-
-
 # --- 9. PANTALLA DE AUTENTICACIÓN ---
 if st.session_state["usuario"] is None:
   st.title("🎓 Bienvenido a Mi App Universitaria")
@@ -523,67 +468,7 @@ else:
           df, st.session_state["evaluaciones"]
       )
       
-      # --- INTEGRACIÓN: BLOQUE DE GESTIÓN DE EFICIENCIA ---
-      st.markdown("### Gestión de Eficiencia")
-
-      # Simulación de estado basado en el DataFrame real de pensum
-      if 'tiene_reprobadas' not in st.session_state:
-          st.session_state.tiene_reprobadas = (calcular_eficiencia_academica(df) == "Eficiencia 2")
-      else:
-          # Mantener sincronizado con la realidad del df si cambia
-          st.session_state.tiene_reprobadas = (calcular_eficiencia_academica(df) == "Eficiencia 2")
-
-      # 1. Encabezado con botón de información sobre las eficiencias
-      col_ef1, col_ef2 = st.columns([4, 1])
-      with col_ef1:
-          # Determinar la eficiencia según la regla de materias reprobadas
-          eficiencia_actual = "Eficiencia 2" if st.session_state.tiene_reprobadas else "Eficiencia 1"
-          st.metric(label="Estado Actual", value=eficiencia_actual)
-
-      with col_ef2:
-          # Botón con popover para explicar el significado de cada eficiencia
-          with st.popover("ℹ️ ¿Qué significa?"):
-              st.markdown("**Eficiencia 1:** Descripción detallada de la eficiencia 1...")
-              st.markdown("**Eficiencia 2:** Se asigna obligatoriamente cuando el estudiante registra una o más materias reprobadas.")
-
-      # 2. Validación automática y botón de corrección por si hubo un error
-      if st.session_state.tiene_reprobadas:
-          st.info("💡 Nota: Como hay materias reprobadas registradas, el sistema asigna por defecto Eficiencia 2.")
-
-      # Botón para corregir en caso de equivocación en la carga de notas
-      if st.button("✏️ ¿Me equivoqué? Modificar materias"):
-          st.session_state.tiene_reprobadas = not st.session_state.tiene_reprobadas
-          st.rerun()
-      # --- FIN DE INTEGRACIÓN ---
-
-      col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
-      with col_m1:
-        st.metric("Total Materias", len(df))
-      with col_m2:
-        st.metric("Aprobadas", len(df[df["estado"] == "Aprobada"]))
-      with col_m3:
-        st.metric("Reprobadas", len(df[df["estado"] == "Reprobada"]))
-      with col_m4:
-        st.metric("📈 Índice Académico", f"{indice_aca:.2f} / 20.0")
-      with col_m5:
-        st.metric("⚙️ Eficiencia", eficiencia_actual)
-
-      st.divider()
-
-      semestres = (
-          list(df["semestre"].unique())
-          if "semestre" in df.columns
-          else ["Nivel Único"]
-      )
-      
-      promedios_semestrales = calcular_promedios_semestres(df, st.session_state["evaluaciones"])
-      tabs_niveles = st.tabs(semestres)
-
-      for idx_tab, semestre_nombre in enumerate(semestres):
-        with tabs_niveles[idx_tab]:
-          df_nivel = df[df["semestre"] == semestre_nombre].copy()
-
-          # Añadir columna de nota final al lado del estado para reflejar el promedio del semestre
+                # Añadir columna de nota final al lado del estado para reflejar el promedio del semestre
           notas_finales_nivel = []
           for _, row_mat in df_nivel.iterrows():
             n_val = calcular_nota_materia(row_mat["codigo"], st.session_state["evaluaciones"])
