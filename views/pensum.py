@@ -31,7 +31,7 @@ def render(supabase):
         st.info("👋 Carga tu pensum en formato PDF para organizar tus niveles académicos.")
         uploaded_file = st.file_uploader("Sube el PDF de tu pensum universitario", type=["pdf"])
 
-        modelos_disponibles = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"]
+        modelos_disponibles = ["gemini-3.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"]
         modelo_seleccionado = st.session_state.get("modelo_seleccionado", modelos_disponibles[0])
 
         if uploaded_file and st.button("📊 Organizar Pensum en Tabla"):
