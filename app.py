@@ -1,5 +1,7 @@
 import datetime
+import io
 import json
+import time
 import uuid
 import extra_streamlit_components as st_cookie
 from google import genai
@@ -87,7 +89,23 @@ if "mensajes_asistente" not in st.session_state:
   }]
 
 
-# --- 5. FUNCIONES DE BASE DE DATOS (CON SERIALIZACIÓN DE FECHAS) ---
+# --- 5. FUNCIONES AUXILIARES (BACKOFF Y DB) ---
+def generar_con_reintentos(client, model, contents, config=None, max_intentos=3):
+    intentos = 0
+    espera = 2
+    while intentos < max_intentos:
+        try:
+            if config:
+                return client.models.generate_content(model=model, contents=contents, config=config)
+            else:
+                return client.models.generate_content(model=model, contents=contents)
+        except Exception as e:
+            intentos += 1
+            if intentos >= max_intentos:
+                raise e
+            time.sleep(espera)
+            espera *= 2
+
 def cargar_datos_usuario(user_id):
   try:
     res = (
@@ -390,6 +408,23 @@ else:
 
   st.sidebar.markdown("---")
 
+  # Botón de exportación a Excel en la barra lateral
+  if st.session_state.get("pensum_df") is not None:
+      output = io.BytesIO()
+      with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+          st.session_state["pensum_df"].to_excel(writer, sheet_name='Pensum', index=False)
+          if st.session_state.get("horario_df") is not None:
+              st.session_state["horario_df"].to_excel(writer, sheet_name='Horario', index=False)
+      processed_data = output.getvalue()
+      
+      st.sidebar.download_button(
+          label="📥 Descargar Resumen Académico",
+          data=processed_data,
+          file_name="resumen_academico.xlsx",
+          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          help="Descarga un archivo Excel con tu pensum y horario actualizados."
+      )
+
   if st.sidebar.button("🔄 Refrescar Página", key="btn_refrescar_pagina"):
     components.html(
         """
@@ -424,6 +459,22 @@ else:
     st.rerun()
 
   st.title("🎓 Mi App Universitaria")
+
+  # Alertas visuales para evaluaciones próximas (en las próximas 48 horas)
+  hoy_alerta = datetime.date.today()
+  evals_dict_global = st.session_state.get("evaluaciones", {})
+  for cod_g, info_g in evals_dict_global.items():
+      for item_g in info_g.get("plan", []):
+          fecha_eval_g = item_g.get("Fecha")
+          if isinstance(fecha_eval_g, str):
+              try:
+                  fecha_eval_g = datetime.datetime.strptime(fecha_eval_g, "%Y-%m-%d").date()
+              except ValueError:
+                  continue
+          if fecha_eval_g and not item_g.get("Entregada", False):
+              dias_restantes = (fecha_eval_g - hoy_alerta).days
+              if 0 <= dias_restantes <= 2:
+                  st.warning(f"⚠️ **¡Atención!** Tienes la evaluación '{item_g.get('Evaluación')}' de la materia código `{cod_g}` programada para el **{fecha_eval_g}** (Faltan {dias_restantes} día(s)).")
 
   tab_pensum, tab_horario, tab_asistente, tab_pomodoro = st.tabs([
       "📚 Pensum y Calificaciones",
@@ -474,8 +525,8 @@ else:
                     ]
                     """
 
-            response = client.models.generate_content(
-                model=modelo_seleccionado, contents=[prompt, pdf_part]
+            response = generar_con_reintentos(
+                client, modelo_seleccionado, [prompt, pdf_part]
             )
 
             if response and response.text:
@@ -541,7 +592,6 @@ else:
         with tabs_niveles[idx_tab]:
           df_nivel = df[df["semestre"] == semestre_nombre].copy()
 
-          # Añadir columna de nota final al lado del estado para reflejar el promedio del semestre
           notas_finales_nivel = []
           for _, row_mat in df_nivel.iterrows():
             n_val = calcular_nota_materia(row_mat["codigo"], st.session_state["evaluaciones"])
@@ -869,6 +919,14 @@ else:
                   },
               )
 
+              # Validación cruzada del 100% en el editor de notas
+              if "Valor (%)" in edited_df.columns:
+                  suma_porcentajes = edited_df["Valor (%)"].sum()
+                  if suma_porcentajes > 100:
+                      st.error(f"❌ La suma de los porcentajes de las evaluaciones es {suma_porcentajes}%. No puede superar el 100%.")
+                  elif suma_porcentajes < 100:
+                      st.info(f"ℹ️ El plan actual suma {suma_porcentajes}%. Asegúrate de completar el 100% de la ponderación.")
+
               if st.button("💾 Guardar Notas", key=f"btn_guardar_notas_{codigo_mat}"):
                 sincronizar_notas_editor()
                 guardar_datos_usuario()
@@ -976,8 +1034,8 @@ else:
                         ]
                         """
 
-                        response_escala = client.models.generate_content(
-                            model=modelo_seleccionado, contents=[prompt_escala, pdf_part]
+                        response_escala = generar_con_reintentos(
+                            client, modelo_seleccionado, [prompt_escala, pdf_part]
                         )
 
                         if response_escala and response_escala.text:
@@ -1104,8 +1162,8 @@ else:
                         Asegúrate de que las horas estén en formato de 12 horas con AM o PM (ej. "08:00 AM", "02:30 PM").
                         """
 
-            response = client.models.generate_content(
-                model=modelo_seleccionado, contents=[prompt, pdf_part]
+            response = generar_con_reintentos(
+                client, modelo_seleccionado, [prompt, pdf_part]
             )
 
             if response and response.text:
@@ -1537,9 +1595,10 @@ else:
 
                     for mod in modelos_a_probar:
                         try:
-                            response = client.models.generate_content(
-                                model=mod,
-                                contents=prompt_usuario,
+                            response = generar_con_reintentos(
+                                client,
+                                mod,
+                                prompt_usuario,
                                 config={
                                     'system_instruction': system_instruction_text
                                 }
@@ -1636,8 +1695,6 @@ else:
         if st.button("⏹️ Detener", key="btn_pomo_detener"):
             st.session_state["pomodoro_activo"] = False
             actualizar_tiempo()
-
-    import time
 
     if (
         st.session_state["pomodoro_activo"]
