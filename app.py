@@ -27,7 +27,7 @@ if "escala_df" not in st.session_state:
     st.session_state["escala_df"] = None
 
 # --- 4. IMPORTACIÓN DE VISTAS Y MÓDULOS ---
-from auth import gestionar_autenticacion
+from views.auth import gestionar_autenticacion
 from views import pensum, horario, escala, asistente, pomodoro
 
 # --- 5. CONTROL DE ACCESO Y ENRUTAMIENTO ---
