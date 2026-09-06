@@ -1,17 +1,13 @@
-if "pensum_df" not in st.session_state:
-    st.session_state["pensum_df"] = None
-if "evaluaciones" not in st.session_state:
-    st.session_state["evaluaciones"] = {}
-if "escala_df" not in st.session_state:
-    st.session_state["escala_df"] = pd.DataFrame()
+import streamlit as st
+import pandas as pd
+import datetime
+from google import genai
+from database import guardar_datos_usuario
 
-  # ==========================================
-  # PESTAÑA 3: ASISTENTE VIRTUAL UNIVERSITARIO
-  # ==========================================
-  with tab_asistente:
+def render(supabase):
     st.subheader("🤖 Asistente Virtual Universitario")
     st.write(
-        "Elige si prefieres interactuar mediante el menú de botones guiados o conversar libremente con el chat de IA."
+        "Elige si prefieres interactuar mediante el menú de botones guiados o conversar libremente con le chat de IA."
     )
 
     tipo_asistente = st.radio(
@@ -354,7 +350,7 @@ if "escala_df" not in st.session_state:
                     {escala_resumen}
                     """
 
-                    modelos_a_probar = ["gemini-3.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"]
+                    modelos_a_probar = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"]
                     response = None
                     ultimo_error = None
 
