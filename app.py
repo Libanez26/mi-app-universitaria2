@@ -362,9 +362,10 @@ else:
     modelo_seleccionado = st.selectbox(
         "Selecciona el Modelo",
         [
-            "gemini-3.6-flash",
             "gemini-3.5-flash",
-            
+            "gemini-2.0-flash",
+            "gemini-3.5-flash",
+            "gemini-2.5-flash",
         ],
         index=0,
         help=(
@@ -634,7 +635,6 @@ else:
 
               col_e1, col_e2 = st.columns(2)
               with col_e1:
-                # Sincronizamos el estado de la materia priorizando el diccionario de evaluaciones o el DataFrame
                 estado_actual = st.session_state["evaluaciones"][codigo_mat].get("estado", materia_sel.get("estado", "No Inscrita"))
                 
                 estados_disponibles = [
@@ -661,7 +661,6 @@ else:
                 )
 
                 if nuevo_est != estado_actual:
-                  # Actualizamos tanto el diccionario como el DataFrame global del pensum
                   st.session_state["evaluaciones"][codigo_mat]["estado"] = nuevo_est
                   st.session_state["pensum_df"].loc[
                       st.session_state["pensum_df"]["codigo"] == codigo_mat,
@@ -750,6 +749,25 @@ else:
                   if i >= len(plan_actual):
                     continue
 
+                  # Capturar modificaciones de texto, fechas y checkboxes
+                  if "Evaluación" in cambios:
+                    plan_actual[i]["Evaluación"] = cambios["Evaluación"]
+                  if "Tema" in cambios:
+                    plan_actual[i]["Tema"] = cambios["Tema"]
+                  if "Valor (%)" in cambios:
+                    plan_actual[i]["Valor (%)"] = float(cambios["Valor (%)"])
+                  if "Fecha" in cambios:
+                    f_val = cambios["Fecha"]
+                    if isinstance(f_val, str):
+                      try:
+                        f_val = datetime.datetime.strptime(f_val, "%Y-%m-%d").date()
+                      except ValueError:
+                        pass
+                    plan_actual[i]["Fecha"] = f_val
+                  if "Entregada" in cambios:
+                    plan_actual[i]["Entregada"] = cambios["Entregada"]
+
+                  # Capturar cambios en notas y porcentajes
                   if "Nota (%)" in cambios:
                     nuevo_pct = float(cambios["Nota (%)"])
                     nuevo_pct = max(0.0, min(100.0, nuevo_pct))
@@ -890,23 +908,19 @@ else:
                       " **APROBADO** en esta materia."
                   )
                   if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
-                      # 1. Actualizar estado en evaluaciones
                       if codigo_mat not in st.session_state["evaluaciones"]:
                           st.session_state["evaluaciones"][codigo_mat] = {"estado": "Aprobada", "plan": []}
                       else:
                           st.session_state["evaluaciones"][codigo_mat]["estado"] = "Aprobada"
                       
-                      # 2. Actualizar estado en el DataFrame global del pensum para desbloquear prelaciones
                       st.session_state["pensum_df"].loc[
                           st.session_state["pensum_df"]["codigo"] == codigo_mat,
                           "estado",
                       ] = "Aprobada"
                       
-                      # 3. Limpiar caché del selectbox de estado para forzar el cambio visual inmediato
                       if key_selectbox_estado in st.session_state:
                           del st.session_state[key_selectbox_estado]
                       
-                      # 4. Guardar y refrescar la app
                       guardar_datos_usuario()
                       st.toast(f"¡La materia {codigo_mat} ahora está Aprobada!", icon="🎉")
                       st.rerun()
@@ -1005,6 +1019,7 @@ else:
                     guardar_datos_usuario()
                     st.success("¡Escala evaluativa actualizada correctamente!")
                     st.rerun()
+
   # ==========================================
   # PESTAÑA 2: HORARIO DE CLASES
   # ==========================================
