@@ -1,12 +1,8 @@
 import streamlit as st
 import extra_streamlit_components as st_cookie
-from database import inicializar_supabase, cargar_datos_usuario
+from database import inicializar_supabase
 from views.auth import gestionar_autenticacion
-from views import pensum.py
-from views import horario.py
-from views import escala.py
-from views import asistente.py
-from views import pomodoro.py
+from views import pensum, horario, escala, asistente, pomodoro
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -24,27 +20,17 @@ if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
 if "pensum_df" not in st.session_state:
     st.session_state["pensum_df"] = None
-if "evaluaciones" not in st.session_state:
-    st.session_state["evaluaciones"] = {}
 if "horario_df" not in st.session_state:
     st.session_state["horario_df"] = None
 if "escala_df" not in st.session_state:
     st.session_state["escala_df"] = None
 
-# --- 4. CONTROL DE ACCESO Y ENRUTAMIENTO ---
-device_token_cookie = cookie_manager.get(cookie="dispositivo_confiable_token")
-
+# --- 4. CONTROL DE ACCESO ---
 if st.session_state["usuario"] is None:
     gestionar_autenticacion(supabase, cookie_manager)
 else:
     st.sidebar.write(f"👤 **Usuario:** {st.session_state['usuario'].email}")
     
-    with st.sidebar.expander("⚙️ Configuración de IA"):
-        st.session_state["modelo_seleccionado"] = st.selectbox(
-            "Modelo", ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"], index=0
-        )
-
-    st.sidebar.markdown("---")
     vista = st.sidebar.radio("Navegación", [
         "📚 Pensum y Calificaciones",
         "📅 Horario de Clases",
@@ -56,10 +42,6 @@ else:
     if st.sidebar.button("Cerrar Sesión"):
         supabase.auth.sign_out()
         st.session_state["usuario"] = None
-        st.session_state["pensum_df"] = None
-        st.session_state["evaluaciones"] = {}
-        st.session_state["horario_df"] = None
-        st.session_state["escala_df"] = None
         st.rerun()
 
     # Enrutamiento de vistas
