@@ -1,11 +1,13 @@
 import datetime
 import json
 import uuid
+import time
 import extra_streamlit_components as st_cookie
 from google import genai
 from google.genai import types
 from pypdf import PdfReader
 import pandas as pd
+import streamlit as pd_st # Usaremos st para streamlit estándar
 import streamlit as st
 import streamlit.components.v1 as components
 from supabase import Client, create_client
@@ -18,7 +20,6 @@ async function registrarDispositivo() {
         console.log("Este navegador no soporta notificaciones de escritorio.");
         return;
     }
-    
     let permission = await Notification.requestPermission();
     if (permission === "granted") {
         console.log("Permiso de notificaciones concedido.");
@@ -47,10 +48,8 @@ def init_supabase() -> Client:
   if "/rest/v1" in raw_url:
     raw_url = raw_url.split("/rest/v1")[0]
   raw_url = raw_url.rstrip("/")
-
   key = str(st.secrets["SUPABASE_KEY"]).strip()
   return create_client(raw_url, key)
-
 
 try:
   supabase = init_supabase()
@@ -67,23 +66,12 @@ if "evaluaciones" not in st.session_state:
 if "horario_df" not in st.session_state:
   st.session_state["horario_df"] = None
 if "escala_df" not in st.session_state:
-  st.session_state["escala_df"] = pd.DataFrame([
-      {"Nivel de logro de la asignatura": "00% - 05%", "Calificación Cuantitativa": "01", "Calificación Cualitativa": "MUY DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "06% - 11%", "Calificación Cuantitativa": "02", "Calificación Cualitativa": "MUY DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "12% - 17%", "Calificación Cuantitativa": "03", "Calificación Cualitativa": "MUY DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "18% - 23%", "Calificación Cuantitativa": "04", "Calificación Cualitativa": "MUY DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "24% - 29%", "Calificación Cuantitativa": "05", "Calificación Cualitativa": "MUY DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "30% - 34%", "Calificación Cuantitativa": "06", "Calificación Cualitativa": "DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "35% - 39%", "Calificación Cuantitativa": "07", "Calificación Cualitativa": "DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "40% - 44%", "Calificación Cuantitativa": "08", "Calificación Cualitativa": "DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "45% - 49%", "Calificación Cuantitativa": "09", "Calificación Cualitativa": "DEFICIENTE"}
-  ])
+  st.session_state["escala_df"] = None
 if "mensajes_asistente" not in st.session_state:
   st.session_state["mensajes_asistente"] = [{
       "role": "assistant",
-      "content": "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?",
+      "content": "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo ayudar hoy con tus materias, notas o planificación?",
   }]
-
 
 # --- 5. FUNCIONES DE BASE DE DATOS ---
 def cargar_datos_usuario(user_id):
@@ -114,7 +102,6 @@ def cargar_datos_usuario(user_id):
   except Exception as e:
     st.error(f"Error cargando datos de la base de datos: {e}")
 
-
 def guardar_datos_usuario():
   if not st.session_state["usuario"]:
     return
@@ -136,9 +123,8 @@ def guardar_datos_usuario():
     }
     for item in info.get("plan", []):
       item_copia = item.copy()
-      if "Fecha" in item_copia:
-        if isinstance(item_copia["Fecha"], (datetime.date, datetime.datetime)):
-          item_copia["Fecha"] = item_copia["Fecha"].strftime("%Y-%m-%d")
+      if "Fecha" in item_copia and isinstance(item_copia["Fecha"], (datetime.date, datetime.datetime)):
+        item_copia["Fecha"] = item_copia["Fecha"].strftime("%Y-%m-%d")
       evals_json[cod]["plan"].append(item_copia)
 
   horario_json = (
@@ -167,7 +153,6 @@ def guardar_datos_usuario():
     st.toast("💾 Cambios guardados automáticamente", icon="☁️")
   except Exception as e:
     st.error(f"Error al guardar datos: {e}")
-
 
 # --- 6. RECUPERAR SESIÓN POR COOKIE ---
 if st.session_state["usuario"] is None:
@@ -200,27 +185,19 @@ if st.session_state["usuario"] is None:
     except Exception:
       pass
 
-
 # --- 7. LÓGICA DE CONTROL DE PRELACIONES ---
 def verificar_disponibilidad(row, df_completo):
   prelaciones_raw = str(row.get("prelaciones", "Ninguna")).strip()
-
   if prelaciones_raw.lower() in ["ninguna", "ninguno", "-", "", "none", "sin prelación"]:
     return True, "Disponible"
 
   codigos_aprobados = df_completo[df_completo["estado"] == "Aprobada"]["codigo"].tolist()
   materias_pre = [p.strip() for p in prelaciones_raw.replace("/", ",").split(",") if p.strip()]
-  faltantes = []
-
-  for pre in materias_pre:
-    if pre not in codigos_aprobados and pre.lower() not in ["ninguna", ""]:
-      faltantes.append(pre)
+  faltantes = [pre for pre in materias_pre if pre not in codigos_aprobados]
 
   if len(faltantes) > 0:
     return False, f"🔒 Bloqueada (Requiere aprobar: {', '.join(faltantes)})"
-
   return True, "Disponible"
-
 
 # --- 8. CÁLCULO DE ÍNDICE ACADÉMICO ---
 def calcular_indice_academico(df_pensum, evaluaciones):
@@ -235,13 +212,13 @@ def calcular_indice_academico(df_pensum, evaluaciones):
       plan = evaluaciones[cod].get("plan", [])
       if plan:
         df_plan = pd.DataFrame(plan)
-        if "Nota" in df_plan.columns:
-          if "Valor (%)" in df_plan.columns and df_plan["Valor (%)"].sum() > 0:
+        if "Nota" in df_plan.columns and "Valor (%)" in df_plan.columns:
+          suma_val = df_plan["Valor (%)"].sum()
+          if suma_val > 0:
             nota_mat = ((df_plan["Nota"] / 20.0) * (df_plan["Valor (%)"] / 100.0) * 20.0).sum()
           else:
-            notas_val = df_plan["Nota"].dropna()
-            nota_mat = notas_val.sum() if len(notas_val) > 0 else 0.0
-
+            nota_mat = df_plan["Nota"].sum()
+          
           if row["estado"] in ["Aprobada", "Reprobada", "En Curso"]:
             puntos_acumulados += nota_mat * cred
             total_creditos += cred
@@ -250,8 +227,26 @@ def calcular_indice_academico(df_pensum, evaluaciones):
     return puntos_acumulados / total_creditos
   return 0.0
 
+# --- 9. FUNCIÓN DE LLAMADA A GEMINI CON REINTENTOS (ANTI-TRÁFICO) ---
+def llamada_gemini_con_reintentos(client, model_name, contents, max_intentos=3):
+  intentos = 0
+  espera = 2
+  while intentos < max_intentos:
+    try:
+      response = client.models.generate_content(model=model_name, contents=contents)
+      return response
+    except Exception as e:
+      error_str = str(e)
+      if "429" in error_str or "ResourceExhausted" in error_str or "traffic" in error_str.lower():
+        intentos += 1
+        if intentos >= max_intentos:
+          raise Exception("Servidor saturado (Alto tráfico). Por favor, intenta de nuevo en unos segundos.")
+        time.sleep(espera)
+        espera *= 2
+      else:
+        raise e
 
-# --- 9. PANTALLA DE AUTENTICACIÓN ---
+# --- 10. PANTALLA DE AUTENTICACIÓN ---
 if st.session_state["usuario"] is None:
   st.title("🎓 Bienvenido a Mi App Universitaria")
   st.subheader("Inicia sesión y marca la casilla si deseas recordar este dispositivo.")
@@ -305,7 +300,7 @@ if st.session_state["usuario"] is None:
         except Exception as e:
           st.error(f"Error al registrarse: {e}")
 
-# --- 10. APLICACIÓN PRINCIPAL ---
+# --- 11. APLICACIÓN PRINCIPAL ---
 else:
   st.sidebar.write(f"👤 **Usuario:** {st.session_state['usuario'].email}")
 
@@ -333,22 +328,25 @@ else:
     st.session_state["pensum_df"] = None
     st.session_state["evaluaciones"] = {}
     st.session_state["horario_df"] = None
+    st.session_state["escala_df"] = None
     st.rerun()
 
   st.title("🎓 Mi App Universitaria")
 
-  tab_pensum, tab_horario, tab_asistente, tab_pomodoro = st.tabs([
+  tab_pensum, tab_horario, tab_escala, tab_asistente, tab_pomodoro = st.tabs([
       "📚 Pensum y Calificaciones",
       "📅 Horario de Clases",
+      "📊 Escala de Notas",
       "🤖 Asistente Virtual IA",
       "⏱️ Pomodoro de Estudio",
   ])
 
+  # --- PESTAÑA 1: PENSUM Y CALIFICACIONES ---
   with tab_pensum:
-    st.subheader("📋 Pensum Estructurado por Niveles")
+    st.subheader("📋 Pensum Estructurado y Evaluaciones")
     if st.session_state["pensum_df"] is None:
       st.info("👋 Carga tu pensum en formato PDF para comenzar.")
-      uploaded_file = st.file_uploader("Sube el PDF de tu pensum", type=["pdf"])
+      uploaded_file = st.file_uploader("Sube el PDF de tu pensum", type=["pdf"], key="up_pensum")
       if uploaded_file and st.button("📊 Organizar Pensum en Tabla"):
         with st.spinner("Procesando pensum con Gemini..."):
           try:
@@ -359,123 +357,6 @@ else:
             prompt = """Extrae exhaustivamente todas las materias del documento del pensum proporcionado. 
             Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida de lista de objetos con claves: 
             semestre, codigo, materia, creditos, prelaciones."""
-            response = client.models.generate_content(model=modelo_seleccionado, contents=[prompt, pdf_part])
+            response = llamada_gemini_con_reintentos(client, modelo_seleccionado, [prompt, pdf_part])
             if response and response.text:
-              clean_text = response.text.strip().replace("```json", "").replace("```", "")
-              data = json.loads(clean_text)
-              df = pd.DataFrame(data)
-              if "estado" not in df.columns:
-                df["estado"] = "No Inscrita"
-              st.session_state["pensum_df"] = df
-              guardar_datos_usuario()
-              st.success("¡Pensum procesado y guardado!")
-              st.rerun()
-          except Exception as err:
-            st.error(f"Error procesando el documento: {err}")
-    else:
-      if st.sidebar.button("🗑️ Eliminar / Volver a subir Pensum"):
-        st.session_state["pensum_df"] = None
-        st.session_state["evaluaciones"] = {}
-        guardar_datos_usuario()
-        st.rerun()
-      
-      df = st.session_state["pensum_df"]
-      indice_aca = calcular_indice_academico(df, st.session_state["evaluaciones"])
-      
-      col_m1, col_m2, col_m3, col_m4, col_m5, col_m6 = st.columns(6)
-      col_m1.metric("Total Materias", len(df))
-      col_m2.metric("Aprobadas", len(df[df["estado"] == "Aprobada"]))
-      col_m3.metric("En Curso", len(df[df["estado"] == "En Curso"]))
-      col_m4.metric("Inscritas", len(df[df["estado"] == "Inscrita"]))
-      col_m5.metric("No Inscritas", len(df[df["estado"] == "No Inscrita"]))
-      col_m6.metric("📈 Índice", f"{indice_aca:.2f} / 20.0")
-      
-      st.divider()
-      semestres = list(df["semestre"].unique()) if "semestre" in df.columns else ["Nivel Único"]
-      tabs_niveles = st.tabs(semestres)
-
-      for idx_tab, semestre_nombre in enumerate(semestres):
-        with tabs_niveles[idx_tab]:
-          df_nivel = df[df["semestre"] == semestre_nombre].copy()
-          disponibilidades, mensajes_est = [], []
-          for _, row in df_nivel.iterrows():
-            disp, msg = verificar_disponibilidad(row, df)
-            disponibilidades.append(disp)
-            mensajes_est.append(msg)
-          df_nivel["Disponibilidad"] = mensajes_est
-
-          evento_seleccion = st.dataframe(
-              df_nivel, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", key=f"t_{semestre_nombre}"
-          )
-          filas_sel = evento_seleccion.get("selection", {}).get("rows", [])
-          if filas_sel:
-            idx_local = filas_sel[0]
-            materia_sel = df_nivel.iloc[idx_local]
-            codigo_mat = str(materia_sel.get("codigo", f"MAT-{idx_local}"))
-            nombre_mat = materia_sel.get("materia", "Asignatura")
-            if disponibilidades[idx_local]:
-              st.markdown(f"### 📝 Plan de Evaluaciones: **{codigo_mat} - {nombre_mat}**")
-              if codigo_mat not in st.session_state["evaluaciones"]:
-                st.session_state["evaluaciones"][codigo_mat] = {
-                    "estado": materia_sel.get("estado", "No Inscrita"),
-                    "plan": [{"Evaluación": "Parcial 1", "Tema": "Unidad 1", "Valor (%)": 25, "Nota": 0.0, "Fecha": datetime.date.today(), "Entregada": False}]
-                }
-              
-              estado_actual = st.session_state["evaluaciones"][codigo_mat].get("estado", "No Inscrita")
-              nuevo_est = st.selectbox("Estado:", ["No Inscrita", "Inscrita", "En Curso", "Aprobada", "Reprobada"], index=["No Inscrita", "Inscrita", "En Curso", "Aprobada", "Reprobada"].index(estado_actual) if estado_actual in ["No Inscrita", "Inscrita", "En Curso", "Aprobada", "Reprobada"] else 0, key=f"st_{codigo_mat}")
-              if nuevo_est != estado_actual:
-                st.session_state["evaluaciones"][codigo_mat]["estado"] = nuevo_est
-                st.session_state["pensum_df"].loc[st.session_state["pensum_df"]["codigo"] == codigo_mat, "estado"] = nuevo_est
-                guardar_datos_usuario()
-                st.rerun()
-
-  with tab_horario:
-    st.subheader("📅 Gestión de Horario de Clases")
-    if st.session_state.get("horario_df") is None:
-      uploaded_horario = st.file_uploader("Sube el PDF de tu horario", type=["pdf"], key="up_horario")
-      if uploaded_horario and st.button("Procesar Horario"):
-        with st.spinner("Procesando horario..."):
-          try:
-            api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-            client = genai.Client(api_key=api_key)
-            pdf_part = types.Part.from_bytes(data=uploaded_horario.read(), mime_type="application/pdf")
-            prompt = "Extrae las clases del horario en JSON con claves: dia, materia, aula, inicio, fin."
-            response = client.models.generate_content(model=modelo_seleccionado, contents=[prompt, pdf_part])
-            if response and response.text:
-              data_horario = json.loads(response.text.strip().replace("```json", "").replace("```", ""))
-              st.session_state["horario_df"] = pd.DataFrame(data_horario)
-              guardar_datos_usuario()
-              st.rerun()
-          except Exception as err:
-            st.error(f"Error: {err}")
-    else:
-      if st.button("🗑️ Eliminar Horario"):
-        st.session_state["horario_df"] = None
-        guardar_datos_usuario()
-        st.rerun()
-      st.data_editor(st.session_state["horario_df"], use_container_width=True, hide_index=True, key="ed_horario")
-
-  with tab_asistente:
-    st.subheader("🤖 Asistente Virtual Universitario")
-    prompt_usuario = st.chat_input("Escribe una consulta libre para la IA...")
-    if prompt_usuario:
-      st.write(f"**Tú:** {prompt_usuario}")
-      try:
-        api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(model=modelo_seleccionado, contents=prompt_usuario)
-        if response and response.text:
-          st.write(f"**IA:** {response.text}")
-      except Exception as e:
-        st.error(f"Error con la IA: {e}")
-
-  with tab_pomodoro:
-    st.subheader("⏱️ Pomodoro de Estudio Integrado")
-    if "pomodoro_tiempo" not in st.session_state:
-      st.session_state["pomodoro_tiempo"] = 25 * 60
-    minutos = st.session_state["pomodoro_tiempo"] // 60
-    segundos = st.session_state["pomodoro_tiempo"] % 60
-    st.metric("Tiempo restante", f"{minutos:02d}:{segundos:02d}")
-    if st.button("▶️ Iniciar 25 min"):
-      st.session_state["pomodoro_tiempo"] = 25 * 60
-      st.success("¡Temporizador listo!")
+              clean_text = response.text.strip().replace("```json", "").replace("
