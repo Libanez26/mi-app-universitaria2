@@ -1,14 +1,7 @@
-if "pensum_df" not in st.session_state:
-    st.session_state["pensum_df"] = None
-if "evaluaciones" not in st.session_state:
-    st.session_state["evaluaciones"] = {}
-if "escala_df" not in st.session_state:
-    st.session_state["escala_df"] = pd.DataFrame()
+import streamlit as st
+import time
 
-  # ==========================================
-  # PESTAÑA 4: TÉCNICA POMODORO
-  # ==========================================
-  with tab_pomodoro:
+def render(supabase):
     st.subheader("⏱️ Pomodoro de Estudio Integrado")
 
     with st.expander("¿Qué es esto?"):
@@ -25,7 +18,7 @@ if "escala_df" not in st.session_state:
         st.session_state["pomodoro_activo"] = False
 
     def actualizar_tiempo():
-        modo = st.session_state["modo_seleccionado"]
+        modo = st.session_state.get("modo_seleccionado", "Foco (25m)")
         if "25m" in modo:
             st.session_state["pomodoro_tiempo"] = 25 * 60
         elif "5m" in modo:
@@ -62,8 +55,6 @@ if "escala_df" not in st.session_state:
         if st.button("⏹️ Detener", key="btn_pomo_detener"):
             st.session_state["pomodoro_activo"] = False
             actualizar_tiempo()
-
-    import time
 
     if (
         st.session_state["pomodoro_activo"]
