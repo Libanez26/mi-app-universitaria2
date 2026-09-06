@@ -522,7 +522,39 @@ else:
       indice_aca = calcular_indice_academico(
           df, st.session_state["evaluaciones"]
       )
-      eficiencia_actual = calcular_eficiencia_academica(df)
+      
+      # --- INTEGRACIÓN: BLOQUE DE GESTIÓN DE EFICIENCIA ---
+      st.markdown("### Gestión de Eficiencia")
+
+      # Simulación de estado basado en el DataFrame real de pensum
+      if 'tiene_reprobadas' not in st.session_state:
+          st.session_state.tiene_reprobadas = (calcular_eficiencia_academica(df) == "Eficiencia 2")
+      else:
+          # Mantener sincronizado con la realidad del df si cambia
+          st.session_state.tiene_reprobadas = (calcular_eficiencia_academica(df) == "Eficiencia 2")
+
+      # 1. Encabezado con botón de información sobre las eficiencias
+      col_ef1, col_ef2 = st.columns([4, 1])
+      with col_ef1:
+          # Determinar la eficiencia según la regla de materias reprobadas
+          eficiencia_actual = "Eficiencia 2" if st.session_state.tiene_reprobadas else "Eficiencia 1"
+          st.metric(label="Estado Actual", value=eficiencia_actual)
+
+      with col_ef2:
+          # Botón con popover para explicar el significado de cada eficiencia
+          with st.popover("ℹ️ ¿Qué significa?"):
+              st.markdown("**Eficiencia 1:** Descripción detallada de la eficiencia 1...")
+              st.markdown("**Eficiencia 2:** Se asigna obligatoriamente cuando el estudiante registra una o más materias reprobadas.")
+
+      # 2. Validación automática y botón de corrección por si hubo un error
+      if st.session_state.tiene_reprobadas:
+          st.info("💡 Nota: Como hay materias reprobadas registradas, el sistema asigna por defecto Eficiencia 2.")
+
+      # Botón para corregir en caso de equivocación en la carga de notas
+      if st.button("✏️ ¿Me equivoqué? Modificar materias"):
+          st.session_state.tiene_reprobadas = not st.session_state.tiene_reprobadas
+          st.rerun()
+      # --- FIN DE INTEGRACIÓN ---
 
       col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
       with col_m1:
