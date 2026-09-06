@@ -2,6 +2,7 @@ import streamlit as st
 import extra_streamlit_components as st_cookie
 from database import inicializar_supabase, cargar_datos_usuario
 from views.auth import gestionar_autenticacion
+from views import pensum, horario, escala, asistente, pomodoro
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -26,11 +27,7 @@ if "horario_df" not in st.session_state:
 if "escala_df" not in st.session_state:
     st.session_state["escala_df"] = None
 
-# --- 4. IMPORTACIÓN DE VISTAS Y MÓDULOS ---
-from views.auth import gestionar_autenticacion
-from views import pensum, horario, escala, asistente, pomodoro
-
-# --- 5. CONTROL DE ACCESO Y ENRUTAMIENTO ---
+# --- 4. CONTROL DE ACCESO Y ENRUTAMIENTO ---
 device_token_cookie = cookie_manager.get(cookie="dispositivo_confiable_token")
 
 if st.session_state["usuario"] is None:
