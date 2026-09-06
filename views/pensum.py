@@ -8,6 +8,7 @@ if "escala_df" not in st.session_state:
   # ==========================================
   # PESTAÑA 1: PENSUM Y CALIFICACIONES
   # ==========================================
+
   with tab_pensum:
     st.subheader("📋 Pensum Estructurado por Niveles")
 
