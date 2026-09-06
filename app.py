@@ -2,11 +2,11 @@ import streamlit as st
 import extra_streamlit_components as st_cookie
 from database import inicializar_supabase, cargar_datos_usuario
 from views.auth import gestionar_autenticacion
-from views import pensum
-from views import horario
-from views import escala
-from views import asistente
-from views import pomodoro
+from views import pensum.py
+from views import horario.py
+from views import escala.py
+from views import asistente.py
+from views import pomodoro.py
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
