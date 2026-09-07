@@ -669,7 +669,15 @@ else:
                       n_val = calcular_nota_materia(row_mat["codigo"], st.session_state["evaluaciones"])
                       notas_finales_nivel.append(f"{n_val:.2f} pts")
                   df_nivel["Nota Final"] = notas_finales_nivel
-                  
+
+                  notas_finales_nivel = []
+                  for _, row_mat in df_nivel.iterrows():
+                     # Esto busca exactamente la nota final calculada de esa materia
+                     n_val = calcular_nota_materia(row_mat["codigo"], st.session_state["evaluaciones"])
+                     notas_finales_nivel.append(f"{n_val:.2f} pts")
+
+                  df_nivel["Nota Final"] = notas_finales_nivel
+
                   prom_sem_actual = promedios_semestrales.get(semestre_nombre, 0.0)
                   st.info(f"📊 **Promedio del Semestre ({semestre_nombre}):** {prom_sem_actual:.2f} / 20.0")
 
