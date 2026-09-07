@@ -1170,7 +1170,7 @@ with tab_pensum:
                                     st.success("¡Escala evaluativa actualizada correctamente!")
                                     st.rerun()
 
-  # ==========================================
+ # ==========================================
   # PESTAÑA 2: HORARIO DE CLASES
   # ==========================================
   with tab_horario:
