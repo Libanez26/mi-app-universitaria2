@@ -486,6 +486,54 @@ else:
   # PESTAÑA 1: PENSUM Y CALIFICACIONES
   # ==========================================
   with tab_pensum:
+      # ==========================================
+    # 🔔 SECCIÓN: PRÓXIMAS ACTIVIDADES (ALERTA DE 3 DÍAS)
+    # ==========================================
+    with st.expander("🔔 Ver Próximas Actividades (Próximos 3 días)", expanded=False):
+        hoy = datetime.date.today()
+        limite_alerta = hoy + datetime.timedelta(days=3)
+        actividades_proximas = []
+
+        # Recorrer todas las materias y sus planes de evaluación
+        if "evaluaciones" in st.session_state:
+            for cod_mat, info_mat in st.session_state["evaluaciones"].items():
+                plan = info_mat.get("plan", [])
+                for ev in plan:
+                    entregada = ev.get("Entregada", False)
+                    fecha_ev = ev.get("Fecha")
+
+                    # Convertir si la fecha es string por seguridad
+                    if isinstance(fecha_ev, str):
+                        try:
+                            fecha_ev = datetime.datetime.strptime(fecha_ev, "%Y-%m-%d").date()
+                        except ValueError:
+                            continue
+
+                    # Filtrar: No entregada y cuya fecha esté entre hoy y los próximos 3 días
+                    if not entregada and fecha_ev and hoy <= fecha_ev <= limite_alerta:
+                        actividades_proximas.append({
+                            "Código": cod_mat,
+                            "Evaluación": ev.get("Evaluación"),
+                            "Tema": ev.get("Tema"),
+                            "Fecha": fecha_ev,
+                            "Valor (%)": ev.get("Valor (%)")
+                        })
+
+        if actividades_proximas:
+            st.warning(f"⚠️ Tienes **{len(actividades_proximas)}** actividad(es) programada(s) para los próximos 3 días:")
+            df_proximas = pd.DataFrame(actividades_proximas)
+            st.dataframe(
+                df_proximas,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Fecha": st.column_config.DateColumn("Fecha límite", format="YYYY-MM-DD"),
+                    "Valor (%)": st.column_config.NumberColumn("Ponderación", format="%d%%")
+                }
+            )
+        else:
+            st.info("🎉 ¡Excelente! No tienes evaluaciones pendientes para los próximos 3 días.")
+            
     st.subheader("📋 Pensum Estructurado por Niveles")
 
     if st.session_state["pensum_df"] is None:
