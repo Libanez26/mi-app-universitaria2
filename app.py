@@ -472,15 +472,18 @@ else:
   # PESTAÑA 1: PENSUM Y CALIFICACIONES
   # ==========================================
   with tab_pensum:
-      # ==========================================
-    # 🔔 SECCIÓN: PRÓXIMAS ACTIVIDADES (ALERTA DE 3 DÍAS)
+      
+     # ==========================================
+    # 🔔 SECCIÓN: ACTIVIDADES PENDIENTES, HOY Y PRÓXIMAS
     # ==========================================
-    with st.expander("🔔 Ver Próximas Actividades (Próximos 3 días)", expanded=False):
+    with st.expander("🔔 Ver Alertas de Actividades (Vencidas, Hoy y Próximas)", expanded=False):
         hoy = datetime.date.today()
-        limite_alerta = hoy + datetime.timedelta(days=3)
-        actividades_proximas = []
+        limite_futuro = hoy + datetime.timedelta(days=3)
+        
+        atrasadas = []
+        para_hoy = []
+        proximas = []
 
-        # Recorrer todas las materias y sus planes de evaluación
         if "evaluaciones" in st.session_state:
             for cod_mat, info_mat in st.session_state["evaluaciones"].items():
                 plan = info_mat.get("plan", [])
@@ -488,37 +491,71 @@ else:
                     entregada = ev.get("Entregada", False)
                     fecha_ev = ev.get("Fecha")
 
-                    # Convertir si la fecha es string por seguridad
                     if isinstance(fecha_ev, str):
                         try:
                             fecha_ev = datetime.datetime.strptime(fecha_ev, "%Y-%m-%d").date()
                         except ValueError:
                             continue
 
-                    # Filtrar: No entregada y cuya fecha esté entre hoy y los próximos 3 días
-                    if not entregada and fecha_ev and hoy <= fecha_ev <= limite_alerta:
-                        actividades_proximas.append({
+                    if not entregada and fecha_ev:
+                        item = {
                             "Código": cod_mat,
                             "Evaluación": ev.get("Evaluación"),
                             "Tema": ev.get("Tema"),
                             "Fecha": fecha_ev,
                             "Valor (%)": ev.get("Valor (%)")
-                        })
+                        }
+                        
+                        if fecha_ev < hoy:
+                            atrasadas.append(item)
+                        elif fecha_ev == hoy:
+                            para_hoy.append(item)
+                        elif hoy < fecha_ev <= limite_futuro:
+                            proximas.append(item)
 
-        if actividades_proximas:
-            st.warning(f"⚠️ Tienes **{len(actividades_proximas)}** actividad(es) programada(s) para los próximos 3 días:")
-            df_proximas = pd.DataFrame(actividades_proximas)
-            st.dataframe(
-                df_proximas,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Fecha": st.column_config.DateColumn("Fecha límite", format="YYYY-MM-DD"),
-                    "Valor (%)": st.column_config.NumberColumn("Ponderación", format="%d%%")
-                }
-            )
+        total_pendientes = len(atrasadas) + len(para_hoy) + len(proximas)
+
+        if total_pendientes > 0:
+            if atrasadas:
+                st.error(f"🚨 Tienes **{len(atrasadas)}** actividad(es) **atrasada(s)** (vencidas):")
+                df_atrasadas = pd.DataFrame(atrasadas).sort_values("Fecha")
+                st.dataframe(
+                    df_atrasadas,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Fecha": st.column_config.DateColumn("Fecha límite", format="YYYY-MM-DD"),
+                        "Valor (%)": st.column_config.NumberColumn("Ponderación", format="%d%%")
+                    }
+                )
+
+            if para_hoy:
+                st.warning(f"🔥 ¡Atención! Tienes **{len(para_hoy)}** actividad(es) que se entregan **HOY**:")
+                df_hoy = pd.DataFrame(para_hoy)
+                st.dataframe(
+                    df_hoy,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Fecha": st.column_config.DateColumn("Fecha límite", format="YYYY-MM-DD"),
+                        "Valor (%)": st.column_config.NumberColumn("Ponderación", format="%d%%")
+                    }
+                )
+
+            if proximas:
+                st.info(f"⏳ Tienes **{len(proximas)}** actividad(es) para los próximos 3 días:")
+                df_proximas = pd.DataFrame(proximas).sort_values("Fecha")
+                st.dataframe(
+                    df_proximas,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Fecha": st.column_config.DateColumn("Fecha límite", format="YYYY-MM-DD"),
+                        "Valor (%)": st.column_config.NumberColumn("Ponderación", format="%d%%")
+                    }
+                )
         else:
-            st.info("🎉 ¡Excelente! No tienes evaluaciones pendientes para los próximos 3 días.")
+            st.success("🎉 ¡Excelente! No tienes ninguna actividad pendiente, para hoy ni para los próximos 3 días.")
             
     st.subheader("📋 Pensum Estructurado por Niveles")
 
