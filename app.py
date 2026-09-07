@@ -1676,7 +1676,7 @@ else:
     )
 
     minutos = st.session_state["pomodoro_tiempo"] // 60
-    segundos = st.session_state["pomodoro_tiempo % 60"] if "pomodoro_tiempo % 60" in st.session_state else st.session_state["pomodoro_tiempo"] % 60
+    segundos = st.session_state["pomodoro_tiempo"] % 60
     st.metric("Tiempo restante", f"{minutos:02d}:{segundos:02d}")
 
     col1, col2, col3, col4 = st.columns(4)
