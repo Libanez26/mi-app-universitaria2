@@ -469,9 +469,10 @@ else:
             ])
 
     # ==========================================
-    # PESTAÑA 1: PENSUM Y CALIFICACIONES
-    # ==========================================
-    with tab_pensum:
+# PESTAÑA 1: PENSUM Y CALIFICACIONES
+# ==========================================
+with tab_pensum:
+       
 
     # ==========================================
     # 🔔 SECCIÓN: ACTIVIDADES PENDIENTES, HOY Y PRÓXIMAS
