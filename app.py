@@ -1047,23 +1047,25 @@ else:
                           )
 
                           st.markdown("---")
-                          st.markdown("#### ✅ Resultado Final")
+st.markdown("#### ✅ Resultado Final")
 
-                          if puntos_acum >= min_aprobar:
-                              st.success(
-                                  f"¡Felicidades! Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, estás"
-                                  " **APROBADO** en esta materia."
-                              )
-                              if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
-                                  if codigo_mat not in st.session_state["evaluaciones"]:
-                                      st.session_state["evaluaciones"][codigo_mat] = {"estado": "Aprobada", "plan": []}
-                                  else:
-                                      st.session_state["evaluaciones"][codigo_mat]["estado"] = "Aprobada"
-                                  
-                                  st.session_state["pensum_df"].loc[
-                                      st.session_state["pensum_df"]["codigo"] == codigo_mat,
-                                      "estado",
-                                  ] = "Aprobada"
+# Guardas la nota final de esta materia específica en el estado global
+if "notas_finales_materias" not in st.session_state:
+  st.session_state["notas_finales_materias"] = {}
+
+# Reemplaza 'codigo_materia_actual' por la variable real que identifica la materia
+st.session_state["notas_finales_materias"][codigo_materia_actual] = puntos_acum
+
+if puntos_acum >= min_aprobar:
+  st.success(
+      f"¡Felicidades! Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, estás"
+      " **APROBADO** en esta materia."
+  )
+else:
+  st.error(
+      f"Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, estás"
+      " **REPROBADO** en esta materia."
+  )
                                   
                                   if key_selectbox_estado in st.session_state:
                                       del st.session_state[key_selectbox_estado]
