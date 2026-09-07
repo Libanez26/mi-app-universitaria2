@@ -670,14 +670,6 @@ else:
                       notas_finales_nivel.append(f"{n_val:.2f} pts")
                   df_nivel["Nota Final"] = notas_finales_nivel
 
-                  notas_finales_nivel = []
-                  for _, row_mat in df_nivel.iterrows():
-                     # Esto busca exactamente la nota final calculada de esa materia
-                     n_val = calcular_nota_materia(row_mat["codigo"], st.session_state["evaluaciones"])
-                     notas_finales_nivel.append(f"{n_val:.2f} pts")
-
-                  df_nivel["Nota Final"] = notas_finales_nivel
-
                   prom_sem_actual = promedios_semestrales.get(semestre_nombre, 0.0)
                   st.info(f"📊 **Promedio del Semestre ({semestre_nombre}):** {prom_sem_actual:.2f} / 20.0")
 
@@ -1088,7 +1080,6 @@ else:
 
                           st.markdown("---")
                           with st.expander("📌 Ver / Configurar Tabla de Escala Evaluativa de Referencia"):
-                          
                               archivo_pdf = st.file_uploader("Sube el PDF de la Escala Evaluativa", type=["pdf"], key=f"uploader_escala_{codigo_mat}")
 
                               if archivo_pdf is not None:
@@ -1174,20 +1165,6 @@ else:
                                       guardar_datos_usuario()
                                       st.success("¡Escala evaluativa actualizada correctamente!")
                                       st.rerun()
-                                      notas_finales_nivel = []
-                for _, row_mat in df_nivel.iterrows():
-                    cod = row_mat["codigo"]
-                    info_mat = st.session_state["evaluaciones"].get(cod, {})
-                    plan = info_mat.get("plan", [])
-                    
-                    # Calcula la nota final sumando las notas ponderadas por su porcentaje
-                    puntos_mat = sum(
-                        float(ev.get("Nota", 0.0)) * (float(ev.get("Valor (%)", 0.0)) / 100.0) 
-                        for ev in plan
-                    )
-                    notas_finales_nivel.append(f"{puntos_mat:.2f} pts")
-
-                df_nivel["Nota Final"] = notas_finales_nivel
 
   # ==========================================
   # PESTAÑA 2: HORARIO DE CLASES
