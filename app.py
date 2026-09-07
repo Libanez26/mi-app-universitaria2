@@ -394,8 +394,10 @@ else:
     modelo_seleccionado = st.selectbox(
         "Selecciona el Modelo",
         [
-            "gemini-2.5-flash",
+            "gemini-3.5-flash",
             "gemini-2.0-flash",
+            "gemini-3.5-flash",
+            "gemini-2.5-flash",
         ],
         index=0,
         help=(
@@ -485,48 +487,6 @@ else:
   # PESTAÑA 1: PENSUM Y CALIFICACIONES
   # ==========================================
   with tab_pensum:
-    with st.expander("📌 Próximas Entregas y Evaluaciones Pendientes", expanded=True):
-        hoy = datetime.date.today()
-        proximas_entregas = []
-        
-        evals_dict = st.session_state.get("evaluaciones", {})
-        pensum_df = st.session_state.get("pensum_df")
-        
-        for codigo_mat, info_mat in evals_dict.items():
-            nombre_mat = codigo_mat
-            if pensum_df is not None and not pensum_df.empty:
-                match = pensum_df[pensum_df["codigo"] == codigo_mat]
-                if not match.empty:
-                    nombre_mat = match.iloc[0].get("materia", codigo_mat)
-            
-            plan_evals = info_mat.get("plan", [])
-            for item in plan_evals:
-                if not item.get("Entregada", False):
-                    f_eval = item.get("Fecha")
-                    if isinstance(f_eval, str):
-                        try:
-                            f_eval = datetime.datetime.strptime(f_eval, "%Y-%m-%d").date()
-                        except ValueError:
-                            continue
-                    if f_eval and f_eval >= hoy:
-                        proximas_entregas.append({
-                            "materia": nombre_mat,
-                            "evaluacion": item.get("Evaluación", "Evaluación"),
-                            "tema": item.get("Tema", ""),
-                            "fecha": f_eval,
-                            "valor": item.get("Valor (%)", 0)
-                        })
-        
-        proximas_entregas = sorted(proximas_entregas, key=lambda x: x["fecha"])
-        
-        if proximas_entregas:
-            for item in proximas_entregas[:5]:
-                dias_faltan = (item["fecha"] - hoy).days
-                badge = f"🔥 ¡Hoy!" if dias_faltan == 0 else f"(Faltan {dias_faltan} días)"
-                st.markdown(f"- **{item['materia']}** | *{item['evaluacion']}* ({item['tema']}) - 📅 **{item['fecha']}** {badge}")
-        else:
-            st.info("No hay entregas pendientes programadas próximamente.")
-
     st.subheader("📋 Pensum Estructurado por Niveles")
 
     if st.session_state["pensum_df"] is None:
@@ -959,6 +919,7 @@ else:
                   },
               )
 
+              # Validación cruzada del 100% en el editor de notas
               if "Valor (%)" in edited_df.columns:
                   suma_porcentajes = edited_df["Valor (%)"].sum()
                   if suma_porcentajes > 100:
@@ -1628,7 +1589,7 @@ else:
                     {escala_resumen}
                     """
 
-                    modelos_a_probar = ["gemini-2.5-flash", "gemini-2.0-flash"]
+                    modelos_a_probar = ["gemini-3.5-flash", "gemini-2.0-flash", "gemini-3.5-flash"]
                     response = None
                     ultimo_error = None
 
@@ -1715,7 +1676,7 @@ else:
     )
 
     minutos = st.session_state["pomodoro_tiempo"] // 60
-    segundos = st.session_state["pomodoro_tiempo"] % 60
+    segundos = st.session_state["pomodoro_tiempo % 60"] if "pomodoro_tiempo % 60" in st.session_state else st.session_state["pomodoro_tiempo"] % 60
     st.metric("Tiempo restante", f"{minutos:02d}:{segundos:02d}")
 
     col1, col2, col3, col4 = st.columns(4)
