@@ -1175,6 +1175,7 @@ else:
                                       st.success("¡Escala evaluativa actualizada correctamente!")
                                       st.rerun()
                                       notas_finales_nivel = []
+                                      
                 for _, row_mat in df_nivel.iterrows():
                     cod = row_mat["codigo"]
                     info_mat = st.session_state["evaluaciones"].get(cod, {})
