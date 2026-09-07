@@ -1171,6 +1171,10 @@ else:
                     st.success("¡Escala evaluativa actualizada correctamente!")
                     st.rerun()
 
+    # Para mostrar la nota final arriba de la materia:
+nota_mostrar = info_mat.get("Nota_Final", 0.0)
+st.metric(label="Nota Final del Semestre", value=f"{nota_mostrar} pts")
+
   # ==========================================
   # PESTAÑA 2: HORARIO DE CLASES
   # ==========================================
