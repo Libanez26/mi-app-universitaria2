@@ -664,10 +664,6 @@ else:
               with tabs_niveles[idx_tab]:
                   df_nivel = df[df["semestre"] == semestre_nombre].copy()
 
-                  notas_finales_nivel = []
-                  for _, row_mat in df_nivel.iterrows():
-                      n_val = calcular_nota_materia(row_mat["codigo"], st.session_state["evaluaciones"])
-                      notas_finales_nivel.append(f"{n_val:.2f} pts")
                   df_nivel["Nota Final"] = notas_finales_nivel
 
                   prom_sem_actual = promedios_semestrales.get(semestre_nombre, 0.0)
