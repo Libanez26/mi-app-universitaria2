@@ -474,11 +474,17 @@ else:
   with tab_pensum:
       
      # ==========================================
+    ## ==========================================
     # 🔔 SECCIÓN: ACTIVIDADES PENDIENTES, HOY Y PRÓXIMAS
     # ==========================================
     with st.expander("🔔 Ver Alertas de Actividades (Vencidas, Hoy y Próximas)", expanded=False):
-        # Forzar fecha actual pura (sin horas ni problemas de zona horaria)
-        hoy = datetime.datetime.now().date()
+        
+        # Tomamos la fecha de hoy asegurando que coincida con la hora local del sistema
+        # Si tienes guardada la fecha en st.session_state (como en la pestaña de horario), la usamos; si no, datetime.date.today()
+        hoy = st.session_state.get("fecha_actual_sistema", datetime.date.today())
+        if isinstance(hoy, datetime.datetime):
+            hoy = hoy.date()
+            
         limite_futuro = hoy + datetime.timedelta(days=3)
         
         atrasadas = []
@@ -509,7 +515,7 @@ else:
                             "Valor (%)": ev.get("Valor (%)")
                         }
                         
-                        # Comparación exacta de fechas limpias
+                        # Comparación estricta con la fecha real de hoy
                         if fecha_ev < hoy:
                             atrasadas.append(item)
                         elif fecha_ev == hoy:
