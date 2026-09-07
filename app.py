@@ -477,7 +477,8 @@ else:
     # 🔔 SECCIÓN: ACTIVIDADES PENDIENTES, HOY Y PRÓXIMAS
     # ==========================================
     with st.expander("🔔 Ver Alertas de Actividades (Vencidas, Hoy y Próximas)", expanded=False):
-        hoy = datetime.date.today()
+        # Forzar fecha actual pura (sin horas ni problemas de zona horaria)
+        hoy = datetime.datetime.now().date()
         limite_futuro = hoy + datetime.timedelta(days=3)
         
         atrasadas = []
@@ -496,6 +497,8 @@ else:
                             fecha_ev = datetime.datetime.strptime(fecha_ev, "%Y-%m-%d").date()
                         except ValueError:
                             continue
+                    elif isinstance(fecha_ev, datetime.datetime):
+                        fecha_ev = fecha_ev.date()
 
                     if not entregada and fecha_ev:
                         item = {
@@ -506,6 +509,7 @@ else:
                             "Valor (%)": ev.get("Valor (%)")
                         }
                         
+                        # Comparación exacta de fechas limpias
                         if fecha_ev < hoy:
                             atrasadas.append(item)
                         elif fecha_ev == hoy:
