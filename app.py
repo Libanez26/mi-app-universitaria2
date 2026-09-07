@@ -486,6 +486,21 @@ else:
   # ==========================================
   # PESTAÑA 1: PENSUM Y CALIFICACIONES
   # ==========================================
+    import streamlit as st
+
+# Ejemplo de aplicación con expander para actividades o recordatorios
+st.title("Mi App Universitaria")
+
+# Menú desplegable para las actividades
+with st.expander("📌 Ver Recordatorios y Actividades Pendientes"):
+    st.checkbox("Entregar informe de marketing - Semestre I")
+    st.checkbox("Revisar notas de contabilidad")
+    st.checkbox("Actualizar cronograma de proyectos")
+    
+    # También puedes usar texto o listas si lo prefieres
+    st.markdown("- **Proyecto Reto U**: Pendiente revisión de objetivos.")
+    st.markdown("- **Evaluación de Clima Organizacional**: Preparar reporte final.")
+    
   with tab_pensum:
     st.subheader("📋 Pensum Estructurado por Niveles")
 
