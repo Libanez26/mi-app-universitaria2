@@ -462,11 +462,11 @@ else:
   
 
   tab_pensum, tab_horario, tab_asistente, tab_pomodoro = st.tabs([
-      "📚 Pensum y Calificaciones",
-      "📅 Horario de Clases",
-      "🤖 Asistente Virtual IA",
-      "⏱️ Pomodoro de Estudio Integrado",
-  ])
+    "📊 Pensum y Calificaciones",
+    "📅 Horario de Clases",
+    "🤖 Asistente Virtual IA",
+    "⏱️ Pomodoro de Estudio Integrado"
+])
 
  # ==========================================
 # PESTAÑA 1: PENSUM Y CALIFICACIONES
