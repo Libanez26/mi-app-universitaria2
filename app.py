@@ -1316,9 +1316,9 @@ with tab_horario:
       st.session_state["horario_df"] = df_editado
 
   # ==========================================
-  # PESTAÑA 3: ASISTENTE VIRTUAL UNIVERSITARIO
-  # ==========================================
-  with tab_asistente:
+# PESTAÑA 3: ASISTENTE VIRTUAL UNIVERSITARIO
+# ==========================================
+with tab_asistente:
     st.subheader("🤖 Asistente Virtual Universitario")
     st.write(
         "Elige si prefieres interactuar mediante el menú de botones guiados o conversar libremente con el chat de IA."
