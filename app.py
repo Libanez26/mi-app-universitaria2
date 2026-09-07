@@ -669,12 +669,7 @@ else:
                       n_val = calcular_nota_materia(row_mat["codigo"], st.session_state["evaluaciones"])
                       notas_finales_nivel.append(f"{n_val:.2f} pts")
                   df_nivel["Nota Final"] = notas_finales_nivel
-                  # Asigna el valor directamente sin ninguna conversión matemática
-nota_final = resultado_obtenido
-
-# Renderízalo en tu componente de Streamlit
-st.metric(label="Nota Final", value=f"{nota_final:.2f} pts")
-
+                  
                   prom_sem_actual = promedios_semestrales.get(semestre_nombre, 0.0)
                   st.info(f"📊 **Promedio del Semestre ({semestre_nombre}):** {prom_sem_actual:.2f} / 20.0")
 
