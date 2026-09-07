@@ -468,7 +468,7 @@ else:
       "⏱️ Pomodoro de Estudio Integrado",
   ])
 
-# ==========================================
+ # ==========================================
 # PESTAÑA 1: PENSUM Y CALIFICACIONES
 # ==========================================
 with tab_pensum:
