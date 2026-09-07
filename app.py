@@ -1043,29 +1043,10 @@ else:
                           )
                           col_ac2.metric(
                               label="Resultado Obtenido",
-                              value=resultado_combinado,
-                          )
+                             
 
-                          st.markdown("---")
-st.markdown("#### ✅ Resultado Final")
+                          st.markdown("---") 
 
-# Guardas la nota final de esta materia específica en el estado global
-if "notas_finales_materias" not in st.session_state:
-  st.session_state["notas_finales_materias"] = {}
-
-# Reemplaza 'codigo_materia_actual' por la variable real que identifica la materia
-st.session_state["notas_finales_materias"][codigo_materia_actual] = puntos_acum
-
-if puntos_acum >= min_aprobar:
-  st.success(
-      f"¡Felicidades! Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, estás"
-      " **APROBADO** en esta materia."
-  )
-else:
-  st.error(
-      f"Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, estás"
-      " **REPROBADO** en esta materia."
-  )
                                   
                                   if key_selectbox_estado in st.session_state:
                                       del st.session_state[key_selectbox_estado]
