@@ -1714,11 +1714,11 @@ with tab_asistente:
                     st.rerun()
 
   # ==========================================
-  # PESTAÑA 4: TÉCNICA POMODORO
-  # ==========================================
-  with tab_pomodoro:
+# PESTAÑA 4: TÉCNICA POMODORO
+# ==========================================
+with tab_pomodoro:
     st.subheader("⏱️ Pomodoro de Estudio Integrado")
-
+    
     with st.expander("¿Qué es esto?"):
         st.write("""
             Esta herramienta utiliza la técnica **Pomodoro** para mejorar tu productividad:
