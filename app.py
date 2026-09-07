@@ -1174,6 +1174,20 @@ else:
                                       guardar_datos_usuario()
                                       st.success("¡Escala evaluativa actualizada correctamente!")
                                       st.rerun()
+                                      notas_finales_nivel = []
+                for _, row_mat in df_nivel.iterrows():
+                    cod = row_mat["codigo"]
+                    info_mat = st.session_state["evaluaciones"].get(cod, {})
+                    plan = info_mat.get("plan", [])
+                    
+                    # Calcula la nota final sumando las notas ponderadas por su porcentaje
+                    puntos_mat = sum(
+                        float(ev.get("Nota", 0.0)) * (float(ev.get("Valor (%)", 0.0)) / 100.0) 
+                        for ev in plan
+                    )
+                    notas_finales_nivel.append(f"{puntos_mat:.2f} pts")
+
+                df_nivel["Nota Final"] = notas_finales_nivel
 
   # ==========================================
   # PESTAÑA 2: HORARIO DE CLASES
