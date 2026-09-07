@@ -396,7 +396,6 @@ else:
         [
             "gemini-2.5-flash",
             "gemini-2.0-flash",
-            "gemini-2.5-flash",
         ],
         index=0,
         help=(
@@ -490,12 +489,10 @@ else:
         hoy = datetime.date.today()
         proximas_entregas = []
         
-        # Recorrer las evaluaciones guardadas en session_state
         evals_dict = st.session_state.get("evaluaciones", {})
         pensum_df = st.session_state.get("pensum_df")
         
         for codigo_mat, info_mat in evals_dict.items():
-            # Buscar el nombre de la materia en el pensum
             nombre_mat = codigo_mat
             if pensum_df is not None and not pensum_df.empty:
                 match = pensum_df[pensum_df["codigo"] == codigo_mat]
@@ -520,11 +517,10 @@ else:
                             "valor": item.get("Valor (%)", 0)
                         })
         
-        # Ordenar por fecha más cercana
         proximas_entregas = sorted(proximas_entregas, key=lambda x: x["fecha"])
         
         if proximas_entregas:
-            for item in proximas_entregas[:5]:  # Mostrar las próximas 5
+            for item in proximas_entregas[:5]:
                 dias_faltan = (item["fecha"] - hoy).days
                 badge = f"🔥 ¡Hoy!" if dias_faltan == 0 else f"(Faltan {dias_faltan} días)"
                 st.markdown(f"- **{item['materia']}** | *{item['evaluacion']}* ({item['tema']}) - 📅 **{item['fecha']}** {badge}")
@@ -963,7 +959,6 @@ else:
                   },
               )
 
-              # Validación cruzada del 100% en el editor de notas
               if "Valor (%)" in edited_df.columns:
                   suma_porcentajes = edited_df["Valor (%)"].sum()
                   if suma_porcentajes > 100:
@@ -1633,7 +1628,7 @@ else:
                     {escala_resumen}
                     """
 
-                    modelos_a_probar = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash"]
+                    modelos_a_probar = ["gemini-2.5-flash", "gemini-2.0-flash"]
                     response = None
                     ultimo_error = None
 
