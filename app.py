@@ -459,21 +459,7 @@ else:
 
   st.title("🎓 Mi App Universitaria")
 
-  # Alertas visuales para evaluaciones próximas (en las próximas 48 horas)
-  hoy_alerta = datetime.date.today()
-  evals_dict_global = st.session_state.get("evaluaciones", {})
-  for cod_g, info_g in evals_dict_global.items():
-      for item_g in info_g.get("plan", []):
-          fecha_eval_g = item_g.get("Fecha")
-          if isinstance(fecha_eval_g, str):
-              try:
-                  fecha_eval_g = datetime.datetime.strptime(fecha_eval_g, "%Y-%m-%d").date()
-              except ValueError:
-                  continue
-          if fecha_eval_g and not item_g.get("Entregada", False):
-              dias_restantes = (fecha_eval_g - hoy_alerta).days
-              if 0 <= dias_restantes <= 2:
-                  st.warning(f"⚠️ **¡Atención!** Tienes la evaluación '{item_g.get('Evaluación')}' de la materia código `{cod_g}` programada para el **{fecha_eval_g}** (Faltan {dias_restantes} día(s)).")
+  
 
   tab_pensum, tab_horario, tab_asistente, tab_pomodoro = st.tabs([
       "📚 Pensum y Calificaciones",
