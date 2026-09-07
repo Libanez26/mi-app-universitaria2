@@ -487,13 +487,50 @@ else:
   # PESTAÑA 1: PENSUM Y CALIFICACIONES
   # ==========================================
   with tab_pensum:
-    with st.expander("📌 Ver Recordatorios y Actividades Pendientes"):
-        st.checkbox("Entregar informe de marketing - Semestre I")
-        st.checkbox("Revisar notas de contabilidad")
-        st.checkbox("Actualizar cronograma de proyectos")
+    with st.expander("📌 Próximas Entregas y Evaluaciones Pendientes", expanded=True):
+        hoy = datetime.date.today()
+        proximas_entregas = []
         
-        st.markdown("- **Proyecto Reto U**: Pendiente revisión de objetivos.")
-        st.markdown("- **Evaluación de Clima Organizacional**: Preparar reporte final.")
+        # Recorrer las evaluaciones guardadas en session_state
+        evals_dict = st.session_state.get("evaluaciones", {})
+        pensum_df = st.session_state.get("pensum_df")
+        
+        for codigo_mat, info_mat in evals_dict.items():
+            # Buscar el nombre de la materia en el pensum
+            nombre_mat = codigo_mat
+            if pensum_df is not None and not pensum_df.empty:
+                match = pensum_df[pensum_df["codigo"] == codigo_mat]
+                if not match.empty:
+                    nombre_mat = match.iloc[0].get("materia", codigo_mat)
+            
+            plan_evals = info_mat.get("plan", [])
+            for item in plan_evals:
+                if not item.get("Entregada", False):
+                    f_eval = item.get("Fecha")
+                    if isinstance(f_eval, str):
+                        try:
+                            f_eval = datetime.datetime.strptime(f_eval, "%Y-%m-%d").date()
+                        except ValueError:
+                            continue
+                    if f_eval and f_eval >= hoy:
+                        proximas_entregas.append({
+                            "materia": nombre_mat,
+                            "evaluacion": item.get("Evaluación", "Evaluación"),
+                            "tema": item.get("Tema", ""),
+                            "fecha": f_eval,
+                            "valor": item.get("Valor (%)", 0)
+                        })
+        
+        # Ordenar por fecha más cercana
+        proximas_entregas = sorted(proximas_entregas, key=lambda x: x["fecha"])
+        
+        if proximas_entregas:
+            for item in proximas_entregas[:5]:  # Mostrar las próximas 5
+                dias_faltan = (item["fecha"] - hoy).days
+                badge = f"🔥 ¡Hoy!" if dias_faltan == 0 else f"(Faltan {dias_faltan} días)"
+                st.markdown(f"- **{item['materia']}** | *{item['evaluacion']}* ({item['tema']}) - 📅 **{item['fecha']}** {badge}")
+        else:
+            st.info("No hay entregas pendientes programadas próximamente.")
 
     st.subheader("📋 Pensum Estructurado por Niveles")
 
