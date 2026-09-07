@@ -1171,9 +1171,9 @@ with tab_pensum:
                                     st.rerun()
 
  # ==========================================
-  # PESTAÑA 2: HORARIO DE CLASES
-  # ==========================================
-  with tab_horario:
+# PESTAÑA 2: HORARIO DE CLASES
+# ==========================================
+with tab_horario:
     st.subheader("📅 Gestión de Horario de Clases")
 
     components.html(
