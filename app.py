@@ -396,7 +396,6 @@ else:
         [
             "gemini-3.6-flash",
             "gemini-3.5-flash",
-         
         ],
         index=0,
         help=(
@@ -407,7 +406,6 @@ else:
 
   st.sidebar.markdown("---")
 
-  # Botón de exportación a Excel en la barra lateral
   if st.session_state.get("pensum_df") is not None:
       output = io.BytesIO()
       with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -466,18 +464,12 @@ else:
       "⏱️ Pomodoro de Estudio Integrado"
   ])
 
- # ==========================================
+  # ==========================================
   # PESTAÑA 1: PENSUM Y CALIFICACIONES
   # ==========================================
   with tab_pensum:
-      # ==========================================
-      # 🔔 SECCIÓN: ACTIVIDADES PENDIENTES, HOY Y PRÓXIMAS
-      # ==========================================
       with st.expander("🔔 Ver Alertas de Actividades (Vencidas, Hoy y Próximas)", expanded=False):
-          
-          # Forzamos la fecha exacta de hoy (6 de septiembre de 2026) para evitar desfaces del servidor
-          hoy = datetime.date(2026, 9, 6)
-          
+          hoy = datetime.date(2026, 9, 7)
           limite_futuro = hoy + datetime.timedelta(days=3)
           
           atrasadas = []
@@ -508,7 +500,6 @@ else:
                               "Valor (%)": ev.get("Valor (%)")
                           }
                           
-                          # Comparación estricta con la fecha real
                           if fecha_ev < hoy:
                               atrasadas.append(item)
                           elif fecha_ev == hoy:
@@ -991,7 +982,6 @@ else:
                               },
                           )
 
-                          # Validación cruzada del 100% en el editor de notas
                           if "Valor (%)" in edited_df.columns:
                               suma_porcentajes = edited_df["Valor (%)"].sum()
                               if suma_porcentajes > 100:
@@ -1077,94 +1067,6 @@ else:
                                   f"Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, aún no alcanzas la nota mínima. Te faltan"
                                   f" **{faltan:.2f} pts** para aprobar."
                               )
-
-                          st.markdown("---")
-                          with st.expander("📌 Ver / Configurar Tabla de Escala Evaluativa de Referencia"):
-                              archivo_pdf = st.file_uploader("Sube el PDF de la Escala Evaluativa", type=["pdf"], key=f"uploader_escala_{codigo_mat}")
-
-                              if archivo_pdf is not None:
-                                  with st.spinner("Procesando escala evaluativa con Gemini..."):
-                                      try:
-                                          api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-                                          client = genai.Client(api_key=api_key)
-
-                                          pdf_bytes = archivo_pdf.read()
-                                          pdf_part = types.Part.from_bytes(
-                                              data=pdf_bytes, mime_type="application/pdf"
-                                          )
-
-                                          prompt_escala = """
-                                          Extrae la tabla de escala de notas o calificación institucional del documento proporcionado.
-                                          Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves:
-                                          [
-                                            {
-                                              "Nivel de logro de la asignatura": "00% - 05%",
-                                              "Calificación Cuantitativa": "01",
-                                              "Calificación Cualitativa": "MUY DEFICIENTE"
-                                            }
-                                          ]
-                                          """
-
-                                          response_escala = generar_con_reintentos(
-                                              client, modelo_seleccionado, [prompt_escala, pdf_part]
-                                          )
-
-                                          if response_escala and response_escala.text:
-                                              clean_text_esc = response_escala.text.strip()
-                                              if clean_text_esc.startswith("```json"):
-                                                  clean_text_esc = clean_text_esc[7:]
-                                              if clean_text_esc.startswith("```"):
-                                                  clean_text_esc = clean_text_esc[3:]
-                                              if clean_text_esc.endswith("```"):
-                                                  clean_text_esc = clean_text_esc[:-3]
-
-                                              data_escala = json.loads(clean_text_esc.strip())
-                                              st.session_state["escala_df"] = pd.DataFrame(data_escala)
-                                              guardar_datos_usuario()
-                                              st.success("¡PDF procesado y escala actualizada correctamente!")
-                                              st.rerun()
-                                      except Exception as err_esc:
-                                          st.error(f"Error procesando el PDF de escala: {err_esc}")
-
-                              col_esc_btn1, col_esc_btn2 = st.columns([3, 1])
-                              with col_esc_btn2:
-                                  if st.button("🗑️ Vaciar Tabla", key=f"btn_vaciar_escala_{codigo_mat}"):
-                                      st.session_state["escala_df"] = pd.DataFrame(columns=[
-                                          "Nivel de logro de la asignatura",
-                                          "Calificación Cuantitativa",
-                                          "Calificación Cualitativa"
-                                      ])
-                                      guardar_datos_usuario()
-                                      st.rerun()
-
-                              df_escala_actual = st.session_state["escala_df"]
-                              columnas_req_escala = [
-                                  "Nivel de logro de la asignatura",
-                                  "Calificación Cuantitativa",
-                                  "Calificación Cualitativa"
-                              ]
-                              for col in columnas_req_escala:
-                                  if col not in df_escala_actual.columns:
-                                      df_escala_actual[col] = ""
-
-                              with st.form(f"form_editor_escala_{codigo_mat}"):
-                                  df_escala_editado = st.data_editor(
-                                      df_escala_actual[columnas_req_escala],
-                                      num_rows="dynamic",
-                                      use_container_width=True,
-                                      key=f"editor_escala_{codigo_mat}",
-                                      column_config={
-                                          "Nivel de logro de la asignatura": st.column_config.TextColumn("Nivel de logro de la asignatura"),
-                                          "Calificación Cuantitativa": st.column_config.TextColumn("Calificación Cuantitativa"),
-                                          "Calificación Cualitativa": st.column_config.TextColumn("Calificación Cualitativa"),
-                                      }
-                                  )
-                                  submit_escala = st.form_submit_button("💾 Guardar Cambios en la Escala")
-                                  if submit_escala:
-                                      st.session_state["escala_df"] = df_escala_editado
-                                      guardar_datos_usuario()
-                                      st.success("¡Escala evaluativa actualizada correctamente!")
-                                      st.rerun()
 
   # ==========================================
   # PESTAÑA 2: HORARIO DE CLASES
@@ -1345,47 +1247,6 @@ else:
               "content": mensaje_inicial_comun,
           }]
 
-      st.markdown("""
-          <style>
-          .chat-container {
-              display: flex;
-              flex-direction: column;
-              gap: 10px;
-              padding: 10px;
-              max-height: 450px;
-              overflow-y: auto;
-              background-color: #0e1117;
-              border-radius: 10px;
-              margin-bottom: 15px;
-          }
-          .msg-user {
-              background-color: #2b313e;
-              color: #ffffff;
-              padding: 10px 14px;
-              border-radius: 12px 12px 2px 12px;
-              align-self: flex-end;
-              max-width: 75%;
-              box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-          }
-          .msg-assistant {
-              background-color: #1f242d;
-              color: #e0e0e0;
-              padding: 10px 14px;
-              border-radius: 12px 12px 12px 2px;
-              align-self: flex-start;
-              max-width: 75%;
-              border-left: 4px solid #4CAF50;
-              box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-          }
-          .msg-title {
-              font-size: 0.75rem;
-              color: #888888;
-              margin-bottom: 4px;
-              font-weight: bold;
-          }
-          </style>
-      """, unsafe_allow_html=True)
-
       if "Asistente Guiado" in tipo_asistente:
           col_bt1, col_bt2 = st.columns([4, 1])
           with col_bt2:
@@ -1398,14 +1259,11 @@ else:
                   st.session_state["sub_modo"] = None
                   st.rerun()
 
-          chat_html_g = '<div class="chat-container">'
           for mensaje in st.session_state["mensajes_guiado"]:
               if mensaje["role"] == "user":
-                  chat_html_g += f'<div class="msg-user"><div class="msg-title">Tú</div>{mensaje["content"]}</div>'
+                  st.chat_message("user").write(mensaje["content"])
               else:
-                  chat_html_g += f'<div class="msg-assistant"><div class="msg-title">Asistente Guiado</div>{mensaje["content"]}</div>'
-          chat_html_g += '</div>'
-          st.markdown(chat_html_g, unsafe_allow_html=True)
+                  st.chat_message("assistant").write(mensaje["content"])
 
           st.markdown("---")
 
@@ -1612,14 +1470,11 @@ else:
                   }]
                   st.rerun()
 
-          chat_html_c = '<div class="chat-container">'
           for mensaje in st.session_state["mensajes_conversacional"]:
               if mensaje["role"] == "user":
-                  chat_html_c += f'<div class="msg-user"><div class="msg-title">Tú</div>{mensaje["content"]}</div>'
+                  st.chat_message("user").write(mensaje["content"])
               else:
-                  chat_html_c += f'<div class="msg-assistant"><div class="msg-title">Asistente IA</div>{mensaje["content"]}</div>'
-          chat_html_c += '</div>'
-          st.markdown(chat_html_c, unsafe_allow_html=True)
+                  st.chat_message("assistant").write(mensaje["content"])
 
           if prompt_usuario := st.chat_input("Escribe una consulta libre para la IA..."):
               st.session_state["mensajes_conversacional"].append({
