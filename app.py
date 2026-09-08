@@ -1300,8 +1300,61 @@ else:
                                   f" **{faltan:.2f} pts** para aprobar."
 
                               ) 
-
-                                 
+                              # --- SIMULADOR DE NOTAS "¿QUÉ NECESITO?" ---
+                                st.markdown("---")
+                                st.markdown("#### 🎯 Simulador Predictivo: ¿Qué necesito para alcanzar mi meta?")
+                                
+                                col_sim1, col_sim2 = st.columns(2)
+                                with col_sim1:
+                                    meta_deseada = st.number_input(
+                                        "Nota meta deseada (0 - 20 pts)",
+                                        min_value=0.0,
+                                        max_value=20.0,
+                                        value=14.0,
+                                        step=0.5,
+                                        key=f"meta_deseada_{codigo_mat}"
+                                    )
+                                
+                                # Calcular ponderación y evaluaciones pendientes
+                                plan_actual_sim = st.session_state["evaluaciones"][codigo_mat].get("plan", [])
+                                df_sim = pd.DataFrame(plan_actual_sim)
+                                
+                                if not df_sim.empty:
+                                    # Identificar evaluaciones pendientes (no entregadas o con nota 0)
+                                    if "Entregada" in df_sim.columns:
+                                        pendientes_df = df_sim[df_sim["Entregada"] == False]
+                                    else:
+                                        pendientes_df = df_sim[df_sim["Nota"] == 0.0]
+                                
+                                    porcentaje_pendiente = pendientes_df["Valor (%)"].sum() if "Valor (%)" in pendientes_df.columns else 0.0
+                                    puntos_faltantes = meta_deseada - puntos_acum
+                                
+                                    with col_sim2:
+                                        st.markdown(f"**Ponderación por evaluar:** `{porcentaje_pendiente:.1f}%`")
+                                        st.markdown(f"**Puntos que te faltan:** `{max(0.0, puntos_faltantes):.2f} pts`")
+                                
+                                    if puntos_faltantes <= 0:
+                                        st.success("🎉 ¡Felicidades! Ya alcanzaste o superaste tu meta con las notas actuales.")
+                                    elif porcentaje_pendiente <= 0:
+                                        st.warning("⚠️ No tienes evaluaciones pendientes registradas para sumar más puntos.")
+                                    else:
+                                        # Calcular nota necesaria en promedio para las evaluaciones pendientes
+                                        # Asumiendo escala acumulativa o regla de tres según el peso
+                                        if "Acumulativa" in escala_sel:
+                                            # Cuántos puntos sobre 20 (proporcional al peso pendiente) se necesitan
+                                            puntos_necesarios_total = puntos_faltantes
+                                            # Si el peso pendiente vale X por ciento del total de la nota (donde 100% = 20 pts)
+                                            # Nota promedio requerida en esas evaluaciones pendientes:
+                                            nota_promedio_req = (puntos_faltantes / (porcentaje_pendiente / 100.0))
+                                        else:
+                                            nota_promedio_req = puntos_faltantes # Dependiendo de si es promedio simple
+                                
+                                        if nota_promedio_req > 20.0:
+                                            st.error(f"❌ Matemáticamente **no es posible** alcanzar los {meta_deseada} puntos, ya que el máximo acumulable restante excede el límite de la escala.")
+                                        else:
+                                            st.info(f"💡 Para llegar a tu meta de **{meta_deseada} pts**, necesitas obtener un promedio de al menos **{nota_promedio_req:.2f} pts** en tus evaluaciones pendientes (`{len(pendientes_df)}` evaluaciones restantes).")
+                                
+                                                                 
 
   # ==========================================
   # PESTAÑA 2: HORARIO DE CLASES
