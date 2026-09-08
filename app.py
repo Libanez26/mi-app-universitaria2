@@ -591,7 +591,6 @@ else:
               mime="text/html",
               help="Descarga un reporte con diseño ejecutivo y estilizado. Ábrelo en tu navegador y presiona Ctrl+P -> Guardar como PDF."
           )
-```[cite: 1, 2]
 
 ### ¿Cómo se verá visualmente?
 * **Tarjeta de métrica superior:** Muestra tu **Índice Académico General** destacado en un recuadro limpio con acento verde corporativo[cite: 1].
