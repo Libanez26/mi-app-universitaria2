@@ -1145,84 +1145,95 @@ else:
                               elif suma_porcentajes < 100:
                                   st.info(f"ℹ️ El plan actual suma {suma_porcentajes}%. Asegúrate de completar el 100% de la ponderación.")
 
-                          if st.button("💾 Guardar Notas", key=f"btn_guardar_notas_{codigo_mat}"):
-                              sincronizar_notas_editor()
-                              guardar_datos_usuario()
-                              st.success("¡Notas guardadas correctamente!")
-                              st.rerun()
-
-                          st.markdown("---")
-                          st.markdown("#### 📊 Resumen de Rendimiento")
-
-                          es_acumulativa = "Acumulativa" in escala_sel
-                          min_aprobar = 12
-
-                          puntos_acum = 0.0
-                          porcentaje_acum = 0.0
-
-                          if "Nota" in edited_df.columns and not edited_df.empty:
-                              notas_validas = edited_df["Nota"].dropna()
-                              if len(notas_validas) > 0:
-                                  if es_acumulativa:
-                                      puntos_acum = notas_validas.sum()
-                                  else:
-                                      puntos_acum = notas_validas.mean()
-                              else:
-                                  puntos_acum = 0.0
-
-                          if "Nota (%)" in edited_df.columns and not edited_df.empty:
-                              porcentajes_validos = edited_df["Nota (%)"].dropna()
-                              if len(porcentajes_validos) > 0:
-                                  if es_acumulativa:
-                                      porcentaje_acum = porcentajes_validos.sum()
-                                  else:
-                                      porcentaje_acum = porcentajes_validos.mean()
-                              else:
-                                  porcentaje_acum = 0.0
-
                           resultado_combinado = f"{puntos_acum:.2f} pts / {porcentaje_acum:.1f}%"
 
-                          col_ac1, col_ac2 = st.columns(2)
-                          col_ac1.metric(
-                              label="Modo de Cálculo",
-                              value=escala_sel,
-                          )
-                          col_ac2.metric(
-                              label="Resultado Obtenido",
-                              value=resultado_combinado,
-                          )
+                        col_ac1, col_ac2 = st.columns(2)
+                        col_ac1.metric(
+                            label="Modo de Cálculo",
+                            value=escala_sel,
+                        )
+                        col_ac2.metric(
+                            label="Resultado Obtenido",
+                            value=resultado_combinado,
+                        )
 
-                          st.markdown("---")
-                          st.markdown("#### ✅ Resultado Final")
+                        # --- SIMULADOR DE NOTAS "¿QUÉ NECESITO?" ---
+                        st.markdown("---")
+                        st.markdown("#### 🎯 Simulador Predictivo: ¿Qué necesito para alcanzar mi meta?")
 
-                          if puntos_acum >= min_aprobar:
-                              st.success(
-                                  f"¡Felicidades! Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, estás"
-                                  " **APROBADO** en esta materia."
-                              )
-                              if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
-                                  if codigo_mat not in st.session_state["evaluaciones"]:
-                                      st.session_state["evaluaciones"][codigo_mat] = {"estado": "Aprobada", "plan": []}
-                                  else:
-                                      st.session_state["evaluaciones"][codigo_mat]["estado"] = "Aprobada"
-                                  
-                                  st.session_state["pensum_df"].loc[
-                                      st.session_state["pensum_df"]["codigo"] == codigo_mat,
-                                      "estado",
-                                  ] = "Aprobada"
-                                  
-                                  if key_selectbox_estado in st.session_state:
-                                      del st.session_state[key_selectbox_estado]
-                                  
-                                  guardar_datos_usuario()
-                                  st.toast(f"¡La materia {codigo_mat} ahora está Aprobada!", icon="🎉")
-                                  st.rerun()
-                          else:
-                              faltan = min_aprobar - puntos_acum
-                              st.warning(
-                                  f"Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, aún no alcanzas la nota mínima. Te faltan"
-                                  f" **{faltan:.2f} pts** para aprobar."
-                              )
+                        col_sim1, col_sim2 = st.columns(2)
+                        with col_sim1:
+                            meta_deseada = st.number_input(
+                                "Nota meta deseada (0 - 20 pts)",
+                                min_value=0.0,
+                                max_value=20.0,
+                                value=14.0,
+                                step=0.5,
+                                key=f"meta_deseada_{codigo_mat}"
+                            )
+
+                        plan_actual_sim = st.session_state["evaluaciones"][codigo_mat].get("plan", [])
+                        df_sim = pd.DataFrame(plan_actual_sim)
+
+                        if not df_sim.empty:
+                            if "Entregada" in df_sim.columns:
+                                pendientes_df = df_sim[df_sim["Entregada"] == False]
+                            else:
+                                pendientes_df = df_sim[df_sim["Nota"] == 0.0]
+
+                            porcentaje_pendiente = pendientes_df["Valor (%)"].sum() if "Valor (%)" in pendientes_df.columns else 0.0
+                            puntos_faltantes = meta_deseada - puntos_acum
+
+                            with col_sim2:
+                                st.markdown(f"**Ponderación por evaluar:** `{porcentaje_pendiente:.1f}%`")
+                                st.markdown(f"**Puntos que te faltan:** `{max(0.0, puntos_faltantes):.2f} pts`")
+
+                            if puntos_faltantes <= 0:
+                                st.success("🎉 ¡Felicidades! Ya alcanzaste o superaste tu meta con las notas actuales.")
+                            elif porcentaje_pendiente <= 0:
+                                st.warning("⚠️ No tienes evaluaciones pendientes registradas para sumar más puntos.")
+                            else:
+                                if "Acumulativa" in escala_sel:
+                                    nota_promedio_req = (puntos_faltantes / (porcentaje_pendiente / 100.0))
+                                else:
+                                    nota_promedio_req = puntos_faltantes
+
+                                if nota_promedio_req > 20.0:
+                                    st.error(f"❌ Matemáticamente **no es posible** alcanzar los {meta_deseada} puntos, ya que el máximo acumulable restante excede el límite de la escala.")
+                                else:
+                                    st.info(f"💡 Para llegar a tu meta de **{meta_deseada} pts**, necesitas obtener un promedio de al menos **{nota_promedio_req:.2f} pts** en tus evaluaciones pendientes (`{len(pendientes_df)}` evaluaciones restantes).")
+
+                        st.markdown("---")
+                        st.markdown("#### ✅ Resultado Final")
+
+                        if puntos_acum >= min_aprobar:
+                            st.success(
+                                f"¡Felicidades! Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, estás"
+                                " **APROBADO** en esta materia."
+                            )
+                            if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
+                                if codigo_mat not in st.session_state["evaluaciones"]:
+                                    st.session_state["evaluaciones"][codigo_mat] = {"estado": "Aprobada", "plan": []}
+                                else:
+                                    st.session_state["evaluaciones"][codigo_mat]["estado"] = "Aprobada"
+                                
+                                st.session_state["pensum_df"].loc[
+                                    st.session_state["pensum_df"]["codigo"] == codigo_mat,
+                                    "estado",
+                                ] = "Aprobada"
+                                
+                                if key_selectbox_estado in st.session_state:
+                                    del st.session_state[key_selectbox_estado]
+                                
+                                guardar_datos_usuario()
+                                st.toast(f"¡La materia {codigo_mat} ahora está Aprobada!", icon="🎉")
+                                st.rerun()
+                        else:
+                            faltan = min_aprobar - puntos_acum
+                            st.warning(
+                                f"Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, aún no alcanzas la nota mínima. Te faltan"
+                                f" **{faltan:.2f} pts** para aprobar."
+                            )
                                  
 
   # ==========================================
