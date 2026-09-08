@@ -271,7 +271,6 @@ def calcular_nota_materia(cod, evaluaciones):
         df_plan["Ponderada"] = df_plan["Nota"] * (df_plan["Valor (%)"] / 100.0)
         return df_plan["Ponderada"].sum()
   return 0.0
-  return 0.0
 
 def calcular_promedios_semestres(df_pensum, evaluaciones):
   promedios_por_semestre = {}
@@ -984,12 +983,6 @@ else:
                               elif suma_porcentajes < 100:
                                   st.info(f"ℹ️ El plan actual suma {suma_porcentajes}%. Asegúrate de completar el 100% de la ponderación.")
 
-                          if st.button("💾 Guardar Notas", key=f"btn_guardar_notas_{codigo_mat}"):
-                              sincronizar_notas_editor()
-                              guardar_datos_usuario()
-                              st.success("¡Notas guardadas correctamente!")
-                              st.rerun()
-
                           st.markdown("---")
                           st.markdown("#### 📊 Resumen de Rendimiento")
 
@@ -1030,6 +1023,12 @@ else:
                               label="Resultado Obtenido",
                               value=resultado_combinado,
                           )
+
+                          if st.button("💾 Guardar Notas", key=f"btn_guardar_notas_{codigo_mat}"):
+                              sincronizar_notas_editor()
+                              guardar_datos_usuario()
+                              st.success("¡Notas guardadas correctamente!")
+                              st.rerun()
 
                           st.markdown("---")
                           st.markdown("#### ✅ Resultado Final")
