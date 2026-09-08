@@ -266,16 +266,11 @@ def calcular_nota_materia(cod, evaluaciones):
     plan = evaluaciones[cod].get("plan", [])
     if plan:
       df_plan = pd.DataFrame(plan)
-      if "Nota" in df_plan.columns:
-        if "Valor (%)" in df_plan.columns and df_plan["Valor (%)"].sum() > 0:
-          return (
-              (df_plan["Nota"] / 20.0)
-              * (df_plan["Valor (%)"] / 100.0)
-              * 20.0
-          ).sum()
-        else:
-          notas_val = df_plan["Nota"].dropna()
-          return notas_val.sum() if len(notas_val) > 0 else 0.0
+      if "Nota" in df_plan.columns and "Valor (%)" in df_plan.columns:
+        # Suma ponderada correcta: (Nota * (ValorPorcentaje / 100))
+        df_plan["Ponderada"] = df_plan["Nota"] * (df_plan["Valor (%)"] / 100.0)
+        return df_plan["Ponderada"].sum()
+  return 0.0
   return 0.0
 
 def calcular_promedios_semestres(df_pensum, evaluaciones):
