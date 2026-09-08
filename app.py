@@ -230,7 +230,6 @@ def calcular_nota_materia(cod, evaluaciones):
       if "Nota" in df_plan.columns:
         notas_validas = df_plan["Nota"].dropna()
         if len(notas_validas) > 0:
-          # Busca la opción seleccionada en el radio button de esa materia
           escala_key = f"radio_esc_{cod}"
           escala_sel = st.session_state.get(escala_key, "Acumulativa")
           
@@ -354,14 +353,12 @@ else:
       df_p = st.session_state["pensum_df"].copy()
       evals = st.session_state.get("evaluaciones", {})
       
-      # 1. Filtrar solo materias que tengan movimiento (excluir "No Inscritas")
       if "estado" in df_p.columns:
           df_filtrado = df_p[df_p["estado"].astype(str).str.lower() != "no inscrita"].copy()
       else:
           df_filtrado = df_p.copy()
 
       if not df_filtrado.empty:
-          # Calcular notas finales para el reporte
           notas_finales = []
           for _, row_mat in df_filtrado.iterrows():
               n_val = calcular_nota_materia(row_mat["codigo"], evals)
@@ -371,7 +368,6 @@ else:
           promedios_sem = calcular_promedios_semestres(df_p, evals)
           indice_gen = calcular_indice_academico(df_p, evals)
 
-          # 2. Construcción del HTML con diseño estético y profesional para PDF
           html_contenido = f"""
           <!DOCTYPE html>
           <html lang="es">
@@ -591,14 +587,6 @@ else:
               mime="text/html",
               help="Descarga un reporte con diseño ejecutivo y estilizado. Ábrelo en tu navegador y presiona Ctrl+P -> Guardar como PDF."
           )
-
-### ¿Cómo se verá visualmente?
-* **Tarjeta de métrica superior:** Muestra tu **Índice Académico General** destacado en un recuadro limpio con acento verde corporativo[cite: 1].
-* **Tabla estilizada:** Líneas sutiles de separación, filas con fondos sutilmente alternados para facilitar la lectura visual, y celdas alineadas profesionalmente.
-* **Badges de estado con color:** Cada estado (*Aprobada*, *Reprobada*, *En Curso*, *Inscrita*) se muestra con un diseño de viñeta a color distintivo (verde, rojo, celeste, ámbar)[cite: 1].
-* **Sección de promedios independientes:** Una tabla limpia que resume el rendimiento cuantitativo por cada nivel[cite: 1]. 
-
-*Tip de uso:* Al hacer clic en el botón, descargas el archivo. Lo abres con un doble clic en cualquier navegador (Chrome, Edge, Safari) y al presionar `Ctrl + P` (o `Cmd + P` en Mac), seleccionas **"Guardar como PDF"** asegurándote de marcar la opción de *"Gráficos de fondo" (Background graphics)* para que mantenga toda la paleta de colores y bordes profesionales intactos.
 
   if st.sidebar.button("🔄 Refrescar Página", key="btn_refrescar_pagina"):
     components.html(
