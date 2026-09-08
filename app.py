@@ -351,20 +351,255 @@ else:
   st.sidebar.markdown("---")
 
   if st.session_state.get("pensum_df") is not None:
-      output = io.BytesIO()
-      with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-          st.session_state["pensum_df"].to_excel(writer, sheet_name='Pensum', index=False)
-          if st.session_state.get("horario_df") is not None:
-              st.session_state["horario_df"].to_excel(writer, sheet_name='Horario', index=False)
-      processed_data = output.getvalue()
+      df_p = st.session_state["pensum_df"].copy()
+      evals = st.session_state.get("evaluaciones", {})
       
-      st.sidebar.download_button(
-          label="📥 Descargar Resumen Académico",
-          data=processed_data,
-          file_name="resumen_academico.xlsx",
-          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          help="Descarga un archivo Excel con tu pensum y horario actualizados."
-      )
+      # 1. Filtrar solo materias que tengan movimiento (excluir "No Inscritas")
+      if "estado" in df_p.columns:
+          df_filtrado = df_p[df_p["estado"].astype(str).str.lower() != "no inscrita"].copy()
+      else:
+          df_filtrado = df_p.copy()
+
+      if not df_filtrado.empty:
+          # Calcular notas finales para el reporte
+          notas_finales = []
+          for _, row_mat in df_filtrado.iterrows():
+              n_val = calcular_nota_materia(row_mat["codigo"], evals)
+              notas_finales.append(round(n_val, 2))
+          df_filtrado["Nota Final"] = notas_finales
+
+          promedios_sem = calcular_promedios_semestres(df_p, evals)
+          indice_gen = calcular_indice_academico(df_p, evals)
+
+          # 2. Construcción del HTML con diseño estético y profesional para PDF
+          html_contenido = f"""
+          <!DOCTYPE html>
+          <html lang="es">
+          <head>
+              <meta charset="UTF-8">
+              <title>Resumen Académico</title>
+              <style>
+                  @page {{
+                      size: A4;
+                      margin: 20mm;
+                  }}
+                  body {{
+                      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                      color: #1e293b;
+                      line-height: 1.5;
+                      margin: 0;
+                      padding: 0;
+                      background-color: #ffffff;
+                  }}
+                  .header {{
+                      border-bottom: 3px solid #3b82f6;
+                      padding-bottom: 15px;
+                      margin-bottom: 25px;
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: flex-end;
+                  }}
+                  .header h1 {{
+                      font-size: 24px;
+                      color: #0f172a;
+                      margin: 0;
+                      font-weight: 700;
+                      letter-spacing: -0.5px;
+                  }}
+                  .header p.sub {{
+                      color: #64748b;
+                      font-size: 13px;
+                      margin: 4px 0 0 0;
+                  }}
+                  .metrics-container {{
+                      display: flex;
+                      gap: 15px;
+                      margin-bottom: 25px;
+                  }}
+                  .metric-card {{
+                      flex: 1;
+                      background: #f8fafc;
+                      border: 1px solid #e2e8f0;
+                      border-left: 4px solid #3b82f6;
+                      padding: 12px 16px;
+                      border-radius: 6px;
+                  }}
+                  .metric-card.success {{
+                      border-left-color: #10b981;
+                  }}
+                  .metric-label {{
+                      font-size: 11px;
+                      text-transform: uppercase;
+                      color: #64748b;
+                      font-weight: 600;
+                      letter-spacing: 0.5px;
+                  }}
+                  .metric-value {{
+                      font-size: 20px;
+                      font-weight: 700;
+                      color: #0f172a;
+                      margin-top: 4px;
+                  }}
+                  h2 {{
+                      font-size: 15px;
+                      color: #334155;
+                      border-bottom: 1px solid #e2e8f0;
+                      padding-bottom: 6px;
+                      margin-top: 25px;
+                      margin-bottom: 12px;
+                      text-transform: uppercase;
+                      letter-spacing: 0.5px;
+                  }}
+                  table {{
+                      width: 100%;
+                      border-collapse: collapse;
+                      margin-bottom: 20px;
+                  }}
+                  th, td {{
+                      padding: 10px 12px;
+                      text-align: left;
+                      font-size: 12px;
+                  }}
+                  th {{
+                      background-color: #f1f5f9;
+                      color: #334155;
+                      font-weight: 600;
+                      border-bottom: 2px solid #cbd5e1;
+                  }}
+                  td {{
+                      border-bottom: 1px solid #f1f5f9;
+                      color: #334155;
+                  }}
+                  tr:nth-child(even) td {{
+                      background-color: #fcfcfc;
+                  }}
+                  .badge {{
+                      display: inline-block;
+                      padding: 3px 8px;
+                      font-size: 10px;
+                      font-weight: 600;
+                      border-radius: 4px;
+                      text-transform: uppercase;
+                  }}
+                  .badge-aprobada {{ background-color: #d1fae5; color: #065f46; }}
+                  .badge-reprobada {{ background-color: #fee2e2; color: #991b1b; }}
+                  .badge-curso {{ background-color: #e0f2fe; color: #0369a1; }}
+                  .badge-inscrita {{ background-color: #fef3c7; color: #92400e; }}
+                  
+                  .footer-note {{
+                      margin-top: 40px;
+                      font-size: 10px;
+                      color: #94a3b8;
+                      text-align: center;
+                      border-top: 1px solid #f1f5f9;
+                      padding-top: 15px;
+                  }}
+              </style>
+          </head>
+          <body>
+
+              <div class="header">
+                  <div>
+                      <h1>Reporte de Rendimiento Académico</h1>
+                      <p class="sub">Historial detallado de materias activas, calificaciones y promedios</p>
+                  </div>
+              </div>
+
+              <div class="metrics-container">
+                  <div class="metric-card success">
+                      <div class="metric-label">Índice Académico General</div>
+                      <div class="metric-value">{indice_gen:.2f} <span style="font-size: 13px; color: #64748b;">/ 20.0</span></div>
+                  </div>
+              </div>
+
+              <h2>Detalle de Materias (Cursadas e Inscritas)</h2>
+              <table>
+                  <thead>
+                      <tr>
+                          <th>Sem.</th>
+                          <th>Código</th>
+                          <th>Asignatura</th>
+                          <th>Estado</th>
+                          <th style="text-align: right;">Nota Final</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+          """
+
+          for _, row in df_filtrado.iterrows():
+              estado = str(row.get('estado', '')).lower()
+              badge_class = "badge-inscrita"
+              if "aprobada" in estado:
+                  badge_class = "badge-aprobada"
+              elif "reprobada" in estado:
+                  badge_class = "badge-reprobada"
+              elif "curso" in estado:
+                  badge_class = "badge-curso"
+
+              html_contenido += f"""
+                      <tr>
+                          <td style="font-weight: 600;">{row.get('semestre', '')}</td>
+                          <td><code>{row.get('codigo', '')}</code></td>
+                          <td>{row.get('materia', '')}</td>
+                          <td><span class="badge {badge_class}">{row.get('estado', '')}</span></td>
+                          <td style="text-align: right; font-weight: 600;">{row.get('Nota Final', 0.0):.2f}</td>
+                      </tr>
+              """
+
+          html_contenido += """
+                  </tbody>
+              </table>
+
+              <h2>Promedios por Semestre</h2>
+              <table>
+                  <thead>
+                      <tr>
+                          <th>Semestre / Nivel</th>
+                          <th style="text-align: right;">Promedio Ponderado</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+          """
+
+          for sem, prom in promedios_sem.items():
+              if prom > 0.0:
+                  html_contenido += f"""
+                      <tr>
+                          <td style="font-weight: 600;">{sem}</td>
+                          <td style="text-align: right; font-weight: 600; color: #2563eb;">{prom:.2f} pts</td>
+                      </tr>
+                  """
+
+          html_contenido += f"""
+                  </tbody>
+              </table>
+
+              <div class="footer-note">
+                  Generado automáticamente por el Sistema de Gestión Académica • Fecha de emisión: {pd.Timestamp.now().strftime('%d/%m/%Y')}
+              </div>
+
+          </body>
+          </html>
+          """
+
+          pdf_bytes = html_contenido.encode('utf-8')
+
+          st.sidebar.download_button(
+              label="📥 Descargar Reporte Estético (PDF)",
+              data=pdf_bytes,
+              file_name="resumen_academico_estetico.html",
+              mime="text/html",
+              help="Descarga un reporte con diseño ejecutivo y estilizado. Ábrelo en tu navegador y presiona Ctrl+P -> Guardar como PDF."
+          )
+```[cite: 1, 2]
+
+### ¿Cómo se verá visualmente?
+* **Tarjeta de métrica superior:** Muestra tu **Índice Académico General** destacado en un recuadro limpio con acento verde corporativo[cite: 1].
+* **Tabla estilizada:** Líneas sutiles de separación, filas con fondos sutilmente alternados para facilitar la lectura visual, y celdas alineadas profesionalmente.
+* **Badges de estado con color:** Cada estado (*Aprobada*, *Reprobada*, *En Curso*, *Inscrita*) se muestra con un diseño de viñeta a color distintivo (verde, rojo, celeste, ámbar)[cite: 1].
+* **Sección de promedios independientes:** Una tabla limpia que resume el rendimiento cuantitativo por cada nivel[cite: 1]. 
+
+*Tip de uso:* Al hacer clic en el botón, descargas el archivo. Lo abres con un doble clic en cualquier navegador (Chrome, Edge, Safari) y al presionar `Ctrl + P` (o `Cmd + P` en Mac), seleccionas **"Guardar como PDF"** asegurándote de marcar la opción de *"Gráficos de fondo" (Background graphics)* para que mantenga toda la paleta de colores y bordes profesionales intactos.
 
   if st.sidebar.button("🔄 Refrescar Página", key="btn_refrescar_pagina"):
     components.html(
