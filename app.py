@@ -571,8 +571,7 @@ else:
               </table>
 
               <div class="footer-note">
-                  Generado automáticamente por el Sistema de Gestión Académica • Fecha de emisión: {pd.Timestamp.now().strftime('%d/%m/%Y')}
-              </div>
+                  
 
           </body>
           </html>
