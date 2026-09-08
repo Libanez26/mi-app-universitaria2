@@ -227,9 +227,17 @@ def calcular_nota_materia(cod, evaluaciones):
     plan = evaluaciones[cod].get("plan", [])
     if plan:
       df_plan = pd.DataFrame(plan)
-      if "Nota" in df_plan.columns and "Valor (%)" in df_plan.columns:
-        df_plan["Ponderada"] = df_plan["Nota"] * (df_plan["Valor (%)"] / 100.0)
-        return df_plan["Ponderada"].sum()
+      if "Nota" in df_plan.columns:
+        notas_validas = df_plan["Nota"].dropna()
+        if len(notas_validas) > 0:
+          # Busca la opción seleccionada en el radio button de esa materia
+          escala_key = f"radio_esc_{cod}"
+          escala_sel = st.session_state.get(escala_key, "Acumulativa")
+          
+          if "Acumulativa" in escala_sel:
+              return float(notas_validas.sum())
+          else:
+              return float(notas_validas.mean())
   return 0.0
 
 def calcular_promedios_semestres(df_pensum, evaluaciones):
