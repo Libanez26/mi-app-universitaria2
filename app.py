@@ -3,7 +3,6 @@ import io
 import json
 import time
 import uuid
-import extra_streamlit_components as st_cookie
 from google import genai
 from google.genai import types
 from pypdf import PdfReader
@@ -37,10 +36,6 @@ st.set_page_config(
     page_icon="🎓",
     layout="wide",
 )
-
-# --- 2. INICIALIZAR GESTOR DE COOKIES ---
-cookie_manager = st_cookie.CookieManager()
-device_token_cookie = cookie_manager.get(cookie="dispositivo_confiable_token")
 
 # --- 3. INICIALIZACIÓN DE SERVICIOS ---
 @st.cache_resource
@@ -191,40 +186,6 @@ def guardar_datos_usuario():
     st.error(f"Error al guardar datos: {e}")
 
 
-# --- 6. RECUPERAR SESIÓN INDEPENDIENTE POR DISPOSITIVO (COOKIE) ---
-if st.session_state["usuario"] is None:
-  if device_token_cookie:
-    try:
-      verificacion_disp = (
-          supabase.table("dispositivos_confiados")
-          .select("*")
-          .eq("device_token", device_token_cookie)
-          .execute()
-      )
-      if verificacion_disp.data and len(verificacion_disp.data) > 0:
-        user_id_asociado = verificacion_disp.data[0]["user_id"]
-        res_usuario = (
-            supabase.table("perfiles_usuario")
-            .select("*")
-            .eq("id", user_id_asociado)
-            .execute()
-        )
-        if res_usuario.data:
-
-          class UserDummy:
-
-            def __init__(self, uid, uemail):
-              self.id = uid
-              self.email = uemail
-
-          correo_asociado = res_usuario.data[0].get("correo", "usuario@app.com")
-          st.session_state["usuario"] = UserDummy(user_id_asociado, correo_asociado)
-          cargar_datos_usuario(user_id_asociado)
-          st.rerun()
-    except Exception:
-      pass
-
-
 # --- 7. LÓGICA DE CONTROL DE PRELACIONES ---
 def verificar_disponibilidad(row, df_completo):
   prelaciones_raw = str(row.get("prelaciones", "Ninguna")).strip()
@@ -267,7 +228,6 @@ def calcular_nota_materia(cod, evaluaciones):
     if plan:
       df_plan = pd.DataFrame(plan)
       if "Nota" in df_plan.columns and "Valor (%)" in df_plan.columns:
-        # Suma ponderada correcta: (Nota * (ValorPorcentaje / 100))
         df_plan["Ponderada"] = df_plan["Nota"] * (df_plan["Valor (%)"] / 100.0)
         return df_plan["Ponderada"].sum()
   return 0.0
@@ -304,9 +264,7 @@ def calcular_indice_academico(df_pensum, evaluaciones):
 # --- 9. PANTALLA DE AUTENTICACIÓN ---
 if st.session_state["usuario"] is None:
   st.title("🎓 Bienvenido a Mi App Universitaria")
-  st.subheader(
-      "Inicia sesión y marca la casilla si deseas recordar este dispositivo."
-  )
+  st.subheader("Inicia sesión en tu cuenta.")
 
   tab_login, tab_registro = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse"])
 
@@ -314,11 +272,6 @@ if st.session_state["usuario"] is None:
     with st.form("form_login"):
       email_login = st.text_input("Correo electrónico")
       pass_login = st.text_input("Contraseña", type="password")
-
-      recordar_dispositivo = st.checkbox(
-          "Confiar en este dispositivo (Mantener sesión abierta solo aquí)",
-          value=True
-      )
 
       submit_login = st.form_submit_button("Ingresar")
 
@@ -331,29 +284,18 @@ if st.session_state["usuario"] is None:
           if res.user:
             st.session_state["usuario"] = res.user
 
-            if recordar_dispositivo:
-              nuevo_token = str(uuid.uuid4())
-              cookie_manager.set(
-                  "dispositivo_confiable_token", nuevo_token, max_age=31536000
-              )
-              supabase.table("dispositivos_confiados").insert({
-                  "user_id": res.user.id,
-                  "device_token": nuevo_token,
-                  "nombre_dispositivo": "Dispositivo Confiable Independiente",
-              }).execute()
-
-              js_pedir_permiso = """
-              <script>
-                  if (window.Notification && Notification.permission !== "granted") {
-                      Notification.requestPermission().then(permission => {
-                          if (permission === "granted") {
-                              console.log("Permiso de notificación concedido.");
-                          }
-                      });
-                  }
-              </script>
-              """
-              st.components.v1.html(js_pedir_permiso, height=0)
+            js_pedir_permiso = """
+            <script>
+                if (window.Notification && Notification.permission !== "granted") {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === "granted") {
+                            console.log("Permiso de notificación concedido.");
+                        }
+                    });
+                }
+            </script>
+            """
+            st.components.v1.html(js_pedir_permiso, height=0)
 
             cargar_datos_usuario(res.user.id)
             st.success("¡Sesión iniciada con éxito!")
@@ -426,16 +368,7 @@ else:
         height=0,
     )
 
-  if st.sidebar.button("Cerrar Sesión en este equipo", key="btn_logout"):
-    if device_token_cookie:
-      try:
-        supabase.table("dispositivos_confiados").delete().eq(
-            "device_token", device_token_cookie
-        ).execute()
-      except Exception:
-        pass
-      cookie_manager.delete("dispositivo_confiable_token")
-
+  if st.sidebar.button("Cerrar Sesión", key="btn_logout"):
     supabase.auth.sign_out()
     st.session_state["usuario"] = None
     st.session_state["pensum_df"] = None
@@ -983,6 +916,12 @@ else:
                               elif suma_porcentajes < 100:
                                   st.info(f"ℹ️ El plan actual suma {suma_porcentajes}%. Asegúrate de completar el 100% de la ponderación.")
 
+                          if st.button("💾 Guardar Notas", key=f"btn_guardar_notas_{codigo_mat}"):
+                              sincronizar_notas_editor()
+                              guardar_datos_usuario()
+                              st.success("¡Notas guardadas correctamente!")
+                              st.rerun()
+
                           st.markdown("---")
                           st.markdown("#### 📊 Resumen de Rendimiento")
 
@@ -1023,12 +962,6 @@ else:
                               label="Resultado Obtenido",
                               value=resultado_combinado,
                           )
-
-                          if st.button("💾 Guardar Notas", key=f"btn_guardar_notas_{codigo_mat}"):
-                              sincronizar_notas_editor()
-                              guardar_datos_usuario()
-                              st.success("¡Notas guardadas correctamente!")
-                              st.rerun()
 
                           st.markdown("---")
                           st.markdown("#### ✅ Resultado Final")
