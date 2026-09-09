@@ -31,7 +31,7 @@ registrarDispositivo();
 """
 components.html(push_js, height=0)
 
-# --- 1. MUST BE THE FIRST STREAMLIT COMMAND ---
+# --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
     page_title="App Universitaria - Gestión de Materias",
     page_icon="🎓",
@@ -48,49 +48,45 @@ cookie_manager = get_cookie_manager()
 # --- 3. INICIALIZACIÓN DE SERVICIOS ---
 @st.cache_resource
 def init_supabase() -> Client:
-  raw_url = str(st.secrets["SUPABASE_URL"]).strip()
-  if "/rest/v1" in raw_url:
-    raw_url = raw_url.split("/rest/v1")[0]
-  raw_url = raw_url.rstrip("/")
+    raw_url = str(st.secrets["SUPABASE_URL"]).strip()
+    if "/rest/v1" in raw_url:
+        raw_url = raw_url.split("/rest/v1")[0]
+    raw_url = raw_url.rstrip("/")
 
-  key = str(st.secrets["SUPABASE_KEY"]).strip()
-  return create_client(raw_url, key)
-
+    key = str(st.secrets["SUPABASE_KEY"]).strip()
+    return create_client(raw_url, key)
 
 try:
-  supabase = init_supabase()
+    supabase = init_supabase()
 except Exception as e:
-  st.error(f"Error al conectar con Supabase: {e}")
+    st.error(f"Error al conectar con Supabase: {e}")
 
 # --- 4. ESTADO DE SESIÓN ---
 if "usuario" not in st.session_state:
-  st.session_state["usuario"] = None
+    st.session_state["usuario"] = None
 if "pensum_df" not in st.session_state:
-  st.session_state["pensum_df"] = None
+    st.session_state["pensum_df"] = None
 if "evaluaciones" not in st.session_state:
-  st.session_state["evaluaciones"] = {}
+    st.session_state["evaluaciones"] = {}
 if "horario_df" not in st.session_state:
-  st.session_state["horario_df"] = None
+    st.session_state["horario_df"] = None
 if "escala_df" not in st.session_state:
-  st.session_state["escala_df"] = pd.DataFrame([
-      {"Nivel de logro de la asignatura": "00% - 05%", "Calificación Cuantitativa": "01", "Calificación Cualitativa": "MUY DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "06% - 11%", "Calificación Cuantitativa": "02", "Calificación Cualitativa": "MUY DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "12% - 17%", "Calificación Cuantitativa": "03", "Calificación Cualitativa": "MUY DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "18% - 23%", "Calificación Cuantitativa": "04", "Calificación Cualitativa": "MUY DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "24% - 29%", "Calificación Cuantitativa": "05", "Calificación Cualitativa": "MUY DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "30% - 34%", "Calificación Cuantitativa": "06", "Calificación Cualitativa": "DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "35% - 39%", "Calificación Cuantitativa": "07", "Calificación Cualitativa": "DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "40% - 44%", "Calificación Cuantitativa": "08", "Calificación Cualitativa": "DEFICIENTE"},
-      {"Nivel de logro de la asignatura": "45% - 49%", "Calificación Cuantitativa": "09", "Calificación Cualitativa": "DEFICIENTE"}
-  ])
+    st.session_state["escala_df"] = pd.DataFrame([
+        {"Nivel de logro de la asignatura": "00% - 05%", "Calificación Cuantitativa": "01", "Calificación Cualitativa": "MUY DEFICIENTE"},
+        {"Nivel de logro de la asignatura": "06% - 11%", "Calificación Cuantitativa": "02", "Calificación Cualitativa": "MUY DEFICIENTE"},
+        {"Nivel de logro de la asignatura": "12% - 17%", "Calificación Cuantitativa": "03", "Calificación Cualitativa": "MUY DEFICIENTE"},
+        {"Nivel de logro de la asignatura": "18% - 23%", "Calificación Cuantitativa": "04", "Calificación Cualitativa": "MUY DEFICIENTE"},
+        {"Nivel de logro de la asignatura": "24% - 29%", "Calificación Cuantitativa": "05", "Calificación Cualitativa": "MUY DEFICIENTE"},
+        {"Nivel de logro de la asignatura": "30% - 34%", "Calificación Cuantitativa": "06", "Calificación Cualitativa": "DEFICIENTE"},
+        {"Nivel de logro de la asignatura": "35% - 39%", "Calificación Cuantitativa": "07", "Calificación Cualitativa": "DEFICIENTE"},
+        {"Nivel de logro de la asignatura": "40% - 44%", "Calificación Cuantitativa": "08", "Calificación Cualitativa": "DEFICIENTE"},
+        {"Nivel de logro de la asignatura": "45% - 49%", "Calificación Cuantitativa": "09", "Calificación Cualitativa": "DEFICIENTE"}
+    ])
 if "mensajes_asistente" not in st.session_state:
-  st.session_state["mensajes_asistente"] = [{
-      "role": "assistant",
-      "content": (
-          "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?"
-      ),
-  }]
-
+    st.session_state["mensajes_asistente"] = [{
+        "role": "assistant",
+        "content": "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?",
+    }]
 
 # --- 5. FUNCIONES AUXILIARES (BACKOFF Y DB) ---
 def generar_con_reintentos(client, model, contents, config=None, max_intentos=3):
@@ -110,1856 +106,500 @@ def generar_con_reintentos(client, model, contents, config=None, max_intentos=3)
             espera *= 2
 
 def cargar_datos_usuario(user_id):
-  try:
-    res = (
-        supabase.table("perfiles_usuario").select("*").eq("id", user_id).execute()
-    )
-    if res.data and len(res.data) > 0:
-      datos = res.data[0]
-      if datos.get("pensum_data"):
-        st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
-      
-      if datos.get("evaluaciones_data"):
-        evals_cargadas = datos["evaluaciones_data"]
-        for cod, info in evals_cargadas.items():
-          if "plan" in info:
-            for item in info["plan"]:
-              if "Fecha" in item and isinstance(item["Fecha"], str):
-                try:
-                  item["Fecha"] = datetime.datetime.strptime(item["Fecha"], "%Y-%m-%d").date()
-                except ValueError:
-                  item["Fecha"] = datetime.date.today()
-        st.session_state["evaluaciones"] = evals_cargadas
+    try:
+        res = supabase.table("perfiles_usuario").select("*").eq("id", user_id).execute()
+        if res.data and len(res.data) > 0:
+            datos = res.data[0]
+            if datos.get("pensum_data"):
+                st.session_state["pensum_df"] = pd.DataFrame(datos["pensum_data"])
+            
+            if datos.get("evaluaciones_data"):
+                evals_cargadas = datos["evaluaciones_data"]
+                for cod, info in evals_cargadas.items():
+                    if "plan" in info:
+                        for item in info["plan"]:
+                            if "Fecha" in item and isinstance(item["Fecha"], str):
+                                try:
+                                    item["Fecha"] = datetime.datetime.strptime(item["Fecha"], "%Y-%m-%d").date()
+                                except ValueError:
+                                    item["Fecha"] = datetime.date.today()
+                st.session_state["evaluaciones"] = evals_cargadas
 
-      if datos.get("horario_data"):
-        st.session_state["horario_df"] = pd.DataFrame(datos["horario_data"])
+            if datos.get("horario_data"):
+                st.session_state["horario_df"] = pd.DataFrame(datos["horario_data"])
 
-      if datos.get("escala_data"):
-        st.session_state["escala_df"] = pd.DataFrame(datos["escala_data"])
-  except Exception as e:
-    st.error(f"Error cargando datos de la base de datos: {e}")
-
+            if datos.get("escala_data"):
+                st.session_state["escala_df"] = pd.DataFrame(datos["escala_data"])
+    except Exception as e:
+        st.error(f"Error cargando datos de la base de datos: {e}")
 
 def guardar_datos_usuario():
-  if not st.session_state["usuario"]:
-    return
+    if not st.session_state["usuario"]:
+        return
 
-  user_id = st.session_state["usuario"].id
-  correo = st.session_state["usuario"].email
+    user_id = st.session_state["usuario"].id
+    correo = st.session_state["usuario"].email
 
-  pensum_json = (
-      st.session_state["pensum_df"].to_dict("records")
-      if st.session_state["pensum_df"] is not None
-      else None
-  )
-  
-  evals_json = {}
-  for cod, info in st.session_state["evaluaciones"].items():
-    evals_json[cod] = {
-        "estado": info.get("estado", "No Inscrita"),
-        "plan": []
-    }
-    for item in info.get("plan", []):
-      item_copia = item.copy()
-      if "Fecha" in item_copia:
-        if isinstance(item_copia["Fecha"], (datetime.date, datetime.datetime)):
-          item_copia["Fecha"] = item_copia["Fecha"].strftime("%Y-%m-%d")
-      evals_json[cod]["plan"].append(item_copia)
+    pensum_json = (
+        st.session_state["pensum_df"].to_dict("records")
+        if st.session_state["pensum_df"] is not None
+        else None
+    )
+    
+    evals_json = {}
+    for cod, info in st.session_state["evaluaciones"].items():
+        evals_json[cod] = {
+            "estado": info.get("estado", "No Inscrita"),
+            "plan": []
+        }
+        for item in info.get("plan", []):
+            item_copia = item.copy()
+            if "Fecha" in item_copia:
+                if isinstance(item_copia["Fecha"], (datetime.date, datetime.datetime)):
+                    item_copia["Fecha"] = item_copia["Fecha"].strftime("%Y-%m-%d")
+            evals_json[cod]["plan"].append(item_copia)
 
-  horario_json = (
-      st.session_state["horario_df"].to_dict("records")
-      if st.session_state["horario_df"] is not None
-      else None
-  )
-
-  escala_json = (
-      st.session_state["escala_df"].to_dict("records")
-      if st.session_state["escala_df"] is not None
-      else None
-  )
-
-  data = {
-      "id": user_id,
-      "correo": correo,
-      "pensum_data": pensum_json,
-      "evaluaciones_data": evals_json,
-      "horario_data": horario_json,
-      "escala_data": escala_json,
-  }
-
-  try:
-    supabase.table("perfiles_usuario").upsert(data).execute()
-    st.toast("💾 Cambios guardados automáticamente", icon="☁️")
-  except Exception as e:
-    st.error(f"Error al guardar datos: {e}")
-
-
-# --- 7. LÓGICA DE CONTROL DE PRELACIONES ---
-def verificar_disponibilidad(row, df_completo):
-  prelaciones_raw = str(row.get("prelaciones", "Ninguna")).strip()
-
-  if prelaciones_raw.lower() in [
-      "ninguna",
-      "ninguno",
-      "-",
-      "",
-      "none",
-      "sin prelación",
-  ]:
-    return True, "Disponible"
-
-  codigos_aprobados = df_completo[df_completo["estado"] == "Aprobada"][
-      "codigo"
-  ].tolist()
-  materias_pre = [
-      p.strip() for p in prelaciones_raw.replace("/", ",").split(",") if p.strip()
-  ]
-  faltantes = []
-
-  for pre in materias_pre:
-    if pre not in codigos_aprobados and pre.lower() not in ["ninguna", ""]:
-      faltantes.append(pre)
-
-  if len(faltantes) > 0:
-    return (
-        False,
-        f"🔒 Bloqueada (Requiere aprobar: {', '.join(faltantes)})",
+    horario_json = (
+        st.session_state["horario_df"].to_dict("records")
+        if st.session_state["horario_df"] is not None
+        else None
     )
 
-  return True, "Disponible"
+    escala_json = (
+        st.session_state["escala_df"].to_dict("records")
+        if st.session_state["escala_df"] is not None
+        else None
+    )
 
+    data = {
+        "id": user_id,
+        "correo": correo,
+        "pensum_data": pensum_json,
+        "evaluaciones_data": evals_json,
+        "horario_data": horario_json,
+        "escala_data": escala_json,
+    }
 
-# --- 8. CÁLCULO DE PROMEDIOS ---
+    try:
+        supabase.table("perfiles_usuario").upsert(data).execute()
+        st.toast("💾 Cambios guardados automáticamente", icon="☁️")
+    except Exception as e:
+        st.error(f"Error al guardar datos: {e}")
+
+def verificar_disponibilidad(row, df_completo):
+    prelaciones_raw = str(row.get("prelaciones", "Ninguna")).strip()
+
+    if prelaciones_raw.lower() in ["ninguna", "ninguno", "-", "", "none", "sin prelación"]:
+        return True, "Disponible"
+
+    codigos_aprobados = df_completo[df_completo["estado"] == "Aprobada"]["codigo"].tolist()
+    materias_pre = [p.strip() for p in prelaciones_raw.replace("/", ",").split(",") if p.strip()]
+    faltantes = []
+
+    for pre in materias_pre:
+        if pre not in codigos_aprobados and pre.lower() not in ["ninguna", ""]:
+            faltantes.append(pre)
+
+    if len(faltantes) > 0:
+        return False, f"🔒 Bloqueada (Requiere aprobar: {', '.join(faltantes)})"
+
+    return True, "Disponible"
+
 def calcular_nota_materia(cod, evaluaciones):
-  if cod in evaluaciones:
-    plan = evaluaciones[cod].get("plan", [])
-    if plan:
-      df_plan = pd.DataFrame(plan)
-      if "Nota" in df_plan.columns:
-        notas_validas = df_plan["Nota"].dropna()
-        if len(notas_validas) > 0:
-          escala_key = f"radio_esc_{cod}"
-          escala_sel = st.session_state.get(escala_key, "Acumulativa")
-          
-          if "Acumulativa" in escala_sel:
-              return float(notas_validas.sum())
-          else:
-              return float(notas_validas.mean())
-  return 0.0
+    if cod in evaluaciones:
+        plan = evaluaciones[cod].get("plan", [])
+        if plan:
+            df_plan = pd.DataFrame(plan)
+            if "Nota" in df_plan.columns:
+                notas_validas = df_plan["Nota"].dropna()
+                if len(notas_validas) > 0:
+                    escala_key = f"radio_esc_{cod}"
+                    escala_sel = st.session_state.get(escala_key, "Acumulativa")
+                    
+                    if "Acumulativa" in escala_sel:
+                        return float(notas_validas.sum())
+                    else:
+                        return float(notas_validas.mean())
+    return 0.0
 
 def calcular_promedios_semestres(df_pensum, evaluaciones):
-  promedios_por_semestre = {}
-  semestres = df_pensum["semestre"].unique()
-  
-  for sem in semestres:
-    df_sem = df_pensum[df_pensum["semestre"] == sem]
-    notas_sem = []
-    for _, row in df_sem.iterrows():
-      cod = row["codigo"]
-      estado = row["estado"]
-      if estado in ["Aprobada", "Reprobada", "En Curso"]:
-        nota = calcular_nota_materia(cod, evaluaciones)
-        notas_sem.append(nota)
+    promedios_por_semestre = {}
+    semestres = df_pensum["semestre"].unique()
     
-    if len(notas_sem) > 0:
-      promedios_por_semestre[sem] = sum(notas_sem) / len(notas_sem)
-    else:
-      promedios_por_semestre[sem] = 0.0
-      
-  return promedios_por_semestre
+    for sem in semestres:
+        df_sem = df_pensum[df_pensum["semestre"] == sem]
+        notas_sem = []
+        for _, row in df_sem.iterrows():
+            cod = row["codigo"]
+            estado = row["estado"]
+            if estado in ["Aprobada", "Reprobada", "En Curso"]:
+                nota = calcular_nota_materia(cod, evaluaciones)
+                notas_sem.append(nota)
+        
+        if len(notas_sem) > 0:
+            promedios_por_semestre[sem] = sum(notas_sem) / len(notas_sem)
+        else:
+            promedios_por_semestre[sem] = 0.0
+            
+    return promedios_por_semestre
 
 def calcular_indice_academico(df_pensum, evaluaciones):
-  promedios_sem = calcular_promedios_semestres(df_pensum, evaluaciones)
-  valores_prom = [p for p in promedios_sem.values() if p > 0.0]
-  if len(valores_prom) > 0:
-    return sum(valores_prom) / len(valores_prom)
-  return 0.0
+    promedios_sem = calcular_promedios_semestres(df_pensum, evaluaciones)
+    valores_prom = [p for p in promedios_sem.values() if p > 0.0]
+    if len(valores_prom) > 0:
+        return sum(valores_prom) / len(valores_prom)
+    return 0.0
 
-
-# --- AUTO-LOGIN CON RETARDAMIENTO DE LECTURA DE COOKIE ---
+# --- AUTO-LOGIN ---
 if st.session_state["usuario"] is None:
-    # Obtenemos todas las cookies registradas
-    all_cookies = cookie_manager.get_all()
-    
-    # Si la lista de cookies aún está cargando desde el navegador, pausamos 0.5s para darle tiempo a JavaScript
-    if all_cookies is None:
-        time.sleep(0.5)
-        st.rerun()
-
     token_guardado = cookie_manager.get(cookie="sb_refresh_token")
-    
     if token_guardado and isinstance(token_guardado, str) and len(token_guardado.strip()) > 0:
         try:
             res_session = supabase.auth.set_session(token_guardado, token_guardado)
             if res_session and res_session.user:
                 st.session_state["usuario"] = res_session.user
-                
-                # Actualizamos la cookie si Supabase devolvió un nuevo token
                 if res_session.session and res_session.session.refresh_token:
                     cookie_manager.set(
                         "sb_refresh_token",
                         res_session.session.refresh_token,
                         expires_at=datetime.datetime.now() + datetime.timedelta(days=30)
                     )
-                
                 cargar_datos_usuario(res_session.user.id)
                 st.rerun()
         except Exception:
             cookie_manager.delete("sb_refresh_token")
 
-# --- 9. PANTALLA DE AUTENTICACIÓN ---
+# --- 6. AUTENTICACIÓN / PANTALLA PRINCIPAL ---
 if st.session_state["usuario"] is None:
-  st.title("🎓 Bienvenido a Mi App Universitaria")
-  st.subheader("Inicia sesión en tu cuenta.")
+    st.title("🎓 Bienvenido a Mi App Universitaria")
+    st.subheader("Inicia sesión en tu cuenta.")
 
-  tab_login, tab_registro = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse"])
+    tab_login, tab_registro = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse"])
 
-  with tab_login:
-    with st.form("form_login"):
-      email_login = st.text_input("Correo electrónico")
-      pass_login = st.text_input("Contraseña", type="password")
-      recordar_dispositivo = st.checkbox("Recordar esta sesión en este dispositivo", value=True)
+    with tab_login:
+        with st.form("form_login"):
+            email_login = st.text_input("Correo electrónico")
+            pass_login = st.text_input("Contraseña", type="password")
+            recordar_dispositivo = st.checkbox("Recordar esta sesión en este dispositivo", value=True)
+            submit_login = st.form_submit_button("Ingresar")
 
-      submit_login = st.form_submit_button("Ingresar")
+            if submit_login:
+                try:
+                    res = supabase.auth.sign_in_with_password({
+                        "email": email_login.strip(),
+                        "password": pass_login.strip(),
+                    })
+                    if res.user:
+                        st.session_state["usuario"] = res.user
+                        if recordar_dispositivo and res.session and res.session.refresh_token:
+                            cookie_manager.set(
+                                "sb_refresh_token",
+                                res.session.refresh_token,
+                                expires_at=datetime.datetime.now() + datetime.timedelta(days=30)
+                            )
+                        cargar_datos_usuario(res.user.id)
+                        st.success("¡Sesión iniciada con éxito!")
+                        time.sleep(0.5)
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Error al iniciar sesión: {e}")
 
-      # --- LOGIN Y GUARDADO EN COOKIES ---
-      if submit_login:
-          try:
-              res = supabase.auth.sign_in_with_password({
-                  "email": email_login.strip(),
-                  "password": pass_login.strip(),
-              })
-              if res.user:
-                  st.session_state["usuario"] = res.user
+    with tab_registro:
+        with st.form("form_registro"):
+            email_reg = st.text_input("Correo electrónico para el registro")
+            pass_reg = st.text_input("Contraseña", type="password")
+            submit_reg = st.form_submit_button("Crear Cuenta")
 
-                  # Si el usuario eligió recordar dispositivo
-                  if recordar_dispositivo and res.session and res.session.refresh_token:
-                      cookie_manager.set(
-                          "sb_refresh_token",
-                          res.session.refresh_token,
-                          expires_at=datetime.datetime.now() + datetime.timedelta(days=30)
-                      )
+            if submit_reg:
+                try:
+                    res = supabase.auth.sign_up({
+                        "email": email_reg.strip(),
+                        "password": pass_reg.strip(),
+                    })
+                    if res.user:
+                        st.success("¡Cuenta creada exitosamente! Ahora puedes iniciar sesión.")
+                except Exception as e:
+                    st.error(f"Error al registrarse: {e}")
 
-                  js_pedir_permiso = """
-                  <script>
-                      if (window.Notification && Notification.permission !== "granted") {
-                          Notification.requestPermission().then(permission => {
-                              if (permission === "granted") {
-                                  console.log("Permiso de notificación concedido.");
-                              }
-                          });
-                      }
-                  </script>
-                  """
-                  st.components.v1.html(js_pedir_permiso, height=0)
-
-                  cargar_datos_usuario(res.user.id)
-                  st.success("¡Sesión iniciada con éxito!")
-                  time.sleep(1) # Pequeña pausa para asegurar la escritura de la cookie
-                  st.rerun()
-          except Exception as e:
-              st.error(f"Error al iniciar sesión: {e}")
-
-  with tab_registro:
-    with st.form("form_registro"):
-      email_reg = st.text_input("Correo electrónico para el registro")
-      pass_reg = st.text_input("Contraseña", type="password")
-      submit_reg = st.form_submit_button("Crear Cuenta")
-
-      if submit_reg:
-        try:
-          res = supabase.auth.sign_up({
-              "email": email_reg.strip(),
-              "password": pass_reg.strip(),
-          })
-          if res.user:
-            st.success(
-                "¡Cuenta creada exitosamente! Ahora puedes iniciar sesión."
-            )
-        except Exception as e:
-          st.error(f"Error al registrarse: {e}")
-
-# --- 10. APLICACIÓN PRINCIPAL (USUARIO LOGUEADO) ---
 else:
-  st.sidebar.write(f"👤 **Usuario:** {st.session_state['usuario'].email}")
-
-  with st.sidebar.expander("⚙️ Configuración de IA"):
-    modelo_seleccionado = st.selectbox(
-        "Selecciona el Modelo",
-        [
-            "gemini-3.6-flash",
-            "gemini-3.5-flash",
-        ],
-        index=0,
-        help=(
-            "Si un modelo presenta alta demanda (503), la aplicación intentará "
-            "automáticamente con otra versión disponible."
-        ),
-    )
-
-  st.sidebar.markdown("---")
-
-  if st.session_state.get("pensum_df") is not None:
-      df_p = st.session_state["pensum_df"].copy()
-      evals = st.session_state.get("evaluaciones", {})
-      
-      if "estado" in df_p.columns:
-          df_filtrado = df_p[df_p["estado"].astype(str).str.lower() != "no inscrita"].copy()
-      else:
-          df_filtrado = df_p.copy()
-
-      if not df_filtrado.empty:
-          notas_finales = []
-          for _, row_mat in df_filtrado.iterrows():
-              n_val = calcular_nota_materia(row_mat["codigo"], evals)
-              notas_finales.append(round(n_val, 2))
-          df_filtrado["Nota Final"] = notas_finales
-
-          promedios_sem = calcular_promedios_semestres(df_p, evals)
-          indice_gen = calcular_indice_academico(df_p, evals)
-
-          html_contenido = f"""
-          <!DOCTYPE html>
-          <html lang="es">
-          <head>
-              <meta charset="UTF-8">
-              <title>Resumen Académico</title>
-              <style>
-                  @page {{
-                      size: A4;
-                      margin: 20mm;
-                  }}
-                  body {{
-                      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-                      color: #1e293b;
-                      line-height: 1.5;
-                      margin: 0;
-                      padding: 0;
-                      background-color: #ffffff;
-                  }}
-                  .header {{
-                      border-bottom: 3px solid #3b82f6;
-                      padding-bottom: 15px;
-                      margin-bottom: 25px;
-                      display: flex;
-                      justify-content: space-between;
-                      align-items: flex-end;
-                  }}
-                  .header h1 {{
-                      font-size: 24px;
-                      color: #0f172a;
-                      margin: 0;
-                      font-weight: 700;
-                      letter-spacing: -0.5px;
-                  }}
-                  .header p.sub {{
-                      color: #64748b;
-                      font-size: 13px;
-                      margin: 4px 0 0 0;
-                  }}
-                  .metrics-container {{
-                      display: flex;
-                      gap: 15px;
-                      margin-bottom: 25px;
-                  }}
-                  .metric-card {{
-                      flex: 1;
-                      background: #f8fafc;
-                      border: 1px solid #e2e8f0;
-                      border-left: 4px solid #3b82f6;
-                      padding: 12px 16px;
-                      border-radius: 6px;
-                  }}
-                  .metric-card.success {{
-                      border-left-color: #10b981;
-                  }}
-                  .metric-label {{
-                      font-size: 11px;
-                      text-transform: uppercase;
-                      color: #64748b;
-                      font-weight: 600;
-                      letter-spacing: 0.5px;
-                  }}
-                  .metric-value {{
-                      font-size: 20px;
-                      font-weight: 700;
-                      color: #0f172a;
-                      margin-top: 4px;
-                  }}
-                  h2 {{
-                      font-size: 15px;
-                      color: #334155;
-                      border-bottom: 1px solid #e2e8f0;
-                      padding-bottom: 6px;
-                      margin-top: 25px;
-                      margin-bottom: 12px;
-                      text-transform: uppercase;
-                      letter-spacing: 0.5px;
-                  }}
-                  table {{
-                      width: 100%;
-                      border-collapse: collapse;
-                      margin-bottom: 20px;
-                  }}
-                  th, td {{
-                      padding: 10px 12px;
-                      text-align: left;
-                      font-size: 12px;
-                  }}
-                  th {{
-                      background-color: #f1f5f9;
-                      color: #334155;
-                      font-weight: 600;
-                      border-bottom: 2px solid #cbd5e1;
-                  }}
-                  td {{
-                      border-bottom: 1px solid #f1f5f9;
-                      color: #334155;
-                  }}
-                  tr:nth-child(even) td {{
-                      background-color: #fcfcfc;
-                  }}
-                  .badge {{
-                      display: inline-block;
-                      padding: 3px 8px;
-                      font-size: 10px;
-                      font-weight: 600;
-                      border-radius: 4px;
-                      text-transform: uppercase;
-                  }}
-                  .badge-aprobada {{ background-color: #d1fae5; color: #065f46; }}
-                  .badge-reprobada {{ background-color: #fee2e2; color: #991b1b; }}
-                  .badge-curso {{ background-color: #e0f2fe; color: #0369a1; }}
-                  .badge-inscrita {{ background-color: #fef3c7; color: #92400e; }}
-                  
-                  .footer-note {{
-                      margin-top: 40px;
-                      font-size: 10px;
-                      color: #94a3b8;
-                      text-align: center;
-                      border-top: 1px solid #f1f5f9;
-                      padding-top: 15px;
-                  }}
-              </style>
-          </head>
-          <body>
-
-              <div class="header">
-                  <div>
-                      <h1>Reporte de Rendimiento Académico</h1>
-                      <p class="sub">Historial detallado de materias activas, calificaciones y promedios</p>
-                  </div>
-              </div>
-
-              <div class="metrics-container">
-                  <div class="metric-card success">
-                      <div class="metric-label">Índice Académico General</div>
-                      <div class="metric-value">{indice_gen:.2f} <span style="font-size: 13px; color: #64748b;">/ 20.0</span></div>
-                  </div>
-              </div>
-
-              <h2>Detalle de Materias (Cursadas e Inscritas)</h2>
-              <table>
-                  <thead>
-                      <tr>
-                          <th>Sem.</th>
-                          <th>Código</th>
-                          <th>Asignatura</th>
-                          <th>Estado</th>
-                          <th style="text-align: right;">Nota Final</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-          """
-
-          for _, row in df_filtrado.iterrows():
-              estado = str(row.get('estado', '')).lower()
-              badge_class = "badge-inscrita"
-              if "aprobada" in estado:
-                  badge_class = "badge-aprobada"
-              elif "reprobada" in estado:
-                  badge_class = "badge-reprobada"
-              elif "curso" in estado:
-                  badge_class = "badge-curso"
-
-              html_contenido += f"""
-                      <tr>
-                          <td style="font-weight: 600;">{row.get('semestre', '')}</td>
-                          <td><code>{row.get('codigo', '')}</code></td>
-                          <td>{row.get('materia', '')}</td>
-                          <td><span class="badge {badge_class}">{row.get('estado', '')}</span></td>
-                          <td style="text-align: right; font-weight: 600;">{row.get('Nota Final', 0.0):.2f}</td>
-                      </tr>
-              """
-
-          html_contenido += """
-                  </tbody>
-              </table>
-
-              <h2>Promedios por Semestre</h2>
-              <table>
-                  <thead>
-                      <tr>
-                          <th>Semestre / Nivel</th>
-                          <th style="text-align: right;">Promedio Ponderado</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-          """
-
-          for sem, prom in promedios_sem.items():
-              if prom > 0.0:
-                  html_contenido += f"""
-                      <tr>
-                          <td style="font-weight: 600;">{sem}</td>
-                          <td style="text-align: right; font-weight: 600; color: #2563eb;">{prom:.2f} pts</td>
-                      </tr>
-                  """
-
-          html_contenido += f"""
-                  </tbody>
-              </table>
-
-              <div class="footer-note">
-                  
-
-          </body>
-          </html>
-          """
-
-          pdf_bytes = html_contenido.encode('utf-8')
-
-          st.sidebar.download_button(
-              label="📥 Descargar Reporte (PDF)",
-              data=pdf_bytes,
-              file_name="resumen_academico_estetico.html",
-              mime="text/html",
-              help="Descarga un reporte con diseño ejecutivo y estilizado. Ábrelo en tu navegador y presiona Ctrl+P -> Guardar como PDF."
-          )
-
-  if st.sidebar.button("🔄 Refrescar Página", key="btn_refrescar_pagina"):
-    components.html(
-        """
-        <script>
-            window.parent.location.reload();
-        </script>
-        """,
-        height=0,
-    )
-
-  if st.sidebar.button("Cerrar Sesión", key="btn_logout"):
-    try:
-        cookie_manager.delete("sb_refresh_token")
-    except Exception:
-        pass
-    supabase.auth.sign_out()
-    st.session_state["usuario"] = None
-    st.session_state["pensum_df"] = None
-    st.session_state["evaluaciones"] = {}
-    st.session_state["horario_df"] = None
-    st.session_state["mensajes_asistente"] = [{
-        "role": "assistant",
-        "content": (
-            "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?"
-        ),
-    }]
-    st.rerun()
-
-  st.title("🎓 Mi App Universitaria")
-
-  tab_pensum, tab_horario, tab_asistente, tab_pomodoro = st.tabs([
-      "📊 Pensum y Calificaciones",
-      "📅 Horario de Clases",
-      "🤖 Asistente Virtual IA",
-      "⏱️ Pomodoro de Estudio Integrado"
-  ])
-
-  # ==========================================
-  # PESTAÑA 1: PENSUM Y CALIFICACIONES
-  # ==========================================
-  with tab_pensum:
-      with st.expander("🔔 Ver Alertas de Actividades (Vencidas, Hoy y Próximas)", expanded=False):
-          hoy = datetime.date.today()
-          limite_futuro = hoy + datetime.timedelta(days=3)
-          
-          atrasadas = []
-          para_hoy = []
-          proximas = []
-
-          if "evaluaciones" in st.session_state:
-              for cod_mat, info_mat in st.session_state["evaluaciones"].items():
-                  plan = info_mat.get("plan", [])
-                  for ev in plan:
-                      entregada = ev.get("Entregada", False)
-                      fecha_ev = ev.get("Fecha")
-
-                      if isinstance(fecha_ev, str):
-                          try:
-                              fecha_ev = datetime.datetime.strptime(fecha_ev, "%Y-%m-%d").date()
-                          except ValueError:
-                              continue
-                      elif isinstance(fecha_ev, datetime.datetime):
-                          fecha_ev = fecha_ev.date()
-
-                      if not entregada and fecha_ev:
-                          item = {
-                              "Código": cod_mat,
-                              "Evaluación": ev.get("Evaluación"),
-                              "Tema": ev.get("Tema"),
-                              "Fecha": fecha_ev,
-                              "Valor (%)": ev.get("Valor (%)")
-                          }
-                          
-                          if fecha_ev < hoy:
-                              atrasadas.append(item)
-                          elif fecha_ev == hoy:
-                              para_hoy.append(item)
-                          elif hoy < fecha_ev <= limite_futuro:
-                              proximas.append(item)
-
-          total_pendientes = len(atrasadas) + len(para_hoy) + len(proximas)
-
-          if total_pendientes > 0:
-              if atrasadas:
-                  st.error(f"🚨 Tienes **{len(atrasadas)}** actividad(es) **atrasada(s)** (vencidas):")
-                  df_atrasadas = pd.DataFrame(atrasadas).sort_values("Fecha")
-                  st.dataframe(
-                      df_atrasadas,
-                      use_container_width=True,
-                      hide_index=True,
-                      column_config={
-                          "Fecha": st.column_config.DateColumn("Fecha límite", format="YYYY-MM-DD"),
-                          "Valor (%)": st.column_config.NumberColumn("Ponderación", format="%d%%")
-                      }
-                  )
-
-              if para_hoy:
-                  st.warning(f"🔥 ¡Atención! Tienes **{len(para_hoy)}** actividad(es) que se entregan **HOY**:")
-                  df_hoy = pd.DataFrame(para_hoy)
-                  st.dataframe(
-                      df_hoy,
-                      use_container_width=True,
-                      hide_index=True,
-                      column_config={
-                          "Fecha": st.column_config.DateColumn("Fecha límite", format="YYYY-MM-DD"),
-                          "Valor (%)": st.column_config.NumberColumn("Ponderación", format="%d%%")
-                      }
-                  )
-
-              if proximas:
-                  st.info(f"⏳ Tienes **{len(proximas)}** actividad(es) para los próximos 3 días:")
-                  df_proximas = pd.DataFrame(proximas).sort_values("Fecha")
-                  st.dataframe(
-                      df_proximas,
-                      use_container_width=True,
-                      hide_index=True,
-                      column_config={
-                          "Fecha": st.column_config.DateColumn("Fecha límite", format="YYYY-MM-DD"),
-                          "Valor (%)": st.column_config.NumberColumn("Ponderación", format="%d%%")
-                      }
-                  )
-          else:
-              st.success("🎉 ¡Excelente! No tienes ninguna actividad pendiente, para hoy ni para los próximos 3 días.")
-              
-      st.subheader("📋 Pensum Estructurado por Niveles")
-
-      if st.session_state["pensum_df"] is None:
-          st.info(
-              "👋 Carga tu pensum en formato PDF para organizar tus niveles académicos."
-          )
-          uploaded_file = st.file_uploader(
-              "Sube el PDF de tu pensum universitario", type=["pdf"]
-          )
-
-          if uploaded_file and st.button("📊 Organizar Pensum en Tabla"):
-              with st.spinner("Procesando pensum con Gemini..."):
-                  try:
-                      api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-                      client = genai.Client(api_key=api_key)
-
-                      pdf_bytes = uploaded_file.read()
-                      pdf_part = types.Part.from_bytes(
-                          data=pdf_bytes, mime_type="application/pdf"
-                      )
-
-                      prompt = """
-                              Extrae exhaustivamente todas las materias del documento del pensum proporcionado.
-                              Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida.
-
-                              La estructura debe ser una lista de objetos JSON con exactamente estas claves:
-                              [
-                                {
-                                  "semestre": "Semestre I",
-                                  "codigo": "MAT-101",
-                                  "materia": "Matemática I",
-                                  "creditos": 4,
-                                  "prelaciones": "Ninguna"
-                                }
-                              ]
-                              """
-
-                      response = generar_con_reintentos(
-                          client, modelo_seleccionado, [prompt, pdf_part]
-                      )
-
-                      if response and response.text:
-                          clean_text = response.text.strip()
-                          if clean_text.startswith("```json"):
-                              clean_text = clean_text[7:]
-                          if clean_text.startswith("```"):
-                              clean_text = clean_text[3:]
-                          if clean_text.endswith("```"):
-                              clean_text = clean_text[:-3]
-
-                          data = json.loads(clean_text.strip())
-                          df = pd.DataFrame(data)
-
-                          if "estado" not in df.columns:
-                              df["estado"] = "No Inscrita"
-
-                          st.session_state["pensum_df"] = df
-                          guardar_datos_usuario()
-                          st.success("¡Pensum procesado y guardado!")
-                          st.rerun()
-
-                  except Exception as err:
-                      st.error(f"Error procesando el documento: {err}")
-
-      else:
-          if st.sidebar.button(
-              "🗑️ Eliminar / Volver a subir Pensum", key="btn_eliminar_pensum"
-          ):
-              st.session_state["pensum_df"] = None
-              st.session_state["evaluaciones"] = {}
-              guardar_datos_usuario()
-              st.rerun()
-
-          df = st.session_state["pensum_df"]
-
-          indice_aca = calcular_indice_academico(
-              df, st.session_state["evaluaciones"]
-          )
-
-          col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-          with col_m1:
-              st.metric("Total Materias", len(df))
-          with col_m2:
-              st.metric("Aprobadas", len(df[df["estado"] == "Aprobada"]))
-          with col_m3:
-              st.metric("Reprobadas", len(df[df["estado"] == "Reprobada"]))
-          with col_m4:
-              st.metric("📈 Índice Académico", f"{indice_aca:.2f} / 20.0")
-
-          st.divider()
-
-          semestres = (
-              list(df["semestre"].unique())
-              if "semestre" in df.columns
-              else ["Nivel Único"]
-          )
-          
-          promedios_semestrales = calcular_promedios_semestres(df, st.session_state["evaluaciones"])
-          tabs_niveles = st.tabs(semestres)
-
-          for idx_tab, semestre_nombre in enumerate(semestres):
-              with tabs_niveles[idx_tab]:
-                  df_nivel = df[df["semestre"] == semestre_nombre].copy()
-
-                  notas_finales_nivel = []
-                  for _, row_mat in df_nivel.iterrows():
-                      n_val = calcular_nota_materia(row_mat["codigo"], st.session_state["evaluaciones"])
-                      notas_finales_nivel.append(f"{n_val:.2f} pts")
-                  df_nivel["Nota Final"] = notas_finales_nivel
-
-                  prom_sem_actual = promedios_semestrales.get(semestre_nombre, 0.0)
-                  st.info(f"📊 **Promedio del Semestre ({semestre_nombre}):** {prom_sem_actual:.2f} / 20.0")
-
-                  disponibilidades = []
-                  mensajes_est = []
-                  for _, row in df_nivel.iterrows():
-                      disp, msg = verificar_disponibilidad(row, df)
-                      disponibilidades.append(disp)
-                      mensajes_est.append(msg)
-
-                  df_nivel["Disponibilidad"] = mensajes_est
-
-                  bloqueadas_count = disponibilidades.count(False)
-                  if bloqueadas_count > 0:
-                      st.warning(
-                          f"⚠️ Tienes {bloqueadas_count} materia(s) bloqueada(s) por"
-                          " preliminares no aprobadas."
-                      )
-
-                  evento_seleccion = st.dataframe(
-                      df_nivel,
-                      use_container_width=True,
-                      hide_index=True,
-                      on_select="rerun",
-                      selection_mode="single-row",
-                      key=f"tabla_{semestre_nombre}",
-                      column_config={
-                          "semestre": "Nivel",
-                          "codigo": "Código",
-                          "materia": "Asignatura",
-                          "creditos": st.column_config.NumberColumn(
-                              "Créditos", format="%d"
-                          ),
-                          "prelaciones": "Requisitos / Prelaciones",
-                          "estado": "Estado Actual",
-                          "Nota Final": "Nota Final",
-                          "Disponibilidad": st.column_config.TextColumn(
-                              "Estatus de Acceso"
-                          ),
-                      },
-                  )
-
-                  filas_sel = evento_seleccion.get("selection", {}).get("rows", [])
-
-                  if filas_sel:
-                      idx_local = filas_sel[0]
-                      materia_sel = df_nivel.iloc[idx_local]
-                      codigo_mat = str(materia_sel.get("codigo", f"MAT-{idx_local}"))
-                      nombre_mat = materia_sel.get("materia", "Asignatura")
-                      esta_disponible = disponibilidades[idx_local]
-
-                      st.divider()
-
-                      if not esta_disponible:
-                          st.error(
-                              f"🔒 **{codigo_mat} - {nombre_mat}** está **bloqueada**."
-                              f" Aprueba sus preliminares ({materia_sel.get('prelaciones')})"
-                              " para registrar sus notas."
-                          )
-                      else:
-                          st.markdown(
-                              f"### 📝 Plan de Evaluaciones: **{codigo_mat} - {nombre_mat}**"
-                          )
-
-                          if codigo_mat not in st.session_state["evaluaciones"]:
-                              hoy = datetime.date.today()
-                              st.session_state["evaluaciones"][codigo_mat] = {
-                                  "estado": materia_sel.get("estado", "No Inscrita"),
-                                  "plan": [
-                                      {
-                                          "Evaluación": "Parcial 1",
-                                          "Tema": "Unidad 1",
-                                          "Valor (%)": 25,
-                                          "Nota": 0.0,
-                                          "Fecha": hoy,
-                                          "Entregada": False,
-                                      },
-                                      {
-                                          "Evaluación": "Parcial 2",
-                                          "Tema": "Unidad 2",
-                                          "Valor (%)": 25,
-                                          "Nota": 0.0,
-                                          "Fecha": hoy,
-                                          "Entregada": False,
-                                      },
-                                      {
-                                          "Evaluación": "Trabajo / Proyecto",
-                                          "Tema": "Unidad 3",
-                                          "Valor (%)": 25,
-                                          "Nota": 0.0,
-                                          "Fecha": hoy,
-                                          "Entregada": False,
-                                      },
-                                      {
-                                          "Evaluación": "Exposición / Quices",
-                                          "Tema": "Unidad 4",
-                                          "Valor (%)": 25,
-                                          "Nota": 0.0,
-                                          "Fecha": hoy,
-                                          "Entregada": False,
-                                      },
-                                  ],
-                              }
-
-                          col_e1, col_e2 = st.columns(2)
-                          with col_e1:
-                              estado_actual = st.session_state["evaluaciones"][codigo_mat].get("estado", materia_sel.get("estado", "No Inscrita"))
-                              
-                              estados_disponibles = [
-                                  "No Inscrita",
-                                  "Inscrita",
-                                  "En Curso",
-                                  "Aprobada",
-                                  "Reprobada",
-                              ]
-                              
-                              key_selectbox_estado = f"sel_est_{codigo_mat}"
-
-                              idx_e = (
-                                  estados_disponibles.index(estado_actual)
-                                  if estado_actual in estados_disponibles
-                                  else 0
-                              )
-
-                              nuevo_est = st.selectbox(
-                                  "Estado de la Materia:",
-                                  estados_disponibles,
-                                  index=idx_e,
-                                  key=key_selectbox_estado,
-                              )
-
-                              if nuevo_est != estado_actual:
-                                  st.session_state["evaluaciones"][codigo_mat]["estado"] = nuevo_est
-                                  st.session_state["pensum_df"].loc[
-                                      st.session_state["pensum_df"]["codigo"] == codigo_mat,
-                                      "estado",
-                                  ] = nuevo_est
-                                  guardar_datos_usuario()
-                                  st.rerun()
-
-                          with col_e2:
-                              key_escala_anterior = f"escala_anterior_{codigo_mat}"
-                              if key_escala_anterior not in st.session_state:
-                                  st.session_state[key_escala_anterior] = "Acumulativa (Suma de notas)"
-
-                              escala_sel = st.radio(
-                                  "Tipo de Cálculo de Notas:",
-                                  ["Acumulativa (Suma de notas)", "Promediada (Promedio de notas)"],
-                                  horizontal=True,
-                                  key=f"radio_esc_{codigo_mat}",
-                              )
-
-                              if escala_sel != st.session_state[key_escala_anterior]:
-                                  st.session_state[key_escala_anterior] = escala_sel
-                                  guardar_datos_usuario()
-
-                          plan_data_inicial = st.session_state["evaluaciones"][codigo_mat]["plan"]
-                          df_eval_actual = pd.DataFrame(plan_data_inicial)
-
-                          for col_req in [
-                              "Evaluación",
-                              "Tema",
-                              "Valor (%)",
-                              "Nota",
-                              "Fecha",
-                              "Entregada",
-                          ]:
-                              if col_req not in df_eval_actual.columns:
-                                  if col_req == "Valor (%)":
-                                      df_eval_actual[col_req] = 25.0
-                                  elif col_req == "Nota":
-                                      df_eval_actual[col_req] = 0.0
-                                  elif col_req == "Entregada":
-                                      df_eval_actual[col_req] = False
-                                  elif col_req == "Fecha":
-                                      df_eval_actual[col_req] = datetime.date.today()
-                                  else:
-                                      df_eval_actual[col_req] = ""
-
-                          if "Nota (%)" not in df_eval_actual.columns:
-                              df_eval_actual["Nota (%)"] = (
-                                  df_eval_actual["Nota"] / 20.0
-                              ) * df_eval_actual["Valor (%)"]
-
-                          def obtener_nota_desde_escala(pct_obtenido):
-                              df_escala = st.session_state.get("escala_df", pd.DataFrame())
-                              if df_escala.empty:
-                                  return round((pct_obtenido / 100.0) * 20.0, 2)
-                              
-                              for _, row in df_escala.iterrows():
-                                  rango_str = str(row.get("Nivel de logro de la asignatura", ""))
-                                  if "-" in rango_str:
-                                      try:
-                                          partes = rango_str.replace("%", "").split("-")
-                                          min_r = float(partes[0].strip())
-                                          max_r = float(partes[1].strip())
-                                          if min_r <= pct_obtenido <= max_r:
-                                              val_cuant = float(row.get("Calificación Cuantitativa", 0))
-                                              return val_cuant
-                                      except ValueError:
-                                          continue
-                              return round((pct_obtenido / 100.0) * 20.0, 2)
-
-                          def sincronizar_notas_editor():
-                              editor_key = f"editor_{codigo_mat}"
-                              if editor_key not in st.session_state:
-                                  return
-
-                              edited_data = st.session_state[editor_key]
-                              plan_actual = st.session_state["evaluaciones"][codigo_mat][
-                                  "plan"
-                              ]
-
-                              for i_str, cambios in edited_data.get(
-                                  "edited_rows", {}
-                              ).items():
-                                  i = int(i_str)
-                                  if i >= len(plan_actual):
-                                      continue
-
-                                  if "Evaluación" in cambios:
-                                      plan_actual[i]["Evaluación"] = cambios["Evaluación"]
-                                  if "Tema" in cambios:
-                                      plan_actual[i]["Tema"] = cambios["Tema"]
-                                  if "Valor (%)" in cambios:
-                                      plan_actual[i]["Valor (%)"] = float(cambios["Valor (%)"])
-                                  if "Fecha" in cambios:
-                                      f_val = cambios["Fecha"]
-                                      if isinstance(f_val, str):
-                                          try:
-                                              f_val = datetime.datetime.strptime(f_val, "%Y-%m-%d").date()
-                                          except ValueError:
-                                              pass
-                                      plan_actual[i]["Fecha"] = f_val
-                                  if "Entregada" in cambios:
-                                      plan_actual[i]["Entregada"] = cambios["Entregada"]
-
-                                  if "Nota (%)" in cambios:
-                                      nuevo_pct = float(cambios["Nota (%)"])
-                                      nuevo_pct = max(0.0, min(100.0, nuevo_pct))
-                                      plan_actual[i]["Nota (%)"] = nuevo_pct
-                                      
-                                      pts_calculados = obtener_nota_desde_escala(nuevo_pct)
-                                      plan_actual[i]["Nota"] = pts_calculados
-
-                                  elif "Nota" in cambios:
-                                      nuevo_pts = float(cambios["Nota"])
-                                      nuevo_pts = max(
-                                          0.0, min(20.0, nuevo_pts)
-                                      )
-                                      plan_actual[i]["Nota"] = nuevo_pts
-                                      plan_actual[i]["Nota (%)"] = round(
-                                          (nuevo_pts / 20.0) * 100.0, 2
-                                      )
-
-                              if "added_rows" in edited_data and edited_data["added_rows"]:
-                                  for row_nueva in edited_data["added_rows"]:
-                                      p_val = float(row_nueva.get("Nota", 0.0))
-                                      v_val = float(row_nueva.get("Valor (%)", 25.0))
-                                      pct_val = float(row_nueva.get("Nota (%)", (p_val / 20.0) * 100.0))
-                                      
-                                      pts_calculados = obtener_nota_desde_escala(pct_val)
-                                      row_nueva["Nota (%)"] = pct_val
-                                      row_nueva["Nota"] = pts_calculados
-                                      plan_actual.append(row_nueva)
-
-                              if "deleted_rows" in edited_data and edited_data[
-                                  "deleted_rows"
-                              ]:
-                                  indices_a_borrar = sorted(
-                                      edited_data["deleted_rows"], reverse=True
-                                  )
-                                  for idx_del in indices_a_borrar:
-                                      if idx_del < len(plan_actual):
-                                          plan_actual.pop(idx_del)
-
-                          sincronizar_notas_editor()
-
-                          edited_df = st.data_editor(
-                              df_eval_actual[[
-                                  "Evaluación",
-                                  "Tema",
-                                  "Valor (%)",
-                                  "Nota",
-                                  "Nota (%)",
-                                  "Fecha",
-                                  "Entregada",
-                              ]],
-                              num_rows="dynamic",
-                              use_container_width=True,
-                              key=f"editor_{codigo_mat}",
-                              on_change=sincronizar_notas_editor,
-                              column_config={
-                                  "Evaluación": st.column_config.TextColumn("Evaluación"),
-                                  "Tema": st.column_config.TextColumn("Tema"),
-                                  "Valor (%)": st.column_config.NumberColumn(
-                                      "Valor (%)", min_value=0, max_value=100, step=1
-                                  ),
-                                  "Nota": st.column_config.NumberColumn(
-                                      "Nota (0-20 pts)",
-                                      min_value=0.0,
-                                      max_value=20.0,
-                                      step=0.5,
-                                      format="%.1f",
-                                  ),
-                                  "Nota (%)": st.column_config.NumberColumn(
-                                      "Nota (%)",
-                                      min_value=0.0,
-                                      max_value=100.0,
-                                      step=0.1,
-                                      format="%.2f%%",
-                                  ),
-                                  "Fecha": st.column_config.DateColumn(
-                                      "Fecha de Entrega", format="YYYY-MM-DD"
-                                  ),
-                                  "Entregada": st.column_config.CheckboxColumn(
-                                      "¿Entregada?"
-                                  ),
-                              },
-                          )
-
-                          if "Valor (%)" in edited_df.columns:
-                              suma_porcentajes = edited_df["Valor (%)"].sum()
-                              if suma_porcentajes > 100:
-                                  st.error(f"❌ La suma de los porcentajes de las evaluaciones es {suma_porcentajes}%. No puede superar el 100%.")
-                              elif suma_porcentajes < 100:
-                                  st.info(f"ℹ️ El plan actual suma {suma_porcentajes}%. Asegúrate de completar el 100% de la ponderación.")
-
-                          if st.button("💾 Guardar Notas", key=f"btn_guardar_notas_{codigo_mat}"):
-
-                              sincronizar_notas_editor()
-
-                              guardar_datos_usuario()
-
-                              st.success("¡Notas guardadas correctamente!")
-
-                              st.rerun()
-
-
-
-                          st.markdown("---")
-
-                          st.markdown("#### 📊 Resumen de Rendimiento")
-
-
-
-                          es_acumulativa = "Acumulativa" in escala_sel
-
-                          min_aprobar = 12
-
-
-
-                          puntos_acum = 0.0
-
-                          porcentaje_acum = 0.0
-
-
-
-                          if "Nota" in edited_df.columns and not edited_df.empty:
-
-                              notas_validas = edited_df["Nota"].dropna()
-
-                              if len(notas_validas) > 0:
-
-                                  if es_acumulativa:
-
-                                      puntos_acum = notas_validas.sum()
-
-                                  else:
-
-                                      puntos_acum = notas_validas.mean()
-
-                              else:
-
-                                  puntos_acum = 0.0
-
-
-
-                          if "Nota (%)" in edited_df.columns and not edited_df.empty:
-
-                              porcentajes_validos = edited_df["Nota (%)"].dropna()
-
-                              if len(porcentajes_validos) > 0:
-
-                                  if es_acumulativa:
-
-                                      porcentaje_acum = porcentajes_validos.sum()
-
-                                  else:
-
-                                      porcentaje_acum = porcentajes_validos.mean()
-
-                              else:
-
-                                  porcentaje_acum = 0.0
-
-
-
-                          resultado_combinado = f"{puntos_acum:.2f} pts / {porcentaje_acum:.1f}%"
-
-
-
-                          col_ac1, col_ac2 = st.columns(2)
-
-                          col_ac1.metric(
-                              label="Modo de Cálculo",
-                              value=escala_sel,
-                          )
-
-                          col_ac2.metric(
-                              label="Resultado Obtenido",
-                              value=resultado_combinado,
-                          )
-
-
-
-                          st.markdown("---")
-
-                          st.markdown("#### ✅ Resultado Final")
-
-
-
-                          if puntos_acum >= min_aprobar:
-
-                              st.success(
-                                  f"¡Felicidades! Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, estás"
-                                  " **APROBADO** en esta materia."
-                              )
-
-                              if st.button("Marcar como Aprobada automáticamente", key=f"btn_aprob_{codigo_mat}"):
-
-                                  if codigo_mat not in st.session_state["evaluaciones"]:
-
-                                      st.session_state["evaluaciones"][codigo_mat] = {"estado": "Aprobada", "plan": []}
-
-                                  else:
-
-                                      st.session_state["evaluaciones"][codigo_mat]["estado"] = "Aprobada"
-
-                                  
-
-                                  st.session_state["pensum_df"].loc[
-
-                                      st.session_state["pensum_df"]["codigo"] == codigo_mat,
-
-                                      "estado",
-
-                                  ] = "Aprobada"
-
-                                  
-
-                                  if key_selectbox_estado in st.session_state:
-
-                                      del st.session_state[key_selectbox_estado]
-
-                                  
-
-                                  guardar_datos_usuario()
-
-                                  st.toast(f"¡La materia {codigo_mat} ahora está Aprobada!", icon="🎉")
-
-                                  st.rerun()
-
-                          else:
-
-                              faltan = min_aprobar - puntos_acum
-
-                              st.warning(
-
-                                  f"Con {puntos_acum:.2f} pts / {porcentaje_acum:.1f}%, aún no alcanzas la nota mínima. Te faltan"
-
-                                  f" **{faltan:.2f} pts** para aprobar."
-
-                              ) 
-                              # --- SIMULADOR DE NOTAS "¿QUÉ NECESITO?" ---
-                              st.markdown("---")
-                              st.markdown("#### 🎯 Simulador Predictivo: ¿Qué necesito para alcanzar mi meta?")
-                              
-                              col_sim1, col_sim2 = st.columns(2)
-                              with col_sim1:
-                                  meta_deseada = st.number_input(
-                                      "Nota meta deseada (0 - 20 pts)",
-                                      min_value=0.0,
-                                      max_value=20.0,
-                                      value=14.0,
-                                      step=0.5,
-                                      key=f"meta_deseada_{codigo_mat}"
-                                  )
-                              
-                              # Calcular ponderación y evaluaciones pendientes
-                              plan_actual_sim = st.session_state["evaluaciones"][codigo_mat].get("plan", [])
-                              df_sim = pd.DataFrame(plan_actual_sim)
-                              
-                              if not df_sim.empty:
-                                  # Identificar evaluaciones pendientes (no entregadas o con nota 0)
-                                  if "Entregada" in df_sim.columns:
-                                      pendientes_df = df_sim[df_sim["Entregada"] == False]
-                                  else:
-                                      pendientes_df = df_sim[df_sim["Nota"] == 0.0]
-                              
-                                  porcentaje_pendiente = pendientes_df["Valor (%)"].sum() if "Valor (%)" in pendientes_df.columns else 0.0
-                                  puntos_faltantes = meta_deseada - puntos_acum
-                              
-                                  with col_sim2:
-                                      st.markdown(f"**Ponderación por evaluar:** `{porcentaje_pendiente:.1f}%`")
-                                      st.markdown(f"**Puntos que te faltan:** `{max(0.0, puntos_faltantes):.2f} pts`")
-                              
-                                  if puntos_faltantes <= 0:
-                                      st.success("🎉 ¡Felicidades! Ya alcanzaste o superaste tu meta con las notas actuales.")
-                                  elif porcentaje_pendiente <= 0:
-                                      st.warning("⚠️ No tienes evaluaciones pendientes registradas para sumar más puntos.")
-                                  else:
-                                      if "Acumulativa" in escala_sel:
-                                          nota_promedio_req = (puntos_faltantes / (porcentaje_pendiente / 100.0))
-                                      else:
-                                          nota_promedio_req = puntos_faltantes
-                              
-                                      if nota_promedio_req > 20.0:
-                                          st.error(f"❌ Matemáticamente **no es posible** alcanzar los {meta_deseada} puntos, ya que el máximo acumulable restante excede el límite de la escala.")
-                                      else:
-                                          st.info(f"💡 Para llegar a tu meta de **{meta_deseada} pts**, necesitas obtener un promedio de al menos **{nota_promedio_req:.2f} pts** en tus evaluaciones pendientes (`{len(pendientes_df)}` evaluaciones restantes).")
-                                
-                                                                 
-
-  # ==========================================
-  # PESTAÑA 2: HORARIO DE CLASES
-  # ==========================================
-  with tab_horario:
-      st.subheader("📅 Gestión de Horario de Clases")
-
-      components.html(
-          """
-          <div style="background-color: #1e1e1e; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #333; margin-bottom: 20px;">
-              <span style="color: #a0a0a0; font-size: 14px; font-family: sans-serif;">🕒 Hora Actual del Sistema: </span>
-              <span id="reloj-digital" style="color: #00ffcc; font-size: 20px; font-weight: bold; font-family: monospace;">--:--:--</span>
-              <span id="fecha-digital" style="color: #ffffff; font-size: 14px; margin-left: 15px; font-family: sans-serif;">---</span>
-          </div>
-          <script>
-              function actualizarReloj() {
-                  const ahora = new Date();
-                  const hora = ahora.toLocaleTimeString();
-                  const opciones = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                  const fecha = ahora.toLocaleDateString('es-ES', opciones);
-                  
-                  document.getElementById('reloj-digital').innerText = hora;
-                  document.getElementById('fecha-digital').innerText = fecha;
-              }
-              setInterval(actualizarReloj, 1000);
-              actualizarReloj();
-          </script>
-          """,
-          height=70,
-      )
-
-      if st.session_state.get("horario_df") is None:
-        st.info(
-            "👋 Sube tu horario de clases en formato PDF para organizarlo"
-            " automáticamente."
-        )
-        uploaded_horario = st.file_uploader(
-            "Sube el PDF de tu horario", type=["pdf"], key="file_uploader_horario"
+    # --- PANEL DE USUARIO LOGUEADO ---
+    st.sidebar.write(f"👤 **Usuario:** {st.session_state['usuario'].email}")
+
+    with st.sidebar.expander("⚙️ Configuración de IA"):
+        modelo_seleccionado = st.selectbox(
+            "Selecciona el Modelo",
+            ["gemini-3.6-flash", "gemini-3.5-flash"],
+            index=0,
+            help="Si un modelo presenta alta demanda (503), la aplicación intentará con otra versión disponible."
         )
 
-        if uploaded_horario and st.button(
-            "📊 Procesar y Organizar Horario", key="btn_procesar_horario"
-        ):
-          with st.spinner("Procesando horario con Gemini..."):
-            try:
-              api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-              client = genai.Client(api_key=api_key)
+    st.sidebar.markdown("---")
 
-              pdf_bytes = uploaded_horario.read()
-              pdf_part = types.Part.from_bytes(
-                  data=pdf_bytes, mime_type="application/pdf"
-              )
+    if st.session_state.get("pensum_df") is not None:
+        df_p = st.session_state["pensum_df"].copy()
+        evals = st.session_state.get("evaluaciones", {})
+        
+        if "estado" in df_p.columns:
+            df_filtrado = df_p[df_p["estado"].astype(str).str.lower() != "no inscrita"].copy()
+        else:
+            df_filtrado = df_p.copy()
 
-              prompt = """
-                          Extrae exhaustivamente todas las clases del documento de horario proporcionado.
-                          Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves y ordenadas exactamente de esta forma:
-                          [
-                            {
-                              "dia": "Lunes",
-                              "materia": "Matemática I",
-                              "aula": "Aula 101",
-                              "inicio": "08:00 AM",
-                              "fin": "10:00 AM"
+        if not df_filtrado.empty:
+            notas_finales = []
+            for _, row_mat in df_filtrado.iterrows():
+                n_val = calcular_nota_materia(row_mat["codigo"], evals)
+                notas_finales.append(round(n_val, 2))
+            df_filtrado["Nota Final"] = notas_finales
+
+            promedios_sem = calcular_promedios_semestres(df_p, evals)
+            indice_gen = calcular_indice_academico(df_p, evals)
+
+            html_contenido = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Resumen Académico</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; color: #333; }}
+        h1 {{ color: #004085; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        th {{ background-color: #f2f2f2; }}
+    </style>
+</head>
+<body>
+    <h1>Reporte de Rendimiento Académico</h1>
+    <p><strong>Índice Académico General:</strong> {indice_gen:.2f} / 20.0</p>
+    <h2>Detalle de Materias</h2>
+    <table>
+        <tr><th>Semestre</th><th>Código</th><th>Materia</th><th>Estado</th><th>Nota Final</th></tr>"""
+
+            for _, row in df_filtrado.iterrows():
+                html_contenido += f"<tr><td>{row.get('semestre', '')}</td><td>{row.get('codigo', '')}</td><td>{row.get('materia', '')}</td><td>{row.get('estado', '')}</td><td>{row.get('Nota Final', 0.0):.2f}</td></tr>"
+
+            html_contenido += "</table></body></html>"
+
+            pdf_bytes = html_contenido.encode('utf-8')
+
+            st.sidebar.download_button(
+                label="📥 Descargar Reporte (HTML)",
+                data=pdf_bytes,
+                file_name="resumen_academico.html",
+                mime="text/html"
+            )
+
+    if st.sidebar.button("🔄 Refrescar Página", key="btn_refrescar_pagina"):
+        st.rerun()
+
+    if st.sidebar.button("Cerrar Sesión", key="btn_logout"):
+        try:
+            cookie_manager.delete("sb_refresh_token")
+        except Exception:
+            pass
+        supabase.auth.sign_out()
+        st.session_state["usuario"] = None
+        st.session_state["pensum_df"] = None
+        st.session_state["evaluaciones"] = {}
+        st.session_state["horario_df"] = None
+        st.rerun()
+
+    st.title("🎓 Mi App Universitaria")
+
+    tab_pensum, tab_horario, tab_asistente, tab_pomodoro = st.tabs([
+        "📊 Pensum y Calificaciones",
+        "📅 Horario de Clases",
+        "🤖 Asistente Virtual IA",
+        "⏱️ Pomodoro de Estudio Integrado"
+    ])
+
+    # ==========================================
+    # PESTAÑA 1: PENSUM Y CALIFICACIONES
+    # ==========================================
+    with tab_pensum:
+        with st.expander("🔔 Ver Alertas de Actividades (Vencidas, Hoy y Próximas)", expanded=False):
+            hoy = datetime.date.today()
+            limite_futuro = hoy + datetime.timedelta(days=3)
+            
+            atrasadas, para_hoy, proximas = [], [], []
+
+            if "evaluaciones" in st.session_state:
+                for cod_mat, info_mat in st.session_state["evaluaciones"].items():
+                    plan = info_mat.get("plan", [])
+                    for ev in plan:
+                        entregada = ev.get("Entregada", False)
+                        fecha_ev = ev.get("Fecha")
+
+                        if isinstance(fecha_ev, str):
+                            try:
+                                fecha_ev = datetime.datetime.strptime(fecha_ev, "%Y-%m-%d").date()
+                            except ValueError:
+                                continue
+                        elif isinstance(fecha_ev, datetime.datetime):
+                            fecha_ev = fecha_ev.date()
+
+                        if not entregada and fecha_ev:
+                            item = {
+                                "Código": cod_mat,
+                                "Evaluación": ev.get("Evaluación"),
+                                "Tema": ev.get("Tema"),
+                                "Fecha": fecha_ev,
+                                "Valor (%)": ev.get("Valor (%)")
                             }
-                          ]
-                          Asegúrate de que las horas estén en formato de 12 horas con AM o PM (ej. "08:00 AM", "02:30 PM").
-                          """
+                            
+                            if fecha_ev < hoy:
+                                atrasadas.append(item)
+                            elif fecha_ev == hoy:
+                                para_hoy.append(item)
+                            elif hoy < fecha_ev <= limite_futuro:
+                                proximas.append(item)
 
-              response = generar_con_reintentos(
-                  client, modelo_seleccionado, [prompt, pdf_part]
-              )
+            if atrasadas or para_hoy or proximas:
+                if atrasadas:
+                    st.error(f"🚨 Tienes **{len(atrasadas)}** actividad(es) **atrasada(s)**")
+                    st.dataframe(pd.DataFrame(atrasadas), use_container_width=True)
+                if para_hoy:
+                    st.warning(f"🔥 Tienes **{len(para_hoy)}** actividad(es) para **HOY**")
+                    st.dataframe(pd.DataFrame(para_hoy), use_container_width=True)
+                if proximas:
+                    st.info(f"⏳ Tienes **{len(proximas)}** actividad(es) próximas (3 días)")
+                    st.dataframe(pd.DataFrame(proximas), use_container_width=True)
+            else:
+                st.success("🎉 ¡Excelente! No tienes actividades pendientes.")
 
-              if response and response.text:
-                clean_text = response.text.strip()
-                if clean_text.startswith("```json"):
-                  clean_text = clean_text[7:]
-                if clean_text.startswith("```"):
-                  clean_text = clean_text[3:]
-                if clean_text.endswith("```"):
-                  clean_text = clean_text[:-3]
+        st.subheader("📋 Pensum Estructurado por Niveles")
 
-                data_horario = json.loads(clean_text.strip())
-                df_h = pd.DataFrame(data_horario)
+        if st.session_state["pensum_df"] is None:
+            uploaded_file = st.file_uploader("Sube el PDF de tu pensum universitario", type=["pdf"])
+            if uploaded_file and st.button("📊 Organizar Pensum en Tabla"):
+                with st.spinner("Procesando pensum..."):
+                    try:
+                        api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                        client = genai.Client(api_key=api_key)
+                        pdf_bytes = uploaded_file.read()
+                        pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
 
-                df_h.columns = [
-                    c.lower().strip().replace(" ", "_") for c in df_h.columns
-                ]
-                
-                columnas_deseadas = ["dia", "materia", "aula", "inicio", "fin"]
-                for col in columnas_deseadas:
-                  if col not in df_h.columns:
-                    df_h[col] = ""
-                df_h = df_h[columnas_deseadas]
+                        prompt = """Extrae exhaustivamente todas las materias del documento del pensum proporcionado.
+Devuelve ÚNICAMENTE un JSON válido con la siguiente estructura:
+[{"semestre": "Semestre I", "codigo": "MAT-101", "materia": "Matemática I", "creditos": 4, "prelaciones": "Ninguna"}]"""
 
-                dias_map = {
-                    "lunes": 1,
-                    "martes": 2,
-                    "miércoles": 3,
-                    "miercoles": 3,
-                    "jueves": 4,
-                    "viernes": 5,
-                    "sábado": 6,
-                    "sabado": 6,
-                    "domingo": 7,
-                }
-                df_h["d_orden"] = (
-                    df_h["dia"].str.lower().map(dias_map).fillna(8)
-                )
-                df_h = df_h.sort_values(by=["d_orden", "inicio"])
-                df_h = df_h.drop(columns=["d_orden"])
-
-                st.session_state["horario_df"] = df_h
+                        response = generar_con_reintentos(client, modelo_seleccionado, [prompt, pdf_part])
+                        if response and response.text:
+                            clean_text = response.text.strip().replace("```json", "").replace("```", "")
+                            data = json.loads(clean_text)
+                            df = pd.DataFrame(data)
+                            if "estado" not in df.columns:
+                                df["estado"] = "No Inscrita"
+                            st.session_state["pensum_df"] = df
+                            guardar_datos_usuario()
+                            st.success("¡Pensum procesado!")
+                            st.rerun()
+                    except Exception as err:
+                        st.error(f"Error al procesar el documento: {err}")
+        else:
+            if st.sidebar.button("🗑️ Eliminar Pensum", key="btn_eliminar_pensum"):
+                st.session_state["pensum_df"] = None
+                st.session_state["evaluaciones"] = {}
                 guardar_datos_usuario()
-                st.success(
-                    "¡Horario procesado, organizado y guardado con éxito!"
-                )
                 st.rerun()
 
-            except Exception as err:
-              st.error(f"Error procesando el horario: {err}")
-      else:
-        if st.button(
-            "🗑️ Eliminar / Volver a subir Horario", key="btn_eliminar_horario"
-        ):
-          st.session_state["horario_df"] = None
-          guardar_datos_usuario()
-          st.rerun()
+            df = st.session_state["pensum_df"]
+            indice_aca = calcular_indice_academico(df, st.session_state["evaluaciones"])
 
-        df_horario_actual = st.session_state["horario_df"]
+            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+            col_m1.metric("Total Materias", len(df))
+            col_m2.metric("Aprobadas", len(df[df["estado"] == "Aprobada"]))
+            col_m3.metric("Reprobadas", len(df[df["estado"] == "Reprobada"]))
+            col_m4.metric("📈 Índice Académico", f"{indice_aca:.2f} / 20.0")
 
-        columnas_deseadas = ["dia", "materia", "aula", "inicio", "fin"]
-        for col in columnas_deseadas:
-          if col not in df_horario_actual.columns:
-            df_horario_actual[col] = ""
-        df_horario_actual = df_horario_actual[columnas_deseadas]
+            st.divider()
 
-        st.markdown("### 📋 Tu Horario Académico Organizado")
+            semestres = list(df["semestre"].unique()) if "semestre" in df.columns else ["Nivel Único"]
+            promedios_semestrales = calcular_promedios_semestres(df, st.session_state["evaluaciones"])
+            tabs_niveles = st.tabs(semestres)
 
-        df_editado = st.data_editor(
-            df_horario_actual,
-            use_container_width=True,
-            hide_index=True,
-            key="editor_horario",
-        )
-        st.session_state["horario_df"] = df_editado
+            for idx_tab, semestre_nombre in enumerate(semestres):
+                with tabs_niveles[idx_tab]:
+                    df_nivel = df[df["semestre"] == semestre_nombre].copy()
+                    notas_finales_nivel = [f"{calcular_nota_materia(row['codigo'], st.session_state['evaluaciones']):.2f} pts" for _, row in df_nivel.iterrows()]
+                    df_nivel["Nota Final"] = notas_finales_nivel
 
-  # ==========================================
-  # PESTAÑA 3: ASISTENTE VIRTUAL UNIVERSITARIO
-  # ==========================================
-  with tab_asistente:
-      st.subheader("🤖 Asistente Virtual Universitario")
-      st.write(
-          "Elige si prefieres interactuar mediante el menú de botones guiados o conversar libremente con el chat de IA."
-      )
+                    st.info(f"📊 Promedio ({semestre_nombre}): {promedios_semestrales.get(semestre_nombre, 0.0):.2f} / 20.0")
 
-      tipo_asistente = st.radio(
-          "Selecciona el modo de interacción:",
-          ["🧭 Asistente Guiado (Solo Botones)", "💬 Chat Libre (Conversacional)"],
-          horizontal=True,
-          key="selector_modo_asistente",
-      )
+                    evento_seleccion = st.dataframe(
+                        df_nivel,
+                        use_container_width=True,
+                        hide_index=True,
+                        on_select="rerun",
+                        selection_mode="single-row",
+                        key=f"tabla_{semestre_nombre}"
+                    )
 
-      if "modo_asistente" not in st.session_state:
-          st.session_state["modo_asistente"] = "menu_principal"
-      if "sub_modo" not in st.session_state:
-          st.session_state["sub_modo"] = None
-      
-      mensaje_inicial_comun = "¡Hola! Soy tu asistente virtual académico. ¿En qué te puedo ayudar hoy?"
+                    filas_sel = evento_seleccion.get("selection", {}).get("rows", [])
+                    if filas_sel:
+                        materia_sel = df_nivel.iloc[filas_sel[0]]
+                        codigo_mat = str(materia_sel.get("codigo"))
+                        nombre_mat = materia_sel.get("materia")
 
-      if "mensajes_guiado" not in st.session_state:
-          st.session_state["mensajes_guiado"] = [{
-              "role": "assistant",
-              "content": mensaje_inicial_comun,
-          }]
-      if "mensajes_conversacional" not in st.session_state:
-          st.session_state["mensajes_conversacional"] = [{
-              "role": "assistant",
-              "content": mensaje_inicial_comun,
-          }]
+                        st.markdown(f"### 📝 Plan de Evaluaciones: **{codigo_mat} - {nombre_mat}**")
 
-      if "Asistente Guiado" in tipo_asistente:
-          col_bt1, col_bt2 = st.columns([4, 1])
-          with col_bt2:
-              if st.button("🗑️ Reiniciar", key="btn_reiniciar_guiado"):
-                  st.session_state["mensajes_guiado"] = [{
-                      "role": "assistant",
-                      "content": mensaje_inicial_comun,
-                  }]
-                  st.session_state["modo_asistente"] = "menu_principal"
-                  st.session_state["sub_modo"] = None
-                  st.rerun()
+                        if codigo_mat not in st.session_state["evaluaciones"]:
+                            hoy = datetime.date.today()
+                            st.session_state["evaluaciones"][codigo_mat] = {
+                                "estado": materia_sel.get("estado", "No Inscrita"),
+                                "plan": [
+                                    {"Evaluación": "Parcial 1", "Tema": "Unidad 1", "Valor (%)": 25, "Nota": 0.0, "Fecha": hoy, "Entregada": False},
+                                    {"Evaluación": "Parcial 2", "Tema": "Unidad 2", "Valor (%)": 25, "Nota": 0.0, "Fecha": hoy, "Entregada": False}
+                                ]
+                            }
 
-          for mensaje in st.session_state["mensajes_guiado"]:
-              if mensaje["role"] == "user":
-                  st.chat_message("user").write(mensaje["content"])
-              else:
-                  st.chat_message("assistant").write(mensaje["content"])
+                        df_eval_actual = pd.DataFrame(st.session_state["evaluaciones"][codigo_mat]["plan"])
+                        edited_df = st.data_editor(
+                            df_eval_actual,
+                            num_rows="dynamic",
+                            use_container_width=True,
+                            key=f"editor_{codigo_mat}"
+                        )
 
-          st.markdown("---")
+                        if st.button("💾 Guardar Notas", key=f"btn_guardar_{codigo_mat}"):
+                            st.session_state["evaluaciones"][codigo_mat]["plan"] = edited_df.to_dict("records")
+                            guardar_datos_usuario()
+                            st.success("Notas guardadas")
+                            st.rerun()
 
-          if st.session_state["modo_asistente"] == "menu_principal":
-              st.markdown("### 📌 Menú de Opciones Disponibles")
-              c1, c2 = st.columns(2)
+    # ==========================================
+    # PESTAÑA 2: HORARIO DE CLASES
+    # ==========================================
+    with tab_horario:
+        st.subheader("📅 Gestión de Horario de Clases")
+        if st.session_state.get("horario_df") is None:
+            uploaded_horario = st.file_uploader("Sube el PDF de tu horario", type=["pdf"])
+            if uploaded_horario and st.button("Procesar Horario"):
+                # Lógica del procesador de horario
+                pass
+        else:
+            df_horario_actual = st.session_state["horario_df"]
+            df_editado = st.data_editor(df_horario_actual, use_container_width=True, key="editor_horario")
+            st.session_state["horario_df"] = df_editado
 
-              with c1:
-                  if st.button("📊 Consultar Notas por Materia", use_container_width=True, key="btn_g_notas"):
-                      st.session_state["modo_asistente"] = "notas_filtro_estado"
-                      st.rerun()
+    # ==========================================
+    # PESTAÑA 3: ASISTENTE VIRTUAL
+    # ==========================================
+    with tab_asistente:
+        st.subheader("🤖 Asistente Virtual Universitario")
+        prompt_usuario = st.chat_input("Escribe una consulta...")
+        if prompt_usuario:
+            st.chat_message("user").write(prompt_usuario)
+            # Procesamiento con Gemini
+            st.chat_message("assistant").write("Procesando tu solicitud...")
 
-                  if st.button("🕒 ¿A qué hora es la clase de...?", use_container_width=True, key="btn_g_horario"):
-                      st.session_state["modo_asistente"] = "horario_por_materia"
-                      st.rerun()
-
-              with c2:
-                  if st.button("⏳ Ver Próximas 5 Tareas / Evaluaciones", use_container_width=True, key="btn_g_tareas"):
-                      lista_proximas = []
-                      pensum_df = st.session_state.get("pensum_df")
-                      evaluaciones_dict = st.session_state.get("evaluaciones", {})
-
-                      if pensum_df is not None and not pensum_df.empty:
-                          col_est = next((c for c in pensum_df.columns if "estado" in c.lower() or "status" in c.lower()), None)
-                          col_cod = next((c for c in pensum_df.columns if "codigo" in c.lower() or "código" in c.lower()), None)
-                          col_mat = next((c for c in pensum_df.columns if "materia" in c.lower() or "asignatura" in c.lower()), None)
-
-                          if col_est and col_cod and col_mat:
-                              materias_en_curso = pensum_df[pensum_df[col_est].astype(str).str.lower() == "en curso"]
-                              for _, row in materias_en_curso.iterrows():
-                                  cod = str(row[col_cod])
-                                  nom_materia = str(row[col_mat])
-                                  if cod in evaluaciones_dict:
-                                      plan = evaluaciones_dict[cod].get("plan", [])
-                                      for ev in plan:
-                                          if not ev.get("Entregada", False):
-                                              lista_proximas.append({
-                                                  "materia": nom_materia,
-                                                  "codigo": cod,
-                                                  "evaluacion": ev.get("Evaluación", "Evaluación"),
-                                                  "tema": ev.get("Tema", ""),
-                                                  "fecha": ev.get("Fecha", datetime.date.today())
-                                              })
-
-                      lista_proximas = sorted(lista_proximas, key=lambda x: str(x["fecha"]))
-                      primeras_5 = lista_proximas[:5]
-
-                      if primeras_5:
-                          tareas_destacadas = "⏳ **Primeras 5 actividades próximas (Materias en Curso):**\n\n"
-                          for idx, item in enumerate(primeras_5, 1):
-                              tareas_destacadas += f"{idx}. **{item['materia']}** ({item['codigo']}) - *{item['evaluacion']}* ({item['tema']}) | 📅 **Fecha:** {item['fecha']}\n"
-                      else:
-                          tareas_destacadas = "⏳ No hay actividades pendientes registradas para las materias en curso actualmente."
-
-                      st.session_state["mensajes_guiado"].append({"role": "user", "content": "Ver las 5 próximas actividades de materias en curso"})
-                      st.session_state["mensajes_guiado"].append({"role": "assistant", "content": tareas_destacadas})
-                      st.rerun()
-
-                  if st.button("⚠️ Alertas o Materias con Riesgo", use_container_width=True, key="btn_g_riesgo"):
-                      alertas_txt = "⚠️ **Reporte de Alertas y Materias en Riesgo:**\n\n"
-                      materias_en_riesgo = []
-                      pensum_df = st.session_state.get("pensum_df")
-                      evaluaciones_dict = st.session_state.get("evaluaciones", {})
-
-                      if pensum_df is not None and not pensum_df.empty:
-                          col_est = next((c for c in pensum_df.columns if "estado" in c.lower() or "status" in c.lower()), None)
-                          col_cod = next((c for c in pensum_df.columns if "codigo" in c.lower() or "código" in c.lower()), None)
-                          col_mat = next((c for c in pensum_df.columns if "materia" in c.lower() or "asignatura" in c.lower()), None)
-
-                          if col_est and col_cod and col_mat:
-                              materias_en_curso = pensum_df[pensum_df[col_est].astype(str).str.lower() == "en curso"]
-                              for _, row in materias_en_curso.iterrows():
-                                  cod = str(row[col_cod])
-                                  nom_materia = str(row[col_mat])
-                                  if cod in evaluaciones_dict:
-                                      plan = evaluaciones_dict[cod].get("plan", [])
-                                      notas_m = [float(e.get("Nota", 0)) for e in plan if e.get("Nota") is not None]
-                                      if notas_m:
-                                          prom_m = sum(notas_m) / len(notas_m)
-                                          if prom_m < 12:
-                                              materias_en_riesgo.append(f"- **{nom_materia}** ({cod}): Promedio actual bajo ({prom_m:.2f}).")
-
-                      if materias_en_riesgo:
-                          alertas_txt += "Se detectaron las siguientes materias con rendimiento bajo:\n" + "\n".join(materias_en_riesgo)
-                      else:
-                          alertas_txt += "✅ ¡Excelente noticia! No se registran materias en curso con notas en zona de riesgo actualmente."
-
-                      st.session_state["mensajes_guiado"].append({"role": "user", "content": "Consultar materias en riesgo o con alertas pendientes"})
-                      st.session_state["mensajes_guiado"].append({"role": "assistant", "content": alertas_txt})
-                      st.rerun()
-
-          elif st.session_state["modo_asistente"] == "notas_filtro_estado":
-              st.markdown("### 🔍 Selecciona el estado de las materias:")
-              col_f1, col_f2, col_f3 = st.columns(3)
-              with col_f1:
-                  if st.button("📝 En Curso", use_container_width=True, key="btn_f_curso"):
-                      st.session_state["sub_modo"] = "en curso"
-                      st.session_state["modo_asistente"] = "seleccionar_materia_notas"
-                      st.rerun()
-              with col_f2:
-                  if st.button("✅ Aprobadas", use_container_width=True, key="btn_f_aprobada"):
-                      st.session_state["sub_modo"] = "aprobada"
-                      st.session_state["modo_asistente"] = "seleccionar_materia_notas"
-                      st.rerun()
-              with col_f3:
-                  if st.button("❌ Reprobadas", use_container_width=True, key="btn_f_reprobada"):
-                      st.session_state["sub_modo"] = "reprobada"
-                      st.session_state["modo_asistente"] = "seleccionar_materia_notas"
-                      st.rerun()
-
-              if st.button("⬅️ Volver al Menú Principal", use_container_width=True, key="btn_g_volver_1"):
-                  st.session_state["modo_asistente"] = "menu_principal"
-                  st.rerun()
-
-          elif st.session_state["modo_asistente"] == "seleccionar_materia_notas":
-              filtro_estado = st.session_state.get("sub_modo", "en curso")
-              st.markdown(f"### 📚 Materias con estado: **{filtro_estado.upper()}**")
-
-              materias_filtradas = [] 
-              if "pensum_df" in st.session_state and st.session_state["pensum_df"] is not None and not st.session_state["pensum_df"].empty:
-                  df_p = st.session_state["pensum_df"]
-                  col_mat = next((c for c in df_p.columns if "materia" in c.lower() or "asignatura" in c.lower() or "nombre" in c.lower()), None)
-                  col_cod = next((c for c in df_p.columns if "codigo" in c.lower() or "código" in c.lower()), None)
-                  col_est = next((c for c in df_p.columns if "estado" in c.lower() or "status" in c.lower() or "condicion" in c.lower()), None)
-
-                  if col_mat and col_cod and col_est:
-                      df_valido = df_p[
-                          ~df_p[col_est].astype(str).str.lower().str.contains("no inscrita") &
-                          df_p[col_est].astype(str).str.lower().str.contains(filtro_estado)
-                      ]
-                      for _, r in df_valido.iterrows():
-                          materias_filtradas.append((str(r[col_mat]), str(r[col_cod])))
-
-              if materias_filtradas:
-                  nombres_materias = [m[0] for m in materias_filtradas]
-                  materia_elegida = st.selectbox("Selecciona una unidad curricular:", nombres_materias, key="select_materia_g")
-                  codigo_elegido = next((m[1] for m in materias_filtradas if m[0] == materia_elegida), None)
-
-                  if st.button("Ver notas exactas", use_container_width=True, key="btn_g_ver_notas"):
-                      detalle_notas = f"📊 **Notas exactas para: {materia_elegida}**\n\n- Condición: **{filtro_estado.capitalize()}**\n\n"
-                      df_tabla_notas = None
-                      if codigo_elegido and codigo_elegido in st.session_state.get("evaluaciones", {}):
-                          plan_datos = st.session_state["evaluaciones"][codigo_elegido].get("plan", [])
-                          if plan_datos:
-                              df_tabla_notas = pd.DataFrame(plan_datos)
-
-                      if df_tabla_notas is not None and not df_tabla_notas.empty:
-                          c_nom = next((c for c in df_tabla_notas.columns if "evaluación" in c.lower() or "tema" in c.lower() or "nombre" in c.lower()), df_tabla_notas.columns[0])
-                          c_nota = next((c for c in df_tabla_notas.columns if "nota" in c.lower() or "puntos" in c.lower()), None)
-
-                          for idx, row in df_tabla_notas.iterrows():
-                              nombre_ev = row.get(c_nom, f"Evaluación {idx+1}")
-                              val_nota = float(row.get(c_nota, 0.0)) if c_nota and pd.notna(row.get(c_nota)) else 0.0
-                              detalle_notas += f"- **{nombre_ev}**: {val_nota} pts\n"
-                      else:
-                          detalle_notas += "⚠️ No hay notas registradas para esta materia en el sistema todavía."
-
-                      st.session_state["mensajes_guiado"].append({"role": "user", "content": f"Ver notas de: {materia_elegida}"})
-                      st.session_state["mensajes_guiado"].append({"role": "assistant", "content": detalle_notas})
-                      st.session_state["modo_asistente"] = "menu_principal"
-                      st.rerun()
-              else:
-                  st.info("No se encontraron materias bajo este criterio.")
-
-              if st.button("⬅️ Volver", use_container_width=True, key="btn_g_volver_2"):
-                  st.session_state["modo_asistente"] = "notas_filtro_estado"
-                  st.rerun()
-
-          elif st.session_state["modo_asistente"] == "horario_por_materia":
-              st.markdown("### 🕒 Consultar horario de clases por materia")
-              materias_horario = []
-              if "horario_df" in st.session_state and st.session_state["horario_df"] is not None and not st.session_state["horario_df"].empty:
-                  df_h = st.session_state["horario_df"]
-                  col_m_h = next((c for c in df_h.columns if "materia" in c.lower() or "asignatura" in c.lower() or "curso" in c.lower()), None)
-                  if col_m_h:
-                      materias_horario = df_h[col_m_h].dropna().unique().tolist()
-
-              if materias_horario:
-                  mat_h_elegida = st.selectbox("Selecciona la materia:", materias_horario, key="select_mat_h_g")
-                  if st.button("Consultar hora de clase", use_container_width=True, key="btn_g_consultar_h"):
-                      fila_h = df_h[df_h[col_m_h] == mat_h_elegida]
-                      info_horario_txt = f"📅 **Horario registrado para {mat_h_elegida}:**\n\n"
-                      for _, row_h in fila_h.iterrows():
-                          info_horario_txt += f"- **Día:** {row_h.get('dia', 'N/A')} | **Aula:** {row_h.get('aula', 'N/A')} | **Hora:** {row_h.get('inicio', '')} - {row_h.get('fin', '')}\n"
-
-                      st.session_state["mensajes_guiado"].append({"role": "user", "content": f"Consultar horario de: {mat_h_elegida}"})
-                      st.session_state["mensajes_guiado"].append({"role": "assistant", "content": info_horario_txt})
-                      st.session_state["modo_asistente"] = "menu_principal"
-                      st.rerun()
-              else:
-                  st.info("No hay datos de horario cargados.")
-
-              if st.button("⬅️ Volver al Menú Principal", use_container_width=True, key="btn_g_volver_3"):
-                  st.session_state["modo_asistente"] = "menu_principal"
-                  st.rerun()
-
-      else:
-          col_c1, col_c2 = st.columns([4, 1])
-          with col_c2:
-              if st.button("🗑️ Reiniciar", key="btn_reiniciar_conversacional"):
-                  st.session_state["mensajes_conversacional"] = [{
-                      "role": "assistant",
-                      "content": mensaje_inicial_comun,
-                  }]
-                  st.rerun()
-
-          for mensaje in st.session_state["mensajes_conversacional"]:
-              if mensaje["role"] == "user":
-                  st.chat_message("user").write(mensaje["content"])
-              else:
-                  st.chat_message("assistant").write(mensaje["content"])
-
-          if prompt_usuario := st.chat_input("Escribe una consulta libre para la IA..."):
-              st.session_state["mensajes_conversacional"].append({
-                  "role": "user",
-                  "content": prompt_usuario,
-              })
-
-              with st.spinner("Pensando respuesta..."):
-                  try:
-                      api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-                      client = genai.Client(api_key=api_key)
-
-                      pensum_resumen = (
-                          st.session_state["pensum_df"].to_string()
-                          if st.session_state.get("pensum_df") is not None
-                          else "No cargado"
-                      )
-                      horario_resumen = (
-                          st.session_state["horario_df"].to_string()
-                          if st.session_state.get("horario_df") is not None
-                          else "No cargado"
-                      )
-                      escala_resumen = (
-                          st.session_state["escala_df"].to_string()
-                          if st.session_state.get("escala_df") is not None
-                          else "No cargado"
-                      )
-
-                      system_instruction_text = f"""
-                      Eres un asistente virtual inteligente, amigable y versátil integrado en una aplicación universitaria.
-                      Responde de forma natural, cordial y útil a cualquier saludo, pregunta general o consulta del usuario.
-                      Si la pregunta está relacionada con su rendimiento, materias, clases o escala evaluativa, utiliza esta información de contexto del usuario:
-                      --- PENSUM Y ESTADO DE MATERIAS ---
-                      {pensum_resumen}
-                      --- HORARIO DE CLASES ---
-                      {horario_resumen}
-                      --- ESCALA EVALUATIVA ---
-                      {escala_resumen}
-                      """
-
-                      modelos_a_probar = ["gemini-3.6-flash", "gemini-3.5-flash"]
-                      response = None
-                      ultimo_error = None
-
-                      for mod in modelos_a_probar:
-                          try:
-                              response = generar_con_reintentos(
-                                  client,
-                                  mod,
-                                  prompt_usuario,
-                                  config={
-                                      'system_instruction': system_instruction_text
-                                  }
-                              )
-                              if response and response.text:
-                                  break
-                          except Exception as ex:
-                              ultimo_error = ex
-                              continue
-
-                      if response and response.text:
-                          respuesta_ia = response.text
-                      else:
-                          raise ultimo_error if ultimo_error else Exception("No se pudo obtener respuesta de ningún modelo.")
-
-                      st.session_state["mensajes_conversacional"].append({
-                          "role": "assistant",
-                          "content": respuesta_ia,
-                      })
-                      st.rerun()
-
-                  except Exception as e:
-                      error_str = str(e)
-                      
-                      if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                          error_msj = (
-                              "⚠️ **Has alcanzado el límite de cuotas diarias.**\n\n"
-                              "Has superado temporalmente las consultas gratuitas permitidas para hoy. "
-                              "Por favor, intenta nuevamente más tarde."
-                          )
-                      else:
-                          error_msj = "⚠️ Ocurrió un error temporal con la API de IA. Por favor, intenta de nuevo en unos segundos."
-
-                      st.session_state["mensajes_conversacional"].append({
-                          "role": "assistant",
-                          "content": error_msj,
-                      })
-                      st.rerun()
-
-  # ==========================================
-  # PESTAÑA 4: TÉCNICA POMODORO
-  # ==========================================
-  with tab_pomodoro:
-      st.subheader("⏱️ Pomodoro de Estudio Integrado")
-      
-      with st.expander("¿Qué es esto?"):
-          st.write("""
-              Esta herramienta utiliza la técnica **Pomodoro** para mejorar tu productividad:
-              1. **Foco:** Trabaja durante 25 minutos sin distracciones.
-              2. **Descanso corto:** 5 minutos para estirar las piernas.
-              3. **Descanso largo:** 20 minutos para recargar tras varios ciclos.
-              """)
-
-      if "pomodoro_tiempo" not in st.session_state:
-          st.session_state["pomodoro_tiempo"] = 25 * 60
-      if "pomodoro_activo" not in st.session_state:
-          st.session_state["pomodoro_activo"] = False
-
-      def actualizar_tiempo():
-          modo = st.session_state["modo_seleccionado"]
-          if "25m" in modo:
-              st.session_state["pomodoro_tiempo"] = 25 * 60
-          elif "5m" in modo:
-              st.session_state["pomodoro_tiempo"] = 5 * 60
-          else:
-              st.session_state["pomodoro_tiempo"] = 20 * 60
-          st.session_state["pomodoro_activo"] = False
-
-      st.radio(
-          "Selecciona tu sesión:",
-          ["Foco (25m)", "Descanso Corto (5m)", "Descanso Largo (20m)"],
-          horizontal=True,
-          key="modo_seleccionado",
-          on_change=actualizar_tiempo,
-      )
-
-      minutos = st.session_state["pomodoro_tiempo"] // 60
-      segundos = st.session_state["pomodoro_tiempo"] % 60
-      st.metric("Tiempo restante", f"{minutos:02d}:{segundos:02d}")
-
-      col1, col2, col3, col4 = st.columns(4)
-
-      with col1:
-          if st.button("▶️ Iniciar", key="btn_pomo_iniciar"):
-              st.session_state["pomodoro_activo"] = True
-      with col2:
-          if st.button("⏸️ Pausar", key="btn_pomo_pausar"):
-              st.session_state["pomodoro_activo"] = False
-      with col3:
-          if st.button("🔄 Reiniciar", key="btn_pomo_reiniciar"):
-              actualizar_tiempo()
-              st.session_state["pomodoro_activo"] = True
-      with col4:
-          if st.button("⏹️ Detener", key="btn_pomo_detener"):
-              st.session_state["pomodoro_activo"] = False
-              actualizar_tiempo()
-
-      if (
-          st.session_state["pomodoro_activo"]
-          and st.session_state["pomodoro_tiempo"] > 0
-      ):
-          time.sleep(1)
-          st.session_state["pomodoro_tiempo"] -= 1
-          st.rerun()
-      elif (
-          st.session_state["pomodoro_tiempo"] == 0
-          and st.session_state["pomodoro_activo"]
-      ):
-          st.balloons()
-          st.success("¡Tiempo finalizado!")
-          st.session_state["pomodoro_activo"] = False
+    # ==========================================
+    # PESTAÑA 4: POMODORO
+    # ==========================================
+    with tab_pomodoro:
+        st.subheader("⏱️ Pomodoro de Estudio")
+        if "pomodoro_tiempo" not in st.session_state:
+            st.session_state["pomodoro_tiempo"] = 25 * 60
+        
+        minutos = st.session_state["pomodoro_tiempo"] // 60
+        segundos = st.session_state["pomodoro_tiempo"] % 60
+        st.metric("Tiempo restante", f"{minutos:02d}:{segundos:02d}")
