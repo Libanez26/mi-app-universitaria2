@@ -691,6 +691,9 @@ else:
   # ==========================================
   # PESTAÑA 1: PENSUM Y CALIFICACIONES
   # ==========================================
+  # ==========================================
+  # PESTAÑA 1: PENSUM Y CALIFICACIONES
+  # ==========================================
   with tab_pensum:
       with st.expander("🔔 Ver Alertas de Actividades (Vencidas, Hoy y Próximas)", expanded=False):
           hoy = datetime.date.today()
@@ -700,36 +703,51 @@ else:
           para_hoy = []
           proximas = []
 
-          if "evaluaciones" in st.session_state:
-              for cod_mat, info_mat in st.session_state["evaluaciones"].items():
-                  plan = info_mat.get("plan", [])
-                  for ev in plan:
-                      entregada = ev.get("Entregada", False)
-                      fecha_ev = ev.get("Fecha")
+          # 1. Obtenemos los códigos de las materias que están "En Curso" desde el DataFrame del pensum
+          df_pensum = st.session_state.get("pensum_df")
+          
+          if df_pensum is not None and not df_pensum.empty and "evaluaciones" in st.session_state:
+              # Identificar columna de estado y código
+              col_est = next((c for c in df_pensum.columns if "estado" in c.lower()), "estado")
+              col_cod = next((c for c in df_pensum.columns if "codigo" in c.lower() or "código" in c.lower()), "codigo")
 
-                      if isinstance(fecha_ev, str):
-                          try:
-                              fecha_ev = datetime.datetime.strptime(fecha_ev, "%Y-%m-%d").date()
-                          except ValueError:
-                              continue
-                      elif isinstance(fecha_ev, datetime.datetime):
-                          fecha_ev = fecha_ev.date()
+              materias_en_curso = df_pensum[df_pensum[col_est].astype(str).str.lower() == "en curso"][col_cod].tolist()
 
-                      if not entregada and fecha_ev:
-                          item = {
-                              "Código": cod_mat,
-                              "Evaluación": ev.get("Evaluación"),
-                              "Tema": ev.get("Tema"),
-                              "Fecha": fecha_ev,
-                              "Valor (%)": ev.get("Valor (%)")
-                          }
-                          
-                          if fecha_ev < hoy:
-                              atrasadas.append(item)
-                          elif fecha_ev == hoy:
-                              para_hoy.append(item)
-                          elif hoy < fecha_ev <= limite_futuro:
-                              proximas.append(item)
+              # 2. Filtramos el plan de evaluaciones para incluir SOLO las materias en curso
+              for cod_mat in materias_en_curso:
+                  if cod_mat in st.session_state["evaluaciones"]:
+                      info_mat = st.session_state["evaluaciones"][cod_mat]
+                      plan = info_mat.get("plan", [])
+                      
+                      for ev in plan:
+                          entregada = ev.get("Entregada", False) or ev.get("Entregado", False)
+                          fecha_ev = ev.get("Fecha")
+
+                          if isinstance(fecha_ev, str):
+                              try:
+                                  fecha_ev = datetime.datetime.strptime(fecha_ev, "%Y-%m-%d").date()
+                              except ValueError:
+                                  continue
+                          elif isinstance(fecha_ev, datetime.datetime):
+                              fecha_ev = fecha_ev.date()
+
+                          # Solo consideramos evaluaciones NO entregadas de materias en curso
+                          if not entregada and fecha_ev:
+                              item = {
+                                  "Código": cod_mat,
+                                  "Evaluación": ev.get("Evaluación"),
+                                  "Tema": ev.get("Tema"),
+                                  "Fecha": fecha_ev,
+                                  "Valor (%)": ev.get("Valor (%)")
+                              }
+                              
+                              # 3. Clasificación: Vencidas, para hoy y próximas
+                              if fecha_ev < hoy:
+                                  atrasadas.append(item)
+                              elif fecha_ev == hoy:
+                                  para_hoy.append(item)
+                              elif hoy < fecha_ev <= limite_futuro:
+                                  proximas.append(item)
 
           total_pendientes = len(atrasadas) + len(para_hoy) + len(proximas)
 
@@ -773,7 +791,7 @@ else:
                       }
                   )
           else:
-              st.success("🎉 ¡Excelente! No tienes ninguna actividad pendiente para hoy ni para los próximos 3 días.")
+              st.success("🎉 ¡Excelente! No tienes ninguna actividad pendiente para los próximos días.")
 
       st.subheader("📋 Pensum Estructurado por Niveles")
 
