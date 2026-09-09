@@ -1927,12 +1927,13 @@ else:
         key="radio_pomodoro_js"
     )
 
-    # Determinamos el tiempo inicial en segundos
-    minutos_base = 25
-    if "5 min" in opcion_pomo:
+    # Determinamos el tiempo inicial en segundos evaluando la opción exacta
+    if "5" in opcion_pomo:
         minutos_base = 5
-    elif "20 min" in opcion_pomo:
+    elif "20" in opcion_pomo:
         minutos_base = 20
+    else:
+        minutos_base = 25
     
     segundos_totales = minutos_base * 60
 
