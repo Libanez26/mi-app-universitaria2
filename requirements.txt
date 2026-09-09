@@ -7,3 +7,4 @@ extra-streamlit-components
 google-auth-oauthlib
 google-api-python-client
 XlsxWriter
+streamlit-cookies-controller
