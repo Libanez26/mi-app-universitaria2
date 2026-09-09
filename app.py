@@ -1049,158 +1049,56 @@ else:
                                   st.session_state[key_escala_anterior] = escala_sel
                                   guardar_datos_usuario()
 
+                          # Preparación limpia de la tabla
                           plan_data_inicial = st.session_state["evaluaciones"][codigo_mat]["plan"]
                           df_eval_actual = pd.DataFrame(plan_data_inicial)
 
-                          for col_req in [
-                              "Evaluación",
-                              "Tema",
-                              "Valor (%)",
-                              "Nota",
-                              "Fecha",
-                              "Entregada",
-                          ]:
-                              if col_req not in df_eval_actual.columns:
-                                  if col_req == "Valor (%)":
-                                      df_eval_actual[col_req] = 25.0
-                                  elif col_req == "Nota":
-                                      df_eval_actual[col_req] = 0.0
-                                  elif col_req == "Entregada":
-                                      df_eval_actual[col_req] = False
-                                  elif col_req == "Fecha":
-                                      df_eval_actual[col_req] = datetime.date.today()
-                                  else:
-                                      df_eval_actual[col_req] = ""
+                          # Aseguramos columnas requeridas
+                          columnas_necesarias = ["Evaluación", "Tema", "Valor (%)", "Nota", "Nota (%)", "Fecha", "Entregada"]
+                          for col in columnas_necesarias:
+                              if col not in df_eval_actual.columns:
+                                  if col == "Valor (%)": df_eval_actual[col] = 25.0
+                                  elif col == "Nota": df_eval_actual[col] = 0.0
+                                  elif col == "Nota (%)": df_eval_actual[col] = 0.0
+                                  elif col == "Entregada": df_eval_actual[col] = False
+                                  elif col == "Fecha": df_eval_actual[col] = datetime.date.today()
+                                  else: df_eval_actual[col] = ""
 
-                          if "Nota (%)" not in df_eval_actual.columns:
-                              df_eval_actual["Nota (%)"] = (
-                                  df_eval_actual["Nota"] / 20.0
-                              ) * df_eval_actual["Valor (%)"]
-
-                          def obtener_nota_desde_escala(pct_obtenido):
-                              df_escala = st.session_state.get("escala_df", pd.DataFrame())
-                              if df_escala.empty:
-                                  return round((pct_obtenido / 100.0) * 20.0, 2)
-                              
-                              for _, row in df_escala.iterrows():
-                                  rango_str = str(row.get("Nivel de logro de la asignatura", ""))
-                                  if "-" in rango_str:
-                                      try:
-                                          partes = rango_str.replace("%", "").split("-")
-                                          min_r = float(partes[0].strip())
-                                          max_r = float(partes[1].strip())
-                                          if min_r <= pct_obtenido <= max_r:
-                                              val_cuant = float(row.get("Calificación Cuantitativa", 0))
-                                              return val_cuant
-                                      except ValueError:
-                                          continue
-                              return round((pct_obtenido / 100.0) * 20.0, 2)
-
-                          def sincronizar_notas_editor():
-                              editor_key = f"editor_{codigo_mat}"
-                              if editor_key not in st.session_state:
-                                  return
-
-                              edited_data = st.session_state[editor_key]
-                              plan_actual = st.session_state["evaluaciones"][codigo_mat][
-                                  "plan"
-                              ]
-
-                              for i_str, cambios in edited_data.get(
-                                  "edited_rows", {}
-                              ).items():
-                                  i = int(i_str)
-                                  if i >= len(plan_actual):
-                                      continue
-
-                                  if "Nota (%)" in cambios:
-                                      nuevo_pct = float(cambios["Nota (%)"])
-                                      nuevo_pct = max(0.0, min(100.0, nuevo_pct))
-                                      plan_actual[i]["Nota (%)"] = nuevo_pct
-                                      
-                                      pts_calculados = obtener_nota_desde_escala(nuevo_pct)
-                                      plan_actual[i]["Nota"] = pts_calculados
-
-                                  elif "Nota" in cambios:
-                                      nuevo_pts = float(cambios["Nota"])
-                                      nuevo_pts = max(
-                                          0.0, min(20.0, nuevo_pts)
-                                      )
-                                      plan_actual[i]["Nota"] = nuevo_pts
-                                      plan_actual[i]["Nota (%)"] = round(
-                                          (nuevo_pts / 20.0) * 100.0, 2
-                                      )
-
-                              if "added_rows" in edited_data and edited_data["added_rows"]:
-                                  for row_nueva in edited_data["added_rows"]:
-                                      p_val = float(row_nueva.get("Nota", 0.0))
-                                      v_val = float(row_nueva.get("Valor (%)", 25.0))
-                                      pct_val = float(row_nueva.get("Nota (%)", (p_val / 20.0) * 100.0))
-                                      
-                                      pts_calculados = obtener_nota_desde_escala(pct_val)
-                                      row_nueva["Nota (%)"] = pct_val
-                                      row_nueva["Nota"] = pts_calculados
-                                      plan_actual.append(row_nueva)
-
-                              if "deleted_rows" in edited_data and edited_data[
-                                  "deleted_rows"
-                              ]:
-                                  indices_a_borrar = sorted(
-                                      edited_data["deleted_rows"], reverse=True
-                                  )
-                                  for idx_del in indices_a_borrar:
-                                      if idx_del < len(plan_actual):
-                                          plan_actual.pop(idx_del)
-
-                          sincronizar_notas_editor()
-
+                          # Mostramos el editor sin funciones intermedias propensas a fallos
                           edited_df = st.data_editor(
-                              df_eval_actual[[
-                                  "Evaluación",
-                                  "Tema",
-                                  "Valor (%)",
-                                  "Nota",
-                                  "Nota (%)",
-                                  "Fecha",
-                                  "Entregada",
-                              ]],
+                              df_eval_actual[columnas_necesarias],
                               num_rows="dynamic",
                               use_container_width=True,
-                              key=f"editor_{codigo_mat}",
-                              on_change=sincronizar_notas_editor,
+                              key=f"editor_estabilizado_{codigo_mat}",
                               column_config={
                                   "Evaluación": st.column_config.TextColumn("Evaluación"),
                                   "Tema": st.column_config.TextColumn("Tema"),
-                                  "Valor (%)": st.column_config.NumberColumn(
-                                      "Valor (%)", min_value=0, max_value=100, step=1
-                                  ),
-                                  "Nota": st.column_config.NumberColumn(
-                                      "Nota (0-20 pts)",
-                                      min_value=0.0,
-                                      max_value=20.0,
-                                      step=0.5,
-                                      format="%.1f",
-                                  ),
-                                  "Nota (%)": st.column_config.NumberColumn(
-                                      "Nota (%)",
-                                      min_value=0.0,
-                                      max_value=100.0,
-                                      step=0.1,
-                                      format="%.2f%%",
-                                  ),
-                                  "Fecha": st.column_config.DateColumn(
-                                      "Fecha de Entrega", format="YYYY-MM-DD"
-                                  ),
-                                  "Entregada": st.column_config.CheckboxColumn(
-                                      "¿Entregada?"
-                                  ),
+                                  "Valor (%)": st.column_config.NumberColumn("Valor (%)", min_value=0, max_value=100, step=1),
+                                  "Nota": st.column_config.NumberColumn("Nota (0-20 pts)", min_value=0.0, max_value=20.0, step=0.5, format="%.1f"),
+                                  "Nota (%)": st.column_config.NumberColumn("Nota (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.2f%%"),
+                                  "Fecha": st.column_config.DateColumn("Fecha de Entrega", format="YYYY-MM-DD"),
+                                  "Entregada": st.column_config.CheckboxColumn("¿Entregada?"),
                               },
                           )
 
+                          # Guardado directo, estructurado y atómico
                           if st.button("💾 Guardar Notas", key=f"btn_guardar_notas_{codigo_mat}"):
-                              sincronizar_notas_editor()
+                              # Recalculamos proporcionalmente las notas actualizadas
+                              df_guardar = edited_df.copy()
+                              df_guardar["Nota (%)"] = (df_guardar["Nota"] / 20.0) * 100.0
+                              
+                              # Convertimos a formato diccionario estándar
+                              plan_actualizado = df_guardar.to_dict("records")
+                              
+                              # Aseguramos el formato de fechas para la base de datos
+                              for item in plan_actualizado:
+                                  if isinstance(item.get("Fecha"), (datetime.date, datetime.datetime)):
+                                      item["Fecha"] = item["Fecha"].strftime("%Y-%m-%d")
+
+                              # Actualizamos la memoria global y guardamos en Supabase
+                              st.session_state["evaluaciones"][codigo_mat]["plan"] = plan_actualizado
                               guardar_datos_usuario()
-                              st.success("¡Notas guardadas correctamente!")
+                              st.success("¡Notas y evaluaciones guardadas con éxito sin errores de sincronización!")
                               st.rerun()
 
                           st.markdown("---")
