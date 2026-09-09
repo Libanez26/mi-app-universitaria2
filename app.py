@@ -1928,9 +1928,9 @@ else:
     )
 
     # Determinamos el tiempo inicial en segundos evaluando la opción exacta
-    if "5" in opcion_pomo:
+    if opcion_pomo == "Descanso Corto (5 min)":
         minutos_base = 5
-    elif "20" in opcion_pomo:
+    elif opcion_pomo == "Descanso Largo (20 min)":
         minutos_base = 20
     else:
         minutos_base = 25
