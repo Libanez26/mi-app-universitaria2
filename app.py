@@ -691,9 +691,7 @@ else:
   # ==========================================
   # PESTAÑA 1: PENSUM Y CALIFICACIONES
   # ==========================================
-  # ==========================================
-  # PESTAÑA 1: PENSUM Y CALIFICACIONES
-  # ==========================================
+  
   with tab_pensum:
       with st.expander("🔔 Ver Alertas de Actividades (Vencidas, Hoy y Próximas)", expanded=False):
           hoy = datetime.date.today()
