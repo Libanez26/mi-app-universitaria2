@@ -639,7 +639,7 @@ else:
           pdf_bytes = html_contenido.encode('utf-8')
 
           st.sidebar.download_button(
-              label="📥 Descargar Reporte (PDF)",
+              label="📥 Descargar Reporte (WEB)",
               data=pdf_bytes,
               file_name="resumen_academico_estetico.html",
               mime="text/html",
