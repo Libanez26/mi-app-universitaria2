@@ -1906,7 +1906,7 @@ else:
                     st.rerun()
 
   # ==========================================
-  # PESTAÑA 4: TÉCNICA POMODORO
+  # PESTAÑA 4: TÉCNICA POMODORO (OPTIMIZADA)
   # ==========================================
   with tab_pomodoro:
     st.subheader("⏱️ Pomodoro de Estudio Integrado")
@@ -1919,61 +1919,114 @@ else:
             3. **Descanso largo:** 20 minutos para recargar tras varios ciclos.
             """)
 
-    if "pomodoro_tiempo" not in st.session_state:
-        st.session_state["pomodoro_tiempo"] = 25 * 60
-    if "pomodoro_activo" not in st.session_state:
-        st.session_state["pomodoro_activo"] = False
-
-    def actualizar_tiempo():
-        modo = st.session_state["modo_seleccionado"]
-        if "25m" in modo:
-            st.session_state["pomodoro_tiempo"] = 25 * 60
-        elif "5m" in modo:
-            st.session_state["pomodoro_tiempo"] = 5 * 60
-        else:
-            st.session_state["pomodoro_tiempo"] = 20 * 60
-        st.session_state["pomodoro_activo"] = False
-
-    st.radio(
+    # Selector de minutos
+    opcion_pomo = st.radio(
         "Selecciona tu sesión:",
-        ["Foco (25m)", "Descanso Corto (5m)", "Descanso Largo (20m)"],
+        ["Foco (25 min)", "Descanso Corto (5 min)", "Descanso Largo (20 min)"],
         horizontal=True,
-        key="modo_seleccionado",
-        on_change=actualizar_tiempo,
+        key="radio_pomodoro_js"
     )
 
-    minutos = st.session_state["pomodoro_tiempo"] // 60
-    segundos = st.session_state["pomodoro_tiempo"] % 60
-    st.metric("Tiempo restante", f"{minutos:02d}:{segundos:02d}")
+    # Determinamos el tiempo inicial en segundos
+    minutos_base = 25
+    if "5 min" in opcion_pomo:
+        minutos_base = 5
+    elif "20 min" in opcion_pomo:
+        minutos_base = 20
+    
+    segundos_totales = minutos_base * 60
 
-    col1, col2, col3, col4 = st.columns(4)
+    # Componente visual interactivo en JavaScript que no consume servidor
+    pomodoro_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            .pomo-card {{
+                background-color: #1e1e1e;
+                border: 1px solid #333;
+                border-radius: 12px;
+                padding: 20px;
+                text-align: center;
+                font-family: sans-serif;
+                color: white;
+                max-width: 400px;
+                margin: 10px auto;
+            }}
+            .pomo-display {{
+                font-size: 54px;
+                font-weight: bold;
+                font-family: monospace;
+                color: #00ffcc;
+                margin: 15px 0;
+            }}
+            .pomo-btn {{
+                background-color: #2b313e;
+                color: white;
+                border: 1px solid #4f5b66;
+                padding: 10px 18px;
+                margin: 4px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: 0.2s;
+            }}
+            .pomo-btn:hover {{
+                background-color: #3b82f6;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="pomo-card">
+            <div style="font-size: 14px; color: #a0a0a0;">Tiempo restante</div>
+            <div id="pomo-timer" class="pomo-display">{minutos_base:02d}:00</div>
+            <div>
+                <button class="pomo-btn" onclick="iniciar()">▶️ Iniciar</button>
+                <button class="pomo-btn" onclick="pausar()">⏸️ Pausar</button>
+                <button class="pomo-btn" onclick="reiniciar()">🔄 Reiniciar</button>
+            </div>
+        </div>
 
-    with col1:
-        if st.button("▶️ Iniciar", key="btn_pomo_iniciar"):
-            st.session_state["pomodoro_activo"] = True
-    with col2:
-        if st.button("⏸️ Pausar", key="btn_pomo_pausar"):
-            st.session_state["pomodoro_activo"] = False
-    with col3:
-        if st.button("🔄 Reiniciar", key="btn_pomo_reiniciar"):
-            actualizar_tiempo()
-            st.session_state["pomodoro_activo"] = True
-    with col4:
-        if st.button("⏹️ Detener", key="btn_pomo_detener"):
-            st.session_state["pomodoro_activo"] = False
-            actualizar_tiempo()
+        <script>
+            let tiempoInicial = {segundos_totales};
+            let tiempoRestante = tiempoInicial;
+            let timerId = null;
 
-    if (
-        st.session_state["pomodoro_activo"]
-        and st.session_state["pomodoro_tiempo"] > 0
-    ):
-        time.sleep(1)
-        st.session_state["pomodoro_tiempo"] -= 1
-        st.rerun()
-    elif (
-        st.session_state["pomodoro_tiempo"] == 0
-        and st.session_state["pomodoro_activo"]
-    ):
-        st.balloons()
-        st.success("¡Tiempo finalizado!")
-        st.session_state["pomodoro_activo"] = False
+            function actualizarPantalla() {{
+                let m = Math.floor(tiempoRestante / 60);
+                let s = tiempoRestante % 60;
+                let mStr = m < 10 ? "0" + m : m;
+                let sStr = s < 10 ? "0" + s : s;
+                document.getElementById('pomo-timer').innerText = mStr + ":" + sStr;
+            }}
+
+            function iniciar() {{
+                if (timerId !== null) return;
+                timerId = setInterval(() => {{
+                    if (tiempoRestante > 0) {{
+                        tiempoRestante--;
+                        actualizarPantalla();
+                    }} else {{
+                        clearInterval(timerId);
+                        timerId = null;
+                        alert("🎉 ¡Tiempo finalizado! Buen trabajo.");
+                    }}
+                }}, 1000);
+            }}
+
+            function pausar() {{
+                clearInterval(timerId);
+                timerId = null;
+            }}
+
+            function reiniciar() {{
+                pausar();
+                tiempoRestante = tiempoInicial;
+                actualizarPantalla();
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    
+    components.html(pomodoro_html, height=220)
