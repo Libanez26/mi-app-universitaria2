@@ -192,16 +192,27 @@ def guardar_datos_usuario():
 
 # --- 6. AUTO-LOGIN DESDE COOKIES ---
 if st.session_state["usuario"] is None:
+    # Intentamos obtener la cookie almacenada
     token_guardado = controller.get("supabase_refresh_token")
-    if token_guardado:
+    
+    # Validamos que el token exista y sea una cadena no vacía
+    if token_guardado and isinstance(token_guardado, str) and len(token_guardado.strip()) > 0:
         try:
+            # Restauramos la sesión en Supabase utilizando el token
             res_session = supabase.auth.set_session(token_guardado, token_guardado)
-            if res_session.user:
+            
+            if res_session and res_session.user:
                 st.session_state["usuario"] = res_session.user
+                
+                # Refrescamos la cookie con nuevo refresh_token si Supabase lo renovó
+                if res_session.session and res_session.session.refresh_token:
+                    max_age = 30 * 24 * 60 * 60  # 30 días
+                    controller.set("supabase_refresh_token", res_session.session.refresh_token, max_age=max_age)
+                
                 cargar_datos_usuario(res_session.user.id)
                 st.rerun()
-        except Exception:
-            # Si el token caduco o falló, limpiamos la cookie
+        except Exception as err:
+            # Si el token caducó o es inválido, limpiamos la cookie
             controller.remove("supabase_refresh_token")
 
 
