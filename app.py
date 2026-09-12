@@ -681,11 +681,11 @@ else:
 
   st.title("🎓 Mi App Universitaria")
 
-  tab_pensum, tab_horario, tab_asistente, tab_pomodoro = st.tabs([
+  tab_pensum, tab_horario, tab_asistente, = st.tabs([
       "📚 Pensum y Calificaciones",
       "📅 Horario de Clases",
       "🤖 Asistente Virtual IA",
-      "⏱️ Pomodoro de Estudio Integrado",
+      
   ])
 
   # ==========================================
