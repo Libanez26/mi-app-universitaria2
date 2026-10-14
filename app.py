@@ -1415,7 +1415,7 @@ else:
 
             prompt = """
                         Extrae exhaustivamente todas las clases del documento de horario proporcionado.
-                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves y ordenadas exactamente de esta forma:
+                        Devuelve la respuesta ÚNICAMENTE como una estructura JSON válida, que sea una lista de objetos con exactamente estas claves:
                         [
                           {
                             "dia": "Lunes",
@@ -1425,6 +1425,7 @@ else:
                             "fin": "10:00 AM"
                           }
                         ]
+                        CRÍTICO: Debes ordenar estrictamente la lista de objetos en orden cronológico ascendente por día de la semana (Lunes a Sábado/Domingo) y luego por la hora de inicio (considerando correctamente el formato AM y PM, de modo que las 08:00 AM vayan antes de las 01:20 PM y las 06:40 PM sea lo último).
                         Asegúrate de que las horas estén en formato de 12 horas con AM o PM (ej. "08:00 AM", "02:30 PM").
                         """
 
@@ -1468,8 +1469,11 @@ else:
               df_h["d_orden"] = (
                   df_h["dia"].str.lower().map(dias_map).fillna(8)
               )
-              df_h = df_h.sort_values(by=["d_orden", "inicio"])
-              df_h = df_h.drop(columns=["d_orden"])
+              
+              # Respaldo seguro en Python para ordenar cronológicamente las horas AM/PM
+              df_h["hora_temp"] = pd.to_datetime(df_h["inicio"].str.strip(), format="%I:%M %p", errors="coerce").dt.time
+              df_h = df_h.sort_values(by=["d_orden", "hora_temp"])
+              df_h = df_h.drop(columns=["d_orden", "hora_temp"])
 
               st.session_state["horario_df"] = df_h
               guardar_datos_usuario()
